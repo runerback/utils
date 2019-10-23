@@ -123,5 +123,18 @@ namespace Runerback.Utils.AutoFac
                 return await callback(impl);
             }
         }
+
+        /// <summary>
+        /// be careful since TDef was out of scope
+        /// </summary>
+        public static TDef Self<TDef>()
+        {
+            using (var scope = container.BeginLifetimeScope())
+            {
+                if (!scope.TryResolve(out TDef impl))
+                    throw new KeyNotFoundException($"{typeof(TDef).Name} was not registered");
+                return impl;
+            }
+        }
     }
 }
