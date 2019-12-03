@@ -21,7 +21,9 @@ namespace Runerback.Utils.AutoFac
         public static void RegisterAll(string projDllPrefix)
         {
             var currentDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var projDlls = Directory.GetFiles(currentDir, "*.dll")
+            var projDlls = Enumerable.Empty<string>()
+                .Concat(Directory.GetFiles(currentDir, "*.dll"))
+                .Concat(Directory.GetFiles(currentDir, "*exe"))
                 .Select(it =>
                 {
                     try { return Assembly.LoadFrom(it); }
