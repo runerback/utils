@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 
-namespace Runerback.Utils.AutoFac
+namespace Runerback.Utils.DI
 {
     public static class TypeRegister
     {

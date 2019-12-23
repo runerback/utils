@@ -1,4 +1,4 @@
-﻿namespace Runerback.Utils.AutoFac
+﻿namespace Runerback.Utils.DI
 {
     public enum IoCScope
     {

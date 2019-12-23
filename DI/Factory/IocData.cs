@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Runerback.Utils.AutoFac
+namespace Runerback.Utils.DI
 {
     internal sealed class IocData
     {

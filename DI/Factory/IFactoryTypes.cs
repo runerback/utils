@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Runerback.Utils.AutoFac
+namespace Runerback.Utils.DI
 {
     /// <summary>
     /// used for auto register in each module

@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Runerback.Utils.AutoFac
+namespace Runerback.Utils.DI
 {
     public static class TypeResolver
     {
