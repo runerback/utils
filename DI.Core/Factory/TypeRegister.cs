@@ -46,6 +46,11 @@ namespace Runerback.Utils.DI
                 typeRegister.Register();
         }
 
+        public static void Reset()
+        {
+            registerdTypes.Clear();
+        }
+
         sealed class IocList
         {
             private readonly ConcurrentDictionary<Type, IocData> store =
@@ -70,6 +75,11 @@ namespace Runerback.Utils.DI
 
                 if (!data.ImplType.IsClass || data.ImplType.IsAbstract)
                     throw new ArgumentException("implement type should be non abstract class");
+            }
+
+            public void Clear()
+            {
+                store.Clear();
             }
 
             public IocData[] ToArray() => store.Values.ToArray();
