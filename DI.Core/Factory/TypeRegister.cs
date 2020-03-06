@@ -13,7 +13,7 @@ namespace Runerback.Utils.DI
         internal static IEnumerable<IocData> RegistedTypes => registerdTypes.ToArray();
 
         public static void Register<TDef, TImpl>(IoCScope scope = IoCScope.InstancePerLifetimeScope)
-            where TImpl : class
+            where TImpl : class, TDef, new()
         {
             registerdTypes.Add(IocData.Create<TDef, TImpl>(scope));
         }

@@ -25,7 +25,7 @@ namespace Runerback.Utils.DI
         public Type ServiceType { get; }
         public IoCScope Scope { get; }
 
-        public static IocData Create<TDef, TImpl>(IoCScope scope) where TImpl : class
+        public static IocData Create<TDef, TImpl>(IoCScope scope) where TImpl : class, TDef, new()
         {
             return new IocData(typeof(TImpl), typeof(TDef), scope);
         }
