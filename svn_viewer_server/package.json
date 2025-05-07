@@ -1,0 +1,26 @@
+{
+  "name": "svn_viewer_server",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "start": "cross-env NODE_OPTIONS=--max-old-space-size=8192 && npm run compile && node --trace-uncaught ./libs/dist/index.js",
+    "compile": "npx tsc && npx swc dist -d libs"
+  },
+  "author": "runerback",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "md5": "^2.3.0",
+    "moment": "^2.30.1",
+    "svn_viewer_server": "file:"
+  },
+  "devDependencies": {
+    "@swc/cli": "^0.7.3",
+    "@types/express": "^5.0.1",
+    "@types/md5": "^2.3.5",
+    "@types/node": "^22.15.12",
+    "cross-env": "^7.0.3",
+    "typescript": "^5.8.3"
+  }
+}

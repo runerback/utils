@@ -1,0 +1,29 @@
+.statuscard {
+  background-color: white;
+  margin: 10px;
+}
+
+.statuscard .diffcard {
+  margin: 6px;
+}
+
+.statuscard .diffcard .changes {
+  display: flex;
+  flex-direction: row;
+  margin-top: 6px;
+}
+
+.statuscard .diffcard .changes .state {
+  align-content: flex-start;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #2d78e7;
+  margin-right: 16px;
+  text-align: center;
+}
+
+.statuscard .diffcard .changes .source {
+  flex: 90%;
+  align-content: flex-end;
+}

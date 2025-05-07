@@ -1,0 +1,18 @@
+#app {
+  text-align: center;
+  margin: auto;
+  flex-direction: row;
+  flex-flow: row;
+}
+
+.settings {
+  align-content: center;
+  margin: 1em auto;
+}
+
+.status {
+  height: 70vh;
+  text-align: left;
+  margin: 10px;
+  overflow-y: auto;
+}
