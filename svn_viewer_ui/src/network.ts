@@ -57,17 +57,29 @@ const update_settings = async (settings: SvnSettings) => {
   });
 };
 
-const fetch_status = async () => {
-  await fetch("/api/server/status", {
+const fetch_status = async (job?: Job) => {
+  const res = await fetch("/api/server/status", {
+    headers: {
+      "Content-Type": "application/json",
+    },
     method: "POST",
+    body: JSON.stringify({ job }),
   });
+  return await res.text();
 };
 
-const fetch_diff = async (source?: string) => {
-  const res = await fetch("/api/server/diff", {
-    method: "POST",
-    body: source,
-  });
+const fetch_diff = async (source?: string, job?: Job) => {
+  console.log("fetch_diff ", source);
+  const res = await fetch(
+    "/api/server/diff" + (!!source ? `?path=${encodeURI(source)}` : ""),
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify({ job }),
+    }
+  );
   return await res.text();
 };
 
@@ -98,8 +110,8 @@ export default {
   update_settings: (settings: SvnSettings) =>
     request((settings) => update_settings(settings!), settings),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
-  fetch_status: () => request(fetch_status),
+  fetch_status: () => request(()=> fetch_status("FETCH_STATUS")),
   fetch_diff: (source: string) =>
-    request((source) => fetch_diff(source), source),
+    request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
   onMessage: onMessage as Observable<Message>,
 };

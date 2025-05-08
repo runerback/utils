@@ -1,4 +1,4 @@
-const parseStatus = (rawStatus: string): SvnStatus[] => {
+const parseStatus = (rawStatus: string, settings: SvnSettings): SvnStatus[] => {
   if (!rawStatus) {
     return [];
   }
@@ -23,9 +23,12 @@ const parseStatus = (rawStatus: string): SvnStatus[] => {
     const statusTest = /(?<state>.)\s*(?<source>.+)/g.exec(line);
     if (!!statusTest && !!statusTest.groups) {
       const status = statusTest.groups["state"].trim();
+      const source = statusTest.groups["source"]
+        .replace(settings.svn_root, "")
+        .replace(/\\/g, "/");
       changes.push({
         state: status.length === 0 ? "I" : status,
-        source: statusTest.groups["source"],
+        source: source[0] === "/" ? source.substring(1) : source,
       });
       return;
     }
@@ -47,6 +50,7 @@ const parsechunks0 = (rawdiff: string): Chunk0[] => {
           chunk.sections.splice(chunk.sections.length - 1, 1);
         }
         chunks.push(chunk);
+        chunk = {};
       } else {
         firstChunk = false;
       }
@@ -57,6 +61,9 @@ const parsechunks0 = (rawdiff: string): Chunk0[] => {
     } else {
       chunk.sections?.push(line);
     }
+  }
+  if (!!chunk.sections) {
+    chunks.push(chunk);
   }
   return <Chunk0[]>chunks;
 };
@@ -85,15 +92,24 @@ const buildchunk1 = (chunk: Chunk0, settings: SvnSettings): Chunk1 => {
       chunk1.versions.push({ indicator, version });
       return;
     }
-    const summaryMatch = /@@\s+(?<summary>.+)\s+@@/g.exec(line);
-    if (!!summaryMatch && !!summaryMatch.groups) {
+    const hunkMatch =
+      /@@\s+(?<a>(\+|-))(?<b>\d+),(?<c>\d+)\s+(?<d>(\+|-))(?<e>\d+),(?<f>\d+)\s+@@/g.exec(
+        line
+      );
+    if (!!hunkMatch && !!hunkMatch.groups) {
       if (!!section) {
         chunk1.sections.push(section);
         section = undefined;
       }
-      const summary = summaryMatch.groups["summary"];
       section = {
-        summary,
+        hunk: {
+          a: hunkMatch.groups["a"] as ChunkSectionHunkType,
+          b: parseInt(hunkMatch.groups["b"]) ?? 0,
+          c: parseInt(hunkMatch.groups["c"]) ?? 0,
+          d: hunkMatch.groups["d"] as ChunkSectionHunkType,
+          e: parseInt(hunkMatch.groups["e"]) ?? 0,
+          f: parseInt(hunkMatch.groups["f"]) ?? 0,
+        },
         changes: [],
       };
       return;

@@ -66,36 +66,41 @@ app.get("/settings", (_, res) => {
 });
 
 app.post("/settings", (req, res) => {
+  res.end();
   const payload = req.body as typeof settings;
   settings.svn_root = payload?.svn_root ?? "";
   if (!!svn && !!settings.svn_root && fs.existsSync(settings.svn_root)) {
     settings.svn_root_hash = md5(settings.svn_root);
   }
-  res.end();
 });
 
-app.post("/status", (_, res) => {
-  sendMessage(settings.svn_root_hash, { processing: true });
+app.post("/status", (req, res) => {
+  res.send(settings.svn_root_hash);
+  const params = req.body as { job?: string };
+  sendMessage(settings.svn_root_hash, { processing: true, job: params.job });
   try {
     const svn_status = exec(
       `"${svn}" status "${settings.svn_root}"`,
       { maxBuffer: 1024 * 1024 },
       (error, stdout, stderror) => {
         if (!!error || !!stderror) {
-          sendMessage(settings.svn_root_hash, { error });
+          sendMessage(settings.svn_root_hash, { error, job: params.job });
         }
         if (!!stdout) {
-          sendMessage(settings.svn_root_hash, { data: stdout });
+          sendMessage(settings.svn_root_hash, {
+            data: stdout,
+            job: params.job,
+          });
         }
       }
     );
     svn_status.on("close", () => {
-      sendMessage(settings.svn_root_hash, { completed: true });
+      sendMessage(settings.svn_root_hash, { completed: true, job: params.job });
     });
   } catch (error) {
-    sendMessage(settings.svn_root_hash, { error });
+    sendMessage(settings.svn_root_hash, { error, job: params.job });
+    console.error(error);
   }
-  res.end();
 });
 
 const validateUrl = (source?: string | null) => {
@@ -103,6 +108,7 @@ const validateUrl = (source?: string | null) => {
     return;
   }
   const url = path.join(settings.svn_root, source).replaceAll("\\", "/");
+  console.log("validating", url);
   if (!fs.existsSync(url)) {
     return;
   }
@@ -110,31 +116,34 @@ const validateUrl = (source?: string | null) => {
 };
 
 app.post("/diff", (req, res) => {
-  const url = validateUrl(req.body as string);
+  const url = validateUrl(req.query?.["path"] as string);
   if (!!url) {
     const id = md5(url);
-    sendMessage(id, { processing: true });
+    const params = req.body as { job?: string };
+    res.send(id);
+    sendMessage(id, { processing: true, job: params.job });
     try {
       const svndiff = exec(
         `"${svn}" diff "${url}"`,
         { maxBuffer: 1024 * 1024 },
         (error, stdout, stderror) => {
           if (!!error || !!stderror) {
-            sendMessage(id, { error });
+            sendMessage(id, { error, job: params.job });
           }
           if (!!stdout) {
-            sendMessage(id, { data: stdout });
+            sendMessage(id, { data: stdout, job: params.job });
           }
         }
       );
       svndiff.on("close", () => {
-        sendMessage(id, { completed: true });
+        sendMessage(id, { completed: true, job: params.job });
       });
     } catch (error) {
-      sendMessage(id, { error });
+      sendMessage(id, { error, job: params.job });
+      console.error(error);
     }
-    res.send(id);
   } else {
+    console.log("invalid url");
     res.end();
   }
 });
@@ -159,7 +168,9 @@ app.post("/unversioned", (req, res) => {
         }
       }
     );
-  } catch {}
+  } catch (error) {
+    console.error(error);
+  }
   if (!status || status[0] !== "?") {
     res.end();
     return;

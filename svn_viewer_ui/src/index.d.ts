@@ -10,6 +10,7 @@ declare type Message = {
 };
 
 declare type MessageContent = {
+  readonly job?: Job;
   readonly processing?: boolean;
   readonly data?: string;
   readonly error?: string;
@@ -34,8 +35,21 @@ declare type Chunk0 = {
   readonly sections: Array<string>;
 };
 
+declare type ChunkSectionHunkType = "+" | "-";
+
+// @@ -1,1 +1,1 @@
+//    ab,c de,f
+declare type ChunkSectionHunk = {
+  readonly a: ChunkSectionHunkType;
+  readonly b: number;
+  readonly c: number;
+  readonly d: ChunkSectionHunkType;
+  readonly e: number;
+  readonly f: number;
+};
+
 declare type ChunkSection = {
-  readonly summary: string;
+  readonly hunk: ChunkSectionHunk;
   readonly changes: string[];
 };
 
@@ -46,4 +60,9 @@ declare type Chunk1 = {
     readonly version: string;
   }[];
   readonly sections: ChunkSection[];
+};
+
+declare type SvnDiffProviderStream = {
+  readonly id: string;
+  readonly chunks: Chunk1[];
 };

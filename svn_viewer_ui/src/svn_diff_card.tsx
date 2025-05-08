@@ -10,24 +10,33 @@ import {
   useSignals,
 } from "@preact/signals-react/runtime";
 import type { Key } from "preact";
-import { useCallback } from "preact/hooks";
-import type { Signal } from "@preact/signals-react";
+import { useCallback, useContext, useRef } from "preact/hooks";
+import { SvnDiffProviderContext } from "./svnDiffProviderContext";
+import { filter } from "rxjs";
+
+const formatHunk = (hunk: ChunkSectionHunk) =>
+  `@@ ${hunk.a}${hunk.b},${hunk.c} ${hunk.d}${hunk.e},${hunk.f} @@`;
 
 export function SvnDiffCard(props: {
   key?: Key;
   status: SvnStatusItem;
-  diffs: Signal<Chunk1 | undefined>;
-  provider: (status: SvnStatusItem) => void;
+  observe: (target: HTMLDivElement) => void;
 }) {
   useSignals();
+  const headerRef = useRef<HTMLDivElement>(null);
   const fetching = useSignal(false);
   const fetched = useSignal(false);
   const busy = useSignal(false);
-  const { diffs } = props;
+  const diffId = useSignal("");
+  const diffs = useSignal<Chunk1>();
+  const svnDiffProviderContext = useContext(SvnDiffProviderContext);
   useSignalEffect(() => {
-    if (!!diffs.value) {
-      busy.value = false;
-    }
+    svnDiffProviderContext.stream$
+      .pipe(filter((it) => it.id === diffId.value))
+      .subscribe((e) => {
+        diffs.value = e.chunks?.[0];
+        busy.value = false;
+      });
   });
   const content = useComputed(() => {
     if (!diffs.value) {
@@ -38,10 +47,10 @@ export function SvnDiffCard(props: {
         .map(({ indicator, version }) => `${indicator} ${version}`)
         .join(", ")}`,
       ...diffs.value.sections.flatMap((section) => [
-        `* ${section.summary}`,
+        `* ${formatHunk(section.hunk)}`,
         "---",
         "```diff",
-        ...section.changes,
+        ...section.changes, // TODO: line numbers
         "```",
         "---",
       ]),
@@ -52,7 +61,9 @@ export function SvnDiffCard(props: {
       fetching.value = false;
       fetched.value = true;
       busy.value = true;
-      props.provider(props.status);
+      svnDiffProviderContext
+        .provide(props.status)
+        .then((id) => (diffId.value = id ?? ""));
     }
   });
   const fetch = useCallback((key: string[]) => {
@@ -64,6 +75,11 @@ export function SvnDiffCard(props: {
     }
     fetching.value = true;
   }, []);
+  useSignalEffect(() => {
+    if (!!headerRef.current) {
+      props.observe(headerRef.current);
+    }
+  });
   return (
     <div className="diffcard">
       <Spin spinning={busy.value}>
@@ -74,7 +90,7 @@ export function SvnDiffCard(props: {
           items={[
             {
               label: (
-                <div className="changes">
+                <div className="changes" ref={headerRef}>
                   <div className="state">{props.status.state}</div>
                   <div className="source">{props.status.source}</div>
                 </div>
