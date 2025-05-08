@@ -1,4 +1,4 @@
-const parseStatus = (rawStatus: string, settings: SvnSettings): SvnStatus[] => {
+const parseStatus = (rawStatus: string, settings: Settings): SvnStatus[] => {
   if (!rawStatus) {
     return [];
   }
@@ -23,11 +23,14 @@ const parseStatus = (rawStatus: string, settings: SvnSettings): SvnStatus[] => {
     const statusTest = /(?<state>.)\s*(?<source>.+)/g.exec(line);
     if (!!statusTest && !!statusTest.groups) {
       const status = statusTest.groups["state"].trim();
+      if (status.length === 0) {
+        return; // ignored by svn
+      }
       const source = statusTest.groups["source"]
         .replace(settings.svn_root, "")
         .replace(/\\/g, "/");
       changes.push({
-        state: status.length === 0 ? "I" : status,
+        state: status,
         source: source[0] === "/" ? source.substring(1) : source,
       });
       return;
@@ -68,7 +71,7 @@ const parsechunks0 = (rawdiff: string): Chunk0[] => {
   return <Chunk0[]>chunks;
 };
 
-const buildchunk1 = (chunk: Chunk0, settings: SvnSettings): Chunk1 => {
+const buildchunk1 = (chunk: Chunk0, settings: Settings): Chunk1 => {
   const index = chunk.index
     .replace("Index: ", "")
     .replace(settings.svn_root, "");
@@ -124,7 +127,7 @@ const buildchunk1 = (chunk: Chunk0, settings: SvnSettings): Chunk1 => {
 
 export default {
   parse_status: parseStatus,
-  parse_diff: (rawdiff: string, settings: SvnSettings) => {
+  parse_diff: (rawdiff: string, settings: Settings) => {
     const chunks0 = parsechunks0(rawdiff);
     return chunks0.map((chunk0) => buildchunk1(chunk0, settings));
   },

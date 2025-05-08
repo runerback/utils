@@ -10,17 +10,20 @@
 .statuscard .diffcard .changes {
   display: flex;
   flex-direction: row;
-  margin-top: 6px;
 }
 
 .statuscard .diffcard .changes .state {
-  align-content: flex-start;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1px solid #2d78e7;
-  margin-right: 16px;
+  background: #ececec;
+  border-radius: 0.8em;
+  -moz-border-radius: 0.8em;
+  -webkit-border-radius: 0.8em;
+  color: #03355e;
+  display: inline-block;
+  font-weight: bold;
+  margin-right: 10px;
+  padding-bottom: 0.2em;
   text-align: center;
+  width: 1.6em;
 }
 
 .statuscard .diffcard .changes .source {

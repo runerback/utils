@@ -6,7 +6,6 @@
 
 .header {
   height: auto;
-  background-color: aqua;
 }
 
 .content {
@@ -14,5 +13,5 @@
   flex-grow: 1;
   overflow-y: auto;
   text-align: left;
-  background-color: chocolate;
+  scrollbar-width: thin;
 }

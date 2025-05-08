@@ -44,10 +44,10 @@ const get_settings = async () => {
   const res = await fetch("/api/server/settings", {
     method: "GET",
   });
-  return (await res.json()) as SvnSettings;
+  return (await res.json()) as Settings;
 };
 
-const update_settings = async (settings: SvnSettings) => {
+const update_settings = async (settings: Settings) => {
   await fetch("/api/server/settings", {
     headers: {
       "Content-Type": "application/json",
@@ -69,9 +69,22 @@ const fetch_status = async (job?: Job) => {
 };
 
 const fetch_diff = async (source?: string, job?: Job) => {
-  console.log("fetch_diff ", source);
   const res = await fetch(
     "/api/server/diff" + (!!source ? `?path=${encodeURI(source)}` : ""),
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify({ job }),
+    }
+  );
+  return await res.text();
+};
+
+const fetch_unversioned = async (source?: string, job?: Job) => {
+  const res = await fetch(
+    "/api/server/unversioned" + (!!source ? `?path=${encodeURI(source)}` : ""),
     {
       headers: {
         "Content-Type": "application/json",
@@ -107,11 +120,13 @@ const request = async <TReq = never, TRes = never>(
 export default {
   test_server: () => request(test_server),
   get_settings: () => request(get_settings),
-  update_settings: (settings: SvnSettings) =>
+  update_settings: (settings: Settings) =>
     request((settings) => update_settings(settings!), settings),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
-  fetch_status: () => request(()=> fetch_status("FETCH_STATUS")),
+  fetch_status: () => request(() => fetch_status("FETCH_STATUS")),
   fetch_diff: (source: string) =>
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
+  fetch_unversioned: (source: string) =>
+    request((source) => fetch_unversioned(source, "FETCH_UNVERSIONED"), source),
   onMessage: onMessage as Observable<Message>,
 };

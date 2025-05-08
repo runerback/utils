@@ -36,7 +36,7 @@ if (!svn) {
 const settings = {
   svn_root: "",
   svn_root_hash: "",
-  show_changelist: false,
+  dark_theme: false,
 };
 
 const sendMessage = (id: string, content: any) => {
@@ -58,7 +58,7 @@ app.use(bodyparser.urlencoded({ extended: false }));
 app.use(bodyparser.json());
 
 app.get("/test", (_, res) => {
-  res.send(": This means nothing to me");
+  res.send(": This doesn't means anything to me");
 });
 
 app.get("/settings", (_, res) => {
@@ -69,6 +69,7 @@ app.post("/settings", (req, res) => {
   res.end();
   const payload = req.body as typeof settings;
   settings.svn_root = payload?.svn_root ?? "";
+  settings.dark_theme = Boolean(payload?.dark_theme);
   if (!!svn && !!settings.svn_root && fs.existsSync(settings.svn_root)) {
     settings.svn_root_hash = md5(settings.svn_root);
   }
@@ -108,7 +109,6 @@ const validateUrl = (source?: string | null) => {
     return;
   }
   const url = path.join(settings.svn_root, source).replaceAll("\\", "/");
-  console.log("validating", url);
   if (!fs.existsSync(url)) {
     return;
   }
@@ -121,7 +121,6 @@ app.post("/diff", (req, res) => {
     const id = md5(url);
     const params = req.body as { job?: string };
     res.send(id);
-    sendMessage(id, { processing: true, job: params.job });
     try {
       const svndiff = exec(
         `"${svn}" diff "${url}"`,
@@ -135,47 +134,68 @@ app.post("/diff", (req, res) => {
           }
         }
       );
+      sendMessage(id, { processing: true, job: params.job });
       svndiff.on("close", () => {
         sendMessage(id, { completed: true, job: params.job });
       });
     } catch (error) {
-      sendMessage(id, { error, job: params.job });
       console.error(error);
+      sendMessage(id, { error, job: params.job });
     }
   } else {
-    console.log("invalid url");
+    console.warn("invalid url");
     res.end();
   }
 });
 
-app.post("/unversioned", (req, res) => {
-  const url = validateUrl(req.body as string);
+app.post("/unversioned", async (req, res) => {
+  const url = validateUrl(req.query?.["path"] as string);
   if (!url) {
     res.end();
     return;
   }
-  let status = "";
-  try {
-    exec(
-      `"${svn}" status "${url}"`,
-      { maxBuffer: 1024 * 1024 },
-      (error, stdout, stderror) => {
-        if (!!error || !!stderror) {
-          return;
+  const id = md5(url);
+  const params = req.body as { job?: string };
+  res.send(id);
+  sendMessage(id, { processing: true, job: params.job });
+  // make sure file is unversioned
+  const status = await new Promise<string | null | undefined>((res, rej) => {
+    let status = "";
+    try {
+      const svnstatus = exec(
+        `"${svn}" status "${url}"`,
+        { maxBuffer: 1024 * 1024 },
+        (error, stdout, stderror) => {
+          if (!!error || !!stderror) {
+            return;
+          }
+          if (!!stdout) {
+            status = stdout;
+          }
         }
-        if (!!stdout) {
-          status = stdout;
-        }
-      }
-    );
-  } catch (error) {
-    console.error(error);
-  }
+      );
+      svnstatus.on("close", () => {
+        res(status);
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  });
   if (!status || status[0] !== "?") {
     res.end();
     return;
   }
-  res.send(fs.readFileSync(url, { encoding: "utf-8" }));
+  try {
+    sendMessage(id, {
+      data: fs.readFileSync(url, { encoding: "utf-8" }),
+      job: params.job,
+    });
+  } catch (error) {
+    console.error(error);
+    sendMessage(id, { error, job: params.job });
+  } finally {
+    sendMessage(id, { completed: true, job: params.job });
+  }
 });
 
 app.listen(process.env["SERVER_PORT"], () => {

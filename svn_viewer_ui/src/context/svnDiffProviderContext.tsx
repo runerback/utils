@@ -20,7 +20,11 @@ export const publishSvnDiffStream = (stream: SvnDiffProviderStream) => {
 export default (): ISvnDiffProviderContext => ({
   stream$: svnDiffProviderStream$,
   provide: (status) => {
-    console.log("providing diff for ", status);
-    return network.fetch_diff(status.source);
+    switch (status.state) {
+      case "?":
+        return network.fetch_unversioned(status.source);
+      default:
+        return network.fetch_diff(status.source);
+    }
   },
 });

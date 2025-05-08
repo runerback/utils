@@ -24,6 +24,7 @@ app.MapPost("/pickdir", async ([FromQuery] string? path, CancellationToken cance
                     FormBorderStyle = FormBorderStyle.None,
                 };
                 container.Show();
+                container.BringToFront();
                 try
                 {
                     var dialog = new FolderBrowserDialog();

@@ -1,8 +1,14 @@
-declare type SvnSettings = {
+declare type Settings = {
   readonly svn_root: string;
+  readonly dark_theme?: boolean;
 };
 
-declare type Job = "IDLE" | "FETCH_SETTINGS" | "FETCH_STATUS" | "FETCH_DIFFS";
+declare type Job =
+  | "IDLE"
+  | "FETCH_SETTINGS"
+  | "FETCH_STATUS"
+  | "FETCH_DIFFS"
+  | "FETCH_UNVERSIONED";
 
 declare type Message = {
   readonly id: string;
@@ -64,5 +70,7 @@ declare type Chunk1 = {
 
 declare type SvnDiffProviderStream = {
   readonly id: string;
-  readonly chunks: Chunk1[];
+  readonly chunks?: Chunk1[];
+  readonly unversioned?: string[];
+  readonly finished?: boolean;
 };

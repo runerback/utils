@@ -1,29 +1,45 @@
-import { Button, Collapse, Form, Input } from "antd";
-import { useForm, type FormProps } from "antd/es/form/Form";
-import type { ValidateErrorEntity } from "../node_modules/rc-field-form/lib/interface";
-import { useSignalEffect, useSignals } from "@preact/signals-react/runtime";
+import { Button, Collapse, Form, Input, Switch } from "antd";
+import { useForm } from "antd/es/form/Form";
+import {
+  useSignal,
+  useSignalEffect,
+  useSignals,
+} from "@preact/signals-react/runtime";
 import type { ReadonlySignal } from "@preact/signals-react";
-import { useCallback } from "preact/hooks";
 import "./settings.css";
+import { debounceTime, Subject } from "rxjs";
+
+const changes$ = new Subject<void>();
 
 export default function (props: {
   busy: boolean;
   title: string;
-  source$: ReadonlySignal<SvnSettings | undefined>;
+  source$: ReadonlySignal<Settings | undefined>;
   pickDir: () => void;
-  onFinish: (values: SvnSettings) => void;
+  onFinish: (values: Settings) => void;
+  onFetch: () => void;
 }) {
   useSignals();
-  const [svnSettingsForm] = useForm<SvnSettings>();
+  const canFetch = useSignal(false);
+  const [svnSettingsForm] = useForm<Settings>();
   useSignalEffect(() => {
     svnSettingsForm.setFieldsValue(props.source$.value ?? {});
+    changes$.next();
   });
-  const onFailed: FormProps<SvnSettings>["onFinishFailed"] = useCallback(
-    (errorInfo: ValidateErrorEntity<SvnSettings>) => {
-      console.log("Failed:", errorInfo);
-    },
-    []
-  );
+  useSignalEffect(() => {
+    changes$.pipe(debounceTime(200)).subscribe(() => {
+      canFetch.value = false;
+      svnSettingsForm
+        .validateFields()
+        .then((values) => {
+          canFetch.value = true;
+          // props.onFinish(values); // dead end
+        })
+        .catch((error) => {
+          console.log("Form validation failed:", error);
+        });
+    });
+  });
   return (
     <div className="settings">
       <Collapse
@@ -33,38 +49,45 @@ export default function (props: {
         items={[
           {
             key: 1,
-            label: props.title,
+            label: <b>{props.title}</b>,
             children: [
               <Form
-                style={{ minWidth: 800, maxWidth: "100%" }}
+                style={{ minWidth: 800, maxWidth: "100%", textAlign: "left" }}
                 initialValues={{ remember: false }}
-                onFinish={props.onFinish}
-                onFinishFailed={onFailed}
                 autoComplete="off"
                 form={svnSettingsForm}
+                onValuesChange={() => changes$.next()}
               >
-                <Form.Item<SvnSettings>
+                <Form.Item<Settings>
                   label="Project path"
                   name="svn_root"
                   rules={[
                     {
                       required: true,
-                      message: "Please input your project path!",
+                      message: "Please choose your project path!",
                     },
                   ]}
                 >
                   <Input.Search
+                    readOnly
                     disabled={props.busy}
                     enterButton="..."
                     onSearch={props.pickDir}
                   />
                 </Form.Item>
-                <Form.Item label={null}>
-                  <Button type="primary" htmlType="submit" loading={props.busy}>
-                    Check Diffs
-                  </Button>
+                <Form.Item<Settings> label="Use dark theme" name="dark_theme">
+                  <Switch />
                 </Form.Item>
               </Form>,
+              <Button
+                type="primary"
+                size="small"
+                loading={props.busy}
+                disabled={!canFetch.value}
+                onClick={() => props.onFetch()}
+              >
+                Check Diffs
+              </Button>,
             ],
           },
         ]}
