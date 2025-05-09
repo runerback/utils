@@ -10,6 +10,18 @@ import "./settings.css";
 import { debounceTime, Subject } from "rxjs";
 
 const changes$ = new Subject<void>();
+const hasChanged = (a?: Settings, b?: Settings) => {
+  if (!a || !b) {
+    return false;
+  }
+  if (a.svn_root !== b.svn_root) {
+    return true;
+  }
+  if (Boolean(a.dark_theme) !== Boolean(b.dark_theme)) {
+    return true;
+  }
+  return false;
+};
 
 export default function (props: {
   busy: boolean;
@@ -33,7 +45,9 @@ export default function (props: {
         .validateFields()
         .then((values) => {
           canFetch.value = true;
-          // props.onFinish(values); // dead end
+          if (hasChanged(values, props.source$.peek())) {
+            props.onFinish(values);
+          }
         })
         .catch((error) => {
           console.log("Form validation failed:", error);

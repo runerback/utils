@@ -1,7 +1,6 @@
 import { Collapse, Spin } from "antd";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
 import {
   useComputed,
   useSignal,
@@ -12,8 +11,8 @@ import type { Key } from "preact";
 import { useCallback, useContext, useRef } from "preact/hooks";
 import { SvnDiffProviderContext } from "../context/svnDiffProviderContext";
 import { filter } from "rxjs";
-import { formatHunk, withLineNumber } from "../context/formatter";
 import type { ReadonlySignal } from "@preact/signals-react";
+import rehypeDiffLineNumber from "./rehypeDiffLineNumber";
 
 const DEFAULT_THEME = "../../node_modules/highlight.js/styles/github.min.css";
 const DARK_THEME = "../../node_modules/highlight.js/styles/github-dark.min.css";
@@ -50,13 +49,13 @@ export function SvnDiffCard(props: {
   const content = useComputed(() => {
     if (!!diffs.value) {
       return [
-        ...diffs.value.sections.flatMap((section) => [
-          `* ${formatHunk(section.hunk)}`,
-          "```diff",
-          ...withLineNumber(section),
-          "```",
-          "---",
-        ]),
+        ...diffs.value.sections.flatMap((section) => {
+          return [
+            `\`\`\`diff ${JSON.stringify(section.hunk)}`,
+            ...section.changes,
+            "```",
+          ];
+        }),
       ].join("\n");
     }
     if (!!unversioned.value) {
@@ -118,18 +117,17 @@ export function SvnDiffCard(props: {
                 </div>
               ),
               children: [
-                !!diffs.value && (
-                  <h3>
-                    {diffs.value.versions
-                      .map(
-                        ({ indicator, version }) => `${indicator} ${version}`
-                      )
-                      .join(", ")}
-                  </h3>
-                ),
+                !!diffs.value &&
+                  diffs.value.versions.map(({ indicator, version }) => (
+                    <div>
+                      <b>
+                        {indicator} {version}
+                      </b>
+                    </div>
+                  )),
                 <Markdown
                   remarkPlugins={[[remarkGfm]]}
-                  rehypePlugins={[[rehypeHighlight]]}
+                  rehypePlugins={[[rehypeDiffLineNumber]]}
                 >
                   {content.value}
                 </Markdown>,

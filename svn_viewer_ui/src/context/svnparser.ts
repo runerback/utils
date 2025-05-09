@@ -92,7 +92,10 @@ const buildchunk1 = (chunk: Chunk0, settings: Settings): Chunk1 => {
       }
       const indicator = versionMatch.groups["indicator"];
       const version = versionMatch.groups["version"];
-      chunk1.versions.push({ indicator, version });
+      chunk1.versions.push({
+        indicator: indicator === "---" ? "- - - " : indicator,
+        version,
+      });
       return;
     }
     const hunkMatch =

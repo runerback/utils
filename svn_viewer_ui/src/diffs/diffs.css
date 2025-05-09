@@ -30,3 +30,22 @@
   flex: 90%;
   align-content: flex-end;
 }
+
+.statuscard .diffcard code .diff_row {
+  display: grid;
+  grid-template-columns: 30px 30px auto;
+}
+
+.statuscard .diffcard code .diff_row .number {
+  font-weight: bold;
+  user-select: none;
+  color: gray;
+}
+
+.statuscard .diffcard code .diff_row .addition {
+  background-color: #063a18;
+}
+
+.statuscard .diffcard code .diff_row .deletion {
+  background-color: #66030f;
+}
