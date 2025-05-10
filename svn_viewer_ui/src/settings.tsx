@@ -28,7 +28,7 @@ const hasChanged = (a?: Settings, b?: Settings) => {
 
 export default function (props: {
   busy: boolean;
-  title: string;
+  title: ReadonlySignal<string>;
   source$: ReadonlySignal<Settings | undefined>;
   pickDir: () => void;
   onFinish: (values: Settings) => void;
@@ -68,14 +68,20 @@ export default function (props: {
     props.onFetch();
     actived.value = false;
   }, []);
+  const title = useComputed(() => {
+    if (props.title.value) {
+      return `Welcome ${props.title.value}`;
+    }
+    return "Welcom, but 😵";
+  });
   const label = useComputed(() => {
     if (actived.value) {
-      return props.title;
+      return title.value;
     }
     if (!!props.source$.value?.svn_root) {
       return props.source$.value.svn_root;
     }
-    return props.title;
+    return title.value;
   });
   return (
     <div className="settings">
@@ -102,6 +108,7 @@ export default function (props: {
               <Button
                 loading={props.busy}
                 icon={<ReloadOutlined spin={props.busy} />}
+                title="Check Status"
                 onClick={(e) => {
                   e.stopPropagation();
                   fetch();
@@ -144,7 +151,7 @@ export default function (props: {
                 disabled={!canFetch.value}
                 onClick={fetch}
               >
-                Check Diffs
+                Check Status
               </Button>,
             ],
           },

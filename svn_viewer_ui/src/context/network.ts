@@ -69,30 +69,44 @@ const fetch_status = async (job?: Job) => {
 };
 
 const fetch_diff = async (source?: string, job?: Job) => {
-  const res = await fetch(
-    "/api/server/diff" + (!!source ? `?path=${encodeURI(source)}` : ""),
-    {
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-      body: JSON.stringify({ job }),
-    }
-  );
+  if (!source) {
+    return;
+  }
+  const res = await fetch(`/api/server/diff?path=${encodeURI(source)}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ job }),
+  });
+  return await res.text();
+};
+
+const fetch_logs = async (source?: string, job?: Job) => {
+  if (!source) {
+    return;
+  }
+  const res = await fetch(`/api/server/logs?path=${encodeURI(source)}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ job }),
+  });
   return await res.text();
 };
 
 const fetch_unversioned = async (source?: string, job?: Job) => {
-  const res = await fetch(
-    "/api/server/unversioned" + (!!source ? `?path=${encodeURI(source)}` : ""),
-    {
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-      body: JSON.stringify({ job }),
-    }
-  );
+  if (!source) {
+    return;
+  }
+  const res = await fetch(`/api/server/unversioned?path=${encodeURI(source)}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ job }),
+  });
   return await res.text();
 };
 
@@ -137,6 +151,8 @@ export default {
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
   fetch_unversioned: (source: string) =>
     request((source) => fetch_unversioned(source, "FETCH_UNVERSIONED"), source),
+  fetch_logs: (source: string) =>
+    request((source) => fetch_logs(source, "FETCH_LOGS"), source),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
   open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
 };

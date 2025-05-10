@@ -52,7 +52,7 @@ const parsechunks0 = (rawdiff: string): Chunk0[] => {
         if (!!chunk.sections) {
           chunk.sections.splice(chunk.sections.length - 1, 1);
         }
-        chunks.push(chunk);
+        chunks.push({ ...chunk });
         chunk = {};
       } else {
         firstChunk = false;
@@ -128,10 +128,53 @@ const buildchunk1 = (chunk: Chunk0, settings: Settings): Chunk1 => {
   return chunk1;
 };
 
+const parseLogs = (rawLogs: string) => {
+  const lines = rawLogs.split(/\r|\n/gs).filter(Boolean);
+  const logs = Array<SvnLog>();
+  let infoLine = false;
+  let log: SvnLog | undefined;
+  for (let i = 0, j = lines.length; i < j; i++) {
+    const line = lines[i];
+    if (/(-{60,})/.test(line)) {
+      infoLine = true;
+      if (!!log) {
+        logs.push({ ...log });
+      }
+      log = undefined;
+      continue;
+    }
+    if (infoLine) {
+      infoLine = false;
+      const infoMatch =
+        /.*?r(?<revision>\d+)\s*\|\s*(?<author>.+)\s*\|\s*(?<timestamp>.+)\s*\|\s*(?<line>\d+)\s*line.*?/g.exec(
+          line
+        );
+      if (!!infoMatch && !!infoMatch.groups) {
+        log = {
+          revision: infoMatch.groups["revision"],
+          author: infoMatch.groups["author"],
+          timestamp: infoMatch.groups["timestamp"],
+          changes: parseInt(infoMatch.groups["line"]) ?? 0,
+        };
+      }
+    } else {
+      if (!!log) {
+        log.message = line;
+      }
+    }
+  }
+  if (!!log) {
+    logs.push({ ...log });
+  }
+
+  return logs;
+};
+
 export default {
   parse_status: parseStatus,
   parse_diff: (rawdiff: string, settings: Settings) => {
     const chunks0 = parsechunks0(rawdiff);
     return chunks0.map((chunk0) => buildchunk1(chunk0, settings));
   },
+  parse_logs: parseLogs,
 };

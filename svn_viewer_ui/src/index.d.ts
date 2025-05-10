@@ -8,7 +8,8 @@ declare type Job =
   | "FETCH_SETTINGS"
   | "FETCH_STATUS"
   | "FETCH_DIFFS"
-  | "FETCH_UNVERSIONED";
+  | "FETCH_UNVERSIONED"
+  | "FETCH_LOGS";
 
 declare type Message = {
   readonly id: string;
@@ -24,7 +25,7 @@ declare type MessageContent = {
   readonly timestamp: string;
 };
 
-declare type SvnChangelistName = "NO_CHANGE_LIST" | string;
+declare type SvnChangelistName = "NO-CHANGE-LIST" | string;
 
 declare type SvnStatusItem = {
   readonly state: string;
@@ -68,9 +69,18 @@ declare type Chunk1 = {
   readonly sections: ChunkSection[];
 };
 
+declare type SvnLog = {
+  readonly revision: string;
+  readonly author?: string;
+  readonly timestamp?: string;
+  message?: string;
+  readonly changes?: number;
+};
+
 declare type SvnDiffProviderStream = {
   readonly id: string;
   readonly chunks?: Chunk1[];
+  readonly logs?: SvnLog[];
   readonly unversioned?: string[];
   readonly finished?: boolean;
 };

@@ -29,7 +29,7 @@ network.onMessage.subscribe((e) => {
 
 export function App() {
   useSignals();
-  const serverStatus = useSignal("!");
+  const serverStatus = useSignal("");
   const settings = useSignal<Settings>();
   const rawStatus = useSignal("");
   const status = useComputed(() => {
@@ -52,14 +52,12 @@ export function App() {
   }, []);
 
   useSignalEffect(() => {
+    serverStatus.value = "";
     network.test_server().then((status) => {
+      serverStatus.value = status ?? "";
       if (!!status) {
-        serverStatus.value = status;
-      } else {
-        serverStatus.value = ", but 😵";
-        return;
+        fetchSettings();
       }
-      fetchSettings();
     });
   });
 
@@ -99,6 +97,7 @@ export function App() {
         switch (content.job) {
           case "FETCH_DIFFS":
           case "FETCH_UNVERSIONED":
+          case "FETCH_LOGS":
             publishSvnDiffStream({
               id,
               finished: true,
@@ -124,6 +123,13 @@ export function App() {
               unversioned: content.data.split(/\r|\n/g).filter(Boolean),
             });
             break;
+          case "FETCH_LOGS": {
+            publishSvnDiffStream({
+              id,
+              logs: svnparser.parse_logs(content.data),
+            });
+            break;
+          }
           default:
             break;
         }
@@ -162,7 +168,7 @@ export function App() {
     <Layout>
       <Header>
         <Settings
-          title={`Welcome${serverStatus.value}`}
+          title={serverStatus}
           busy={busy.value}
           source$={settings}
           onFinish={onSettingsChange}

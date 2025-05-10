@@ -12,7 +12,11 @@ import { filter } from "rxjs";
 import type { ReadonlySignal } from "@preact/signals-react";
 import SvnDiffMarkdown from "./svn_diff_markdown";
 import SvnUnversionedMarkdown from "./svn_unversioned_markdown";
-import { FolderOpenOutlined, ReloadOutlined } from "@ant-design/icons";
+import {
+  FolderOpenOutlined,
+  HistoryOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
 import network from "../context/network";
 
 export function SvnDiffCard(props: {
@@ -45,6 +49,8 @@ export function SvnDiffCard(props: {
           diffs.value = e.chunks[0];
         } else if (!!e.unversioned && e.unversioned.length > 0) {
           unversioned.value = e.unversioned;
+        } else if (!!e.logs && e.logs.length > 0) {
+          console.log({ svn_logs: e.logs });
         }
         busy.value = false;
       });
@@ -164,6 +170,7 @@ export function SvnDiffCard(props: {
                   <Button
                     loading={busy.value}
                     icon={<ReloadOutlined spin={busy.value} />}
+                    title="Reload"
                     onClick={(e) => {
                       e.stopPropagation();
                       fetch();
@@ -176,6 +183,15 @@ export function SvnDiffCard(props: {
                     onClick={(e) => {
                       e.stopPropagation();
                       network.open_in_dir(props.status.source);
+                    }}
+                  />
+                  <Button
+                    loading={busy.value}
+                    icon={<HistoryOutlined spin={busy.value} />}
+                    title="Show Logs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      network.fetch_logs(props.status.source);
                     }}
                   />
                 </Space>

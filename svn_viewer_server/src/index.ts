@@ -225,6 +225,42 @@ app.post("/unversioned", async (req, res) => {
   }
 });
 
+app.post("/logs", (req, res) => {
+  const url = validateUrl(req.query?.["path"] as string);
+  if (!!url) {
+    const id = md5(url);
+    const params = req.body as { job?: string };
+    res.send(id);
+    try {
+      const svndiff = execute(
+        `"${svn}" log "${url}"`,
+        (error, stdout, stderror) => {
+          if (!!error || !!stderror) {
+            sendMessage(settings.svn_root_hash, {
+              error: error || stderror,
+              job: params.job,
+            });
+            console.error(error || stderror);
+          }
+          if (!!stdout) {
+            sendMessage(id, { data: stdout, job: params.job });
+          }
+        }
+      );
+      sendMessage(id, { processing: true, job: params.job });
+      svndiff.on("close", () => {
+        sendMessage(id, { completed: true, job: params.job });
+      });
+    } catch (error) {
+      console.error(error);
+      sendMessage(id, { error, job: params.job });
+    }
+  } else {
+    console.warn("invalid url");
+    res.end();
+  }
+});
+
 app.post("/opendir", async (req, res) => {
   const url = validateUrl(req.query?.["path"] as string);
   if (!url) {
