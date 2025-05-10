@@ -8,6 +8,7 @@ var ui_helper = builder.AddProject<Projects.svn_viewer_ui_helper>("uihelper")
 
 var server = builder.AddNpmApp("server", "../svn_viewer_server")
     .WithReference(messages).WaitFor(messages)
+    .WithReference(ui_helper).WaitFor(ui_helper)
     .WithEnvironment("BROWSER", "none")
     .WithExternalHttpEndpoints()
     .WithHttpEndpoint(env: "SERVER_PORT");

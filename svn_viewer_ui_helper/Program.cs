@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
 using var cts = new CancellationTokenSource();
@@ -24,6 +26,9 @@ app.MapPost("/pickdir", async ([FromQuery] string? path, CancellationToken cance
                     FormBorderStyle = FormBorderStyle.None,
                 };
                 container.Show();
+                container.BringToFront();
+                Task.Delay(500).ContinueWith(_ => container
+                    .BeginInvoke(() => container.BringToFront()));
                 container.BringToFront();
                 try
                 {
@@ -59,6 +64,19 @@ app.MapPost("/pickdir", async ([FromQuery] string? path, CancellationToken cance
     if (result is { Length: > 0 } choosen)
     {
         return Results.Text(choosen);
+    }
+    return Results.NoContent();
+});
+
+app.MapPost("/opendir", async ([FromQuery, Required] string path, CancellationToken cancellationToken) =>
+{
+    if (!string.IsNullOrWhiteSpace(path) && OperatingSystem.IsWindows())
+    {
+        var explorer = Process.Start("explorer", $"/select,{path.Replace('/', '\\')}");
+        if (explorer != null)
+        {
+            await explorer.WaitForExitAsync(cancellationToken);
+        }
     }
     return Results.NoContent();
 });

@@ -13,17 +13,7 @@
 }
 
 .statuscard .diffcard .changes .state {
-  background: #ececec;
-  border-radius: 0.8em;
-  -moz-border-radius: 0.8em;
-  -webkit-border-radius: 0.8em;
-  color: #03355e;
-  display: inline-block;
-  font-weight: bold;
-  margin-right: 10px;
-  padding-bottom: 0.2em;
-  text-align: center;
-  width: 1.6em;
+  font-size: 1.2em;
 }
 
 .statuscard .diffcard .changes .source {
@@ -31,21 +21,51 @@
   align-content: flex-end;
 }
 
-.statuscard .diffcard code .diff_row {
-  display: grid;
-  grid-template-columns: 30px 30px auto;
+.statuscard .header {
+  display: flex;
 }
 
-.statuscard .diffcard code .diff_row .number {
+.statuscard .header .indicator {
+  flex: 80%;
+  justify-content: flex-start;
+}
+
+.statuscard .header .operations {
+  flex: auto;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.statuscard .diffcard .diff_panel {
+  --diff-addition-background: #f0fff4;
+  --diff-deletion-background: #ffeef0;
+  --line-number-width: 30px;
+
+  border: solid lightgray 1px;
+}
+
+.statuscard .diffcard .diff_panel .diff_row {
+  display: grid;
+  grid-template-columns: var(--line-number-width) var(--line-number-width) auto;
+}
+
+.statuscard .diffcard .diff_panel .diff_row .number {
   font-weight: bold;
   user-select: none;
   color: gray;
+  padding-right: 8px;
 }
 
-.statuscard .diffcard code .diff_row .addition {
-  background-color: #063a18;
+.statuscard .diffcard .diff_panel .diff_row .hunk {
+  color: gray;
+  font-style: italic;
 }
 
-.statuscard .diffcard code .diff_row .deletion {
-  background-color: #66030f;
+.statuscard .diffcard .diff_panel .diff_row .addition {
+  background-color: var(--diff-addition-background);
+}
+
+.statuscard .diffcard .diff_panel .diff_row .deletion {
+  background-color: var(--diff-deletion-background);
 }

@@ -68,7 +68,7 @@ const parsechunks0 = (rawdiff: string): Chunk0[] => {
   if (!!chunk.sections) {
     chunks.push(chunk);
   }
-  return <Chunk0[]>chunks;
+  return chunks as Chunk0[];
 };
 
 const buildchunk1 = (chunk: Chunk0, settings: Settings): Chunk1 => {

@@ -1,6 +1,4 @@
-import { Collapse, Spin } from "antd";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Button, Collapse, Space, Spin } from "antd";
 import {
   useComputed,
   useSignal,
@@ -8,14 +6,14 @@ import {
   useSignals,
 } from "@preact/signals-react/runtime";
 import type { Key } from "preact";
-import { useCallback, useContext, useRef } from "preact/hooks";
+import { useCallback, useContext, useMemo, useRef } from "preact/hooks";
 import { SvnDiffProviderContext } from "../context/svnDiffProviderContext";
 import { filter } from "rxjs";
 import type { ReadonlySignal } from "@preact/signals-react";
-import rehypeDiffLineNumber from "./rehypeDiffLineNumber";
-
-const DEFAULT_THEME = "../../node_modules/highlight.js/styles/github.min.css";
-const DARK_THEME = "../../node_modules/highlight.js/styles/github-dark.min.css";
+import SvnDiffMarkdown from "./svn_diff_markdown";
+import SvnUnversionedMarkdown from "./svn_unversioned_markdown";
+import { FolderOpenOutlined, ReloadOutlined } from "@ant-design/icons";
+import network from "../context/network";
 
 export function SvnDiffCard(props: {
   key?: Key;
@@ -25,7 +23,6 @@ export function SvnDiffCard(props: {
   unobserve: (target: HTMLElement) => void;
 }) {
   useSignals();
-  const markdownTheme = useSignal(DEFAULT_THEME);
   const headerRef = useRef<HTMLDivElement>(null);
   const fetching = useSignal(false);
   const fetched = useSignal(false);
@@ -33,6 +30,12 @@ export function SvnDiffCard(props: {
   const diffId = useSignal("");
   const diffs = useSignal<Chunk1>();
   const unversioned = useSignal(Array<string>());
+  const language = useMemo(() => {
+    const lastDotIdx = props.status.source.lastIndexOf(".");
+    if (lastDotIdx > 0) {
+      return props.status.source.substring(lastDotIdx + 1);
+    }
+  }, [props.status]);
   const svnDiffProviderContext = useContext(SvnDiffProviderContext);
   useSignalEffect(() => {
     svnDiffProviderContext.stream$
@@ -46,46 +49,62 @@ export function SvnDiffCard(props: {
         busy.value = false;
       });
   });
-  const content = useComputed(() => {
+  const diffContent = useComputed(() => {
     if (!!diffs.value) {
       return [
-        ...diffs.value.sections.flatMap((section) => {
+        ...diffs.value.sections.flatMap((section, idx) => {
           return [
+            idx > 0 && "---",
             `\`\`\`diff ${JSON.stringify(section.hunk)}`,
             ...section.changes,
             "```",
-          ];
+          ].filter(Boolean);
         }),
       ].join("\n");
     }
+  });
+  const unversionedContent = useComputed(() => {
     if (!!unversioned.value) {
-      let codeType = "";
-      const lastDotIdx = props.status.source.lastIndexOf(".");
-      if (lastDotIdx > 0) {
-        codeType = props.status.source.substring(lastDotIdx + 1);
-      }
-      return [`\`\`\`${codeType}`, ...unversioned.value, "```"].join("\n");
+      return unversioned.value;
     }
+    return [];
+  });
+  const maxLine = useComputed(() => {
+    let max = 0;
+    if (!!diffs.value) {
+      diffs.value.sections.forEach((section) => {
+        const current =
+          Math.max(section.hunk.b, section.hunk.e) + section.changes.length;
+        if (current > max) {
+          max = current;
+        }
+      });
+    } else if (!!unversioned.value) {
+      max = unversioned.value.length;
+    }
+    return max;
   });
   useSignalEffect(() => {
     if (fetching.value && !fetched.value) {
       fetching.value = false;
       fetched.value = true;
       busy.value = true;
-      svnDiffProviderContext
-        .provide(props.status)
-        .then((id) => (diffId.value = id ?? ""));
+      svnDiffProviderContext.provide(props.status).then((id) => {
+        if (!!id) {
+          diffId.value = id;
+        } else {
+          diffId.value = "";
+          busy.value = false;
+        }
+      });
     }
   });
-  useSignalEffect(() => {
-    const currentSettings = props.settings.value;
-    if (!!currentSettings && !!currentSettings.dark_theme) {
-      markdownTheme.value = DARK_THEME;
-    } else {
-      markdownTheme.value = DEFAULT_THEME;
+  const fetch = useCallback((key?: string[]) => {
+    if (typeof key === "undefined") {
+      fetched.value = false;
+      fetching.value = true;
+      return;
     }
-  });
-  const fetch = useCallback((key: string[]) => {
     if (!key || key.length === 0) {
       if (!!headerRef.current) {
         props.unobserve(headerRef.current);
@@ -100,9 +119,33 @@ export function SvnDiffCard(props: {
     }
     fetching.value = true;
   }, []);
+  const isEmpty = useComputed(() => {
+    if (!!diffs.value) {
+      return false;
+    }
+    if (!!unversionedContent.value && unversionedContent.value.length > 0) {
+      return false;
+    }
+    return true;
+  });
+  const stateIcon = useComputed(() => {
+    switch (props.status.state) {
+      case "M":
+        return "Ⓜ️";
+      case "D":
+        return "❌";
+      case "A":
+        return "➕";
+      case "?":
+        return "❓";
+      case "!":
+        return "❗";
+      default:
+        return props.status.state;
+    }
+  });
   return (
     <div className="diffcard">
-      <link rel="stylesheet" type="text/css" href={markdownTheme.value} />
       <Spin spinning={busy.value}>
         <Collapse
           bordered
@@ -112,28 +155,71 @@ export function SvnDiffCard(props: {
             {
               label: (
                 <div className="changes" ref={headerRef}>
-                  <div className="state">{props.status.state}</div>
+                  <div className="state">{stateIcon.value}</div>
                   <div className="source">{props.status.source}</div>
                 </div>
               ),
+              extra: (
+                <Space>
+                  <Button
+                    loading={busy.value}
+                    icon={<ReloadOutlined spin={busy.value} />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetch();
+                    }}
+                  />
+                  <Button
+                    loading={busy.value}
+                    icon={<FolderOpenOutlined spin={busy.value} />}
+                    title="Open Containing Folder"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      network.open_in_dir(props.status.source);
+                    }}
+                  />
+                </Space>
+              ),
               children: [
-                !!diffs.value &&
-                  diffs.value.versions.map(({ indicator, version }) => (
-                    <div>
-                      <b>
-                        {indicator} {version}
-                      </b>
-                    </div>
+                <div className="header">
+                  <div className="indicator">
+                    {isEmpty.value ? (
+                      <div>
+                        <i>🈳️ NOTHING HERE 🫥</i>
+                      </div>
+                    ) : (
+                      !!diffs.value &&
+                      diffs.value.versions.map(({ indicator, version }) => (
+                        <div>
+                          <b>
+                            {indicator} {version}
+                          </b>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="operations"></div>
+                </div>,
+                !isEmpty.value &&
+                  (!!diffContent.value ? (
+                    <SvnDiffMarkdown
+                      content={diffContent.value}
+                      maxLine={maxLine}
+                      {...props}
+                    />
+                  ) : (
+                    !!unversionedContent.value &&
+                    unversionedContent.value.length > 0 && (
+                      <SvnUnversionedMarkdown
+                        lines$={unversionedContent}
+                        language={language}
+                        {...props}
+                      />
+                    )
                   )),
-                <Markdown
-                  remarkPlugins={[[remarkGfm]]}
-                  rehypePlugins={[[rehypeDiffLineNumber]]}
-                >
-                  {content.value}
-                </Markdown>,
               ],
             },
-          ]}
+          ].filter(Boolean)}
         />
       </Spin>
     </div>

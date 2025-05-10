@@ -1,6 +1,7 @@
 import { Button, Collapse, Form, Input, Switch } from "antd";
 import { useForm } from "antd/es/form/Form";
 import {
+  useComputed,
   useSignal,
   useSignalEffect,
   useSignals,
@@ -8,6 +9,8 @@ import {
 import type { ReadonlySignal } from "@preact/signals-react";
 import "./settings.css";
 import { debounceTime, Subject } from "rxjs";
+import { useCallback } from "preact/hooks";
+import { ReloadOutlined } from "@ant-design/icons";
 
 const changes$ = new Subject<void>();
 const hasChanged = (a?: Settings, b?: Settings) => {
@@ -32,6 +35,8 @@ export default function (props: {
   onFetch: () => void;
 }) {
   useSignals();
+  const fetched = useSignal(false);
+  useSignalEffect(() => console.log({ fetched: fetched.value }));
   const canFetch = useSignal(false);
   const [svnSettingsForm] = useForm<Settings>();
   useSignalEffect(() => {
@@ -40,13 +45,17 @@ export default function (props: {
   });
   useSignalEffect(() => {
     changes$.pipe(debounceTime(200)).subscribe(() => {
+      const shouldFetch = fetched.peek() === false;
       canFetch.value = false;
       svnSettingsForm
         .validateFields()
         .then((values) => {
+          const changed = hasChanged(values, props.source$.peek());
+          console.log("form values changed", { shouldFetch, changed, values });
           canFetch.value = true;
-          if (hasChanged(values, props.source$.peek())) {
+          if (shouldFetch || changed) {
             props.onFinish(values);
+            fetched.value = true;
           }
         })
         .catch((error) => {
@@ -54,16 +63,51 @@ export default function (props: {
         });
     });
   });
+  const actived = useSignal(true);
+  const fetch = useCallback(() => {
+    props.onFetch();
+    actived.value = false;
+  }, []);
+  const label = useComputed(() => {
+    if (actived.value) {
+      return props.title;
+    }
+    if (!!props.source$.value?.svn_root) {
+      return props.source$.value.svn_root;
+    }
+    return props.title;
+  });
   return (
     <div className="settings">
       <Collapse
         bordered
         className="card"
-        defaultActiveKey={[1]}
+        activeKey={actived.value ? [1] : []}
+        onChange={(e) => (actived.value = e.length > 0)}
         items={[
           {
             key: 1,
-            label: <b>{props.title}</b>,
+            label: (
+              <div className="header">
+                {actived.value ? (
+                  <b>{label.value}</b>
+                ) : (
+                  <div className="collapsed">
+                    <b>{label.value}</b>
+                  </div>
+                )}
+              </div>
+            ),
+            extra: !actived.value && canFetch.value && (
+              <Button
+                loading={props.busy}
+                icon={<ReloadOutlined spin={props.busy} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fetch();
+                }}
+              />
+            ),
             children: [
               <Form
                 style={{ minWidth: 800, maxWidth: "100%", textAlign: "left" }}
@@ -98,7 +142,7 @@ export default function (props: {
                 size="small"
                 loading={props.busy}
                 disabled={!canFetch.value}
-                onClick={() => props.onFetch()}
+                onClick={fetch}
               >
                 Check Diffs
               </Button>,

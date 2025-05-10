@@ -135,8 +135,10 @@ export function App() {
 
   const pickDir = useCallback(() => {
     network.pick_dir(settings.value?.svn_root).then((dir) => {
+      console.log({ pick_dir: dir });
       if (!!dir) {
         settings.value = {
+          ...settings.peek(),
           svn_root: dir,
         };
       }
@@ -160,7 +162,7 @@ export function App() {
     <Layout>
       <Header>
         <Settings
-          title={`welcome${serverStatus.value}`}
+          title={`Welcome${serverStatus.value}`}
           busy={busy.value}
           source$={settings}
           onFinish={onSettingsChange}

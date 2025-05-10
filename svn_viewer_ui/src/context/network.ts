@@ -106,6 +106,15 @@ const pick_dir = async (init?: string) => {
   return await res.text();
 };
 
+const open_in_dir = async (path?: string) => {
+  if (!path) {
+    return;
+  }
+  await fetch(`/api/server/opendir?path=${encodeURI(path)}`, {
+    method: "POST",
+  });
+};
+
 const request = async <TReq = never, TRes = never>(
   call: (req?: TReq) => Promise<TRes | undefined>,
   req?: TReq
@@ -118,15 +127,16 @@ const request = async <TReq = never, TRes = never>(
 };
 
 export default {
+  onMessage: onMessage as Observable<Message>,
   test_server: () => request(test_server),
   get_settings: () => request(get_settings),
   update_settings: (settings: Settings) =>
     request((settings) => update_settings(settings!), settings),
-  pick_dir: (init?: string) => request((init) => pick_dir(init), init),
   fetch_status: () => request(() => fetch_status("FETCH_STATUS")),
   fetch_diff: (source: string) =>
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
   fetch_unversioned: (source: string) =>
     request((source) => fetch_unversioned(source, "FETCH_UNVERSIONED"), source),
-  onMessage: onMessage as Observable<Message>,
+  pick_dir: (init?: string) => request((init) => pick_dir(init), init),
+  open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
 };

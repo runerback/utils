@@ -7,7 +7,7 @@ const name = "hljs";
 const addition = `${name}-addition`;
 const deletion = `${name}-deletion`;
 
-export default function rehypeDiffLineNumber() {
+export default function () {
   const lowlight = createLowlight(common);
 
   return function (tree: Root) {
@@ -61,10 +61,53 @@ export default function rehypeDiffLineNumber() {
                 children.splice(i, 1, ...splited.slice(i === 0 ? 0 : 1, -1));
               }
             }
-            node.children = appendLineNumbers(children, hunk);
+            node.children = [
+              {
+                type: "element",
+                tagName: "div",
+                properties: {
+                  className: ["diff_row"],
+                },
+                children: [
+                  {
+                    type: "element",
+                    tagName: "span",
+                    properties: {},
+                    children: [],
+                  },
+                  {
+                    type: "element",
+                    tagName: "span",
+                    properties: {},
+                    children: [],
+                  },
+                  {
+                    type: "element",
+                    tagName: "span",
+                    properties: {
+                      className: ["number"],
+                    },
+                    children: [
+                      {
+                        type: "element",
+                        tagName: "span",
+                        properties: {
+                          className: ["hunk"],
+                        },
+                        children: [
+                          {
+                            type: "text",
+                            value: `@@ ${hunk.a}${hunk.b},${hunk.c} ${hunk.d}${hunk.e},${hunk.f} @@`,
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+              ...appendLineNumbers(children, hunk),
+            ];
             return;
-          } else {
-            // TODO: unversioned
           }
         }
 
@@ -197,7 +240,7 @@ const appendLineNumbers = (
                 properties: {
                   className: ["number"],
                 },
-                children: [{ type: "text", value: "r" }],
+                children: [{ type: "text", value: revision_number }],
               },
               {
                 type: "element",
@@ -205,11 +248,13 @@ const appendLineNumbers = (
                 properties: {
                   className: ["number"],
                 },
-                children: [{ type: "text", value: "w" }],
+                children: [{ type: "text", value: working_number }],
               },
               node,
             ],
           } as Element);
+          revision_number++;
+          working_number++;
           break;
         default:
           break;

@@ -2,11 +2,12 @@ import express from "express";
 import bodyparser from "body-parser";
 import fs from "fs";
 import path from "path";
-import { exec } from "child_process";
+import { exec, ExecException } from "child_process";
 import md5 from "md5";
 import moment from "moment";
 
 const messageHubUri = process.env["services__messages__http__0"];
+const uiHelperUri = process.env["services__uihelper__http__0"];
 const svn = await new Promise<string | undefined>((resolve, reject) => {
   try {
     const ps1 = exec(
@@ -75,17 +76,32 @@ app.post("/settings", (req, res) => {
   }
 });
 
+const execute = (
+  command: string,
+  callback?: (
+    error: ExecException | null,
+    stdout: string,
+    stderr: string
+  ) => void
+) => {
+  console.log(`executing: [${command}]`);
+  return exec(command, { maxBuffer: 1024 * 1024 }, callback);
+};
+
 app.post("/status", (req, res) => {
   res.send(settings.svn_root_hash);
   const params = req.body as { job?: string };
   sendMessage(settings.svn_root_hash, { processing: true, job: params.job });
   try {
-    const svn_status = exec(
+    const svn_status = execute(
       `"${svn}" status "${settings.svn_root}"`,
-      { maxBuffer: 1024 * 1024 },
       (error, stdout, stderror) => {
         if (!!error || !!stderror) {
-          sendMessage(settings.svn_root_hash, { error, job: params.job });
+          sendMessage(settings.svn_root_hash, {
+            error: error || stderror,
+            job: params.job,
+          });
+          console.error(error || stderror);
         }
         if (!!stdout) {
           sendMessage(settings.svn_root_hash, {
@@ -122,12 +138,15 @@ app.post("/diff", (req, res) => {
     const params = req.body as { job?: string };
     res.send(id);
     try {
-      const svndiff = exec(
+      const svndiff = execute(
         `"${svn}" diff "${url}"`,
-        { maxBuffer: 1024 * 1024 },
         (error, stdout, stderror) => {
           if (!!error || !!stderror) {
-            sendMessage(id, { error, job: params.job });
+            sendMessage(settings.svn_root_hash, {
+              error: error || stderror,
+              job: params.job,
+            });
+            console.error(error || stderror);
           }
           if (!!stdout) {
             sendMessage(id, { data: stdout, job: params.job });
@@ -154,17 +173,25 @@ app.post("/unversioned", async (req, res) => {
     res.end();
     return;
   }
-  const id = md5(url);
   const params = req.body as { job?: string };
+  if (fs.statSync(url).isDirectory()) {
+    console.log("this is D.I.R, how copy? over!");
+    sendMessage("", {
+      job: params.job,
+      error: "this is D.I.R, how copy? over!",
+    });
+    res.end();
+    return;
+  }
+  const id = md5(url);
   res.send(id);
   sendMessage(id, { processing: true, job: params.job });
   // make sure file is unversioned
   const status = await new Promise<string | null | undefined>((res, rej) => {
     let status = "";
     try {
-      const svnstatus = exec(
+      const svnstatus = execute(
         `"${svn}" status "${url}"`,
-        { maxBuffer: 1024 * 1024 },
         (error, stdout, stderror) => {
           if (!!error || !!stderror) {
             return;
@@ -196,6 +223,18 @@ app.post("/unversioned", async (req, res) => {
   } finally {
     sendMessage(id, { completed: true, job: params.job });
   }
+});
+
+app.post("/opendir", async (req, res) => {
+  const url = validateUrl(req.query?.["path"] as string);
+  if (!url) {
+    res.end();
+    return;
+  }
+  await fetch(`${uiHelperUri}/opendir?path=${encodeURI(url)}`, {
+    method: "POST",
+  });
+  res.end();
 });
 
 app.listen(process.env["SERVER_PORT"], () => {

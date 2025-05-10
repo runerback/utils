@@ -39,15 +39,17 @@ export default function (props: {
   }, []);
   return (
     <div className="status">
-      {props.status.map((states, idx) => (
-        <SvnChangelistCard
-          {...props}
-          key={idx}
-          status={states}
-          observe={observe}
-          unobserve={unobserve}
-        />
-      ))}
+      {props.status
+        .filter((it) => it.changes.length > 0)
+        .map((states, idx) => (
+          <SvnChangelistCard
+            {...props}
+            key={idx}
+            status={states}
+            observe={observe}
+            unobserve={unobserve}
+          />
+        ))}
     </div>
   );
 }
