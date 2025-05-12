@@ -10,7 +10,7 @@ const MaxHeight = 500;
 export default function (props: {
   lines$: ReadonlySignal<string[]>;
   language?: string;
-  key?: Key;
+  fkey?: Key;
   settings: ReadonlySignal<Settings | undefined>;
 }) {
   useSignals();
@@ -60,7 +60,7 @@ export default function (props: {
   });
   return (
     <div
-      key={props.key}
+      key={props.fkey}
       ref={container}
       className="diff_panel"
       onResize={() => editor.value?.layout()}

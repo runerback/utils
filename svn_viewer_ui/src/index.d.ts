@@ -77,10 +77,16 @@ declare type SvnLog = {
   readonly changes?: number;
 };
 
+declare type SvnLogs = {
+  readonly status?: SvnStatusItem;
+  readonly logs?: SvnLog[];
+};
+
 declare type SvnDiffProviderStream = {
   readonly id: string;
+  readonly job?: Job;
   readonly chunks?: Chunk1[];
-  readonly logs?: SvnLog[];
+  readonly logs?: SvnLogs[];
   readonly unversioned?: string[];
   readonly finished?: boolean;
 };

@@ -261,6 +261,49 @@ app.post("/logs", (req, res) => {
   }
 });
 
+app.post("/logdiff", async (req, res) => {
+  const url = validateUrl(req.query?.["path"] as string);
+  if (!!url) {
+    const params = req.body as { job?: string; n?: number; m?: number };
+    const n = !params.n || params.n <= 0 ? -1 : params.n;
+    const m = !params.m || params.m < 0 ? -1 : params.m;
+    if (n < 0) {
+      console.warn("invalid range", { n, m });
+      res.end();
+      return;
+    }
+    const id = md5(url);
+    try {
+      const svndiff = execute(
+        `"${svn}" diff -r ${n}${m >= 0 ? `:${m}` : ""} "${url}"`,
+        (error, stdout, stderror) => {
+          if (!!error || !!stderror) {
+            sendMessage(settings.svn_root_hash, {
+              error: error || stderror,
+              job: params.job,
+            });
+            console.error(error || stderror);
+          }
+          if (!!stdout) {
+            sendMessage(id, { data: stdout, job: params.job });
+          }
+        }
+      );
+      sendMessage(id, { processing: true, job: params.job });
+      svndiff.on("close", () => {
+        sendMessage(id, { completed: true, job: params.job });
+      });
+    } catch (error) {
+      console.error(error);
+      sendMessage(id, { error, job: params.job });
+    }
+    res.send(id);
+  } else {
+    console.warn("invalid url");
+    res.end();
+  }
+});
+
 app.post("/opendir", async (req, res) => {
   const url = validateUrl(req.query?.["path"] as string);
   if (!url) {

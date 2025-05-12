@@ -2,7 +2,7 @@ import { signal, useSignal, useSignalEffect } from "@preact/signals-react";
 import "./app.css";
 import network from "./context/network";
 import { useComputed, useSignals } from "@preact/signals-react/runtime";
-import { type FormProps } from "antd";
+import { Modal, type FormProps } from "antd";
 import { useCallback } from "preact/hooks";
 import svnparser from "./context/svnparser";
 import Settings from "./settings";
@@ -12,6 +12,8 @@ import SvnDiffProvider, {
   SvnDiffProviderContext,
 } from "./context/svnDiffProviderContext";
 import Layout, { Header, Content } from "./layout";
+import SvnLogs from "./logs";
+import { CloseOutlined } from "@ant-design/icons";
 
 const svnDiffProviderContext = SvnDiffProvider();
 
@@ -73,6 +75,18 @@ export function App() {
     return [];
   }, []);
 
+  const svnLogId = useSignal<string>();
+  const svnLogStatus = useSignal<SvnStatusItem>();
+  const showSvnLogs = useSignal(false);
+  const onFetchLogs = useCallback((status?: SvnStatusItem) => {
+    network.fetch_logs(status?.source).then((id) => {
+      svnLogId.value = id ?? undefined;
+      svnLogStatus.value = status;
+      showSvnLogs.value = true;
+      busy.value = true;
+    });
+  }, []);
+
   useSignalEffect(() => {
     const id = messageId.value;
     if (!id) {
@@ -100,6 +114,7 @@ export function App() {
           case "FETCH_LOGS":
             publishSvnDiffStream({
               id,
+              job: content.job,
               finished: true,
             });
             break;
@@ -114,19 +129,26 @@ export function App() {
           case "FETCH_DIFFS":
             publishSvnDiffStream({
               id,
+              job: content.job,
               chunks: parseDiff(content.data),
             });
             break;
           case "FETCH_UNVERSIONED":
             publishSvnDiffStream({
               id,
+              job: content.job,
               unversioned: content.data.split(/\r|\n/g).filter(Boolean),
             });
             break;
           case "FETCH_LOGS": {
             publishSvnDiffStream({
               id,
-              logs: svnparser.parse_logs(content.data),
+              job: content.job,
+              logs: [
+                {
+                  logs: svnparser.parse_logs(content.data),
+                },
+              ],
             });
             break;
           }
@@ -176,11 +198,28 @@ export function App() {
           pickDir={pickDir}
         />
       </Header>
-      <Content>
-        <SvnDiffProviderContext.Provider value={svnDiffProviderContext}>
-          <Diffs status={status.value} settings={settings} />
-        </SvnDiffProviderContext.Provider>
-      </Content>
+      <SvnDiffProviderContext.Provider value={svnDiffProviderContext}>
+        <Content>
+          <Diffs
+            status={status.value}
+            settings={settings}
+            fetchLogs={onFetchLogs}
+          />
+        </Content>
+        <Modal
+          title="svn logs"
+          style={{ width: "80vw", maxHeight: "80vh" }}
+          closable
+          closeIcon={
+            <CloseOutlined onClick={() => (showSvnLogs.value = false)} />
+          }
+          open={showSvnLogs.value}
+          cancelButtonProps={{ style: { display: "none" } }}
+          okButtonProps={{ style: { display: "none" } }}
+        >
+          <SvnLogs logId={svnLogId} status={svnLogStatus} busy={busy} />
+        </Modal>
+      </SvnDiffProviderContext.Provider>
     </Layout>
   );
 }

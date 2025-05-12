@@ -6,17 +6,18 @@ import { useRef } from "preact/hooks";
 import type { ReadonlySignal } from "@preact/signals-react";
 
 export function SvnChangelistCard(props: {
-  key?: Key;
+  fkey?: Key;
   status: SvnStatus;
   settings: ReadonlySignal<Settings | undefined>;
   observe: (target: HTMLElement) => void;
   unobserve: (target: HTMLElement) => void;
+  fetchLogs: (status: SvnStatusItem) => void;
 }) {
   useSignals();
   const headerRef = useRef<HTMLSpanElement>(null);
   return (
     <Collapse
-      key={props.key}
+      key={props.fkey}
       bordered
       className="statuscard"
       items={[
@@ -27,7 +28,7 @@ export function SvnChangelistCard(props: {
             </span>
           ),
           children: props.status.changes.map((states, idx) => (
-            <SvnDiffCard {...props} key={idx} status={states} />
+            <SvnDiffCard {...props} fkey={idx} status={states} />
           )),
         },
       ]}

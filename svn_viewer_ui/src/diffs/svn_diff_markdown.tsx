@@ -21,7 +21,7 @@ const DARK_THEME = {
 
 export default function (props: {
   content?: string;
-  key?: Key;
+  fkey?: Key;
   maxLine: ReadonlySignal<number>;
   settings: ReadonlySignal<Settings | undefined>;
 }) {
@@ -65,7 +65,7 @@ export default function (props: {
     <div className="diff_panel" ref={diffPanel}>
       <link rel="stylesheet" type="text/css" href={markdownTheme.value.href} />
       <Markdown
-        key={props.key}
+        key={props.fkey}
         remarkPlugins={[[remarkGfm]]}
         rehypePlugins={[[rehypeSvnDiff]]}
       >

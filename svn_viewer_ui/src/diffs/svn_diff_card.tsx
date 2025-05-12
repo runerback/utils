@@ -1,4 +1,4 @@
-import { Button, Collapse, Space, Spin } from "antd";
+import { Button, Collapse, Space, Spin, Tooltip } from "antd";
 import {
   useComputed,
   useSignal,
@@ -20,11 +20,12 @@ import {
 import network from "../context/network";
 
 export function SvnDiffCard(props: {
-  key?: Key;
+  fkey?: Key;
   status: SvnStatusItem;
   settings: ReadonlySignal<Settings | undefined>;
   observe: (target: HTMLElement) => void;
   unobserve: (target: HTMLElement) => void;
+  fetchLogs: (status: SvnStatusItem) => void;
 }) {
   useSignals();
   const headerRef = useRef<HTMLDivElement>(null);
@@ -43,14 +44,17 @@ export function SvnDiffCard(props: {
   const svnDiffProviderContext = useContext(SvnDiffProviderContext);
   useSignalEffect(() => {
     svnDiffProviderContext.stream$
-      .pipe(filter((it) => it.id === diffId.value))
+      .pipe(
+        filter(
+          (it) =>
+            !!it && !!it.id && it.job !== "FETCH_LOGS" && it.id === diffId.value
+        )
+      )
       .subscribe((e) => {
         if (!!e.chunks && e.chunks.length > 0) {
           diffs.value = e.chunks[0];
         } else if (!!e.unversioned && e.unversioned.length > 0) {
           unversioned.value = e.unversioned;
-        } else if (!!e.logs && e.logs.length > 0) {
-          console.log({ svn_logs: e.logs });
         }
         busy.value = false;
       });
@@ -142,6 +146,10 @@ export function SvnDiffCard(props: {
         return "❌";
       case "A":
         return "➕";
+      case "R":
+        return "🔃";
+      case "C":
+        return "💥";
       case "?":
         return "❓";
       case "!":
@@ -150,18 +158,43 @@ export function SvnDiffCard(props: {
         return props.status.state;
     }
   });
+  const stateTip = useComputed(() => {
+    switch (props.status.state) {
+      case "M":
+        return "Modified";
+      case "D":
+        return "Deletion";
+      case "A":
+        return "Adding";
+      case "R":
+        return "Replaced";
+      case "C":
+        return "Conflicted";
+      case "?":
+        return "Not under version control";
+      case "!":
+        return "Missing";
+      default:
+        return props.status.state;
+    }
+  });
+  const canShowLog = useComputed(() => {
+    return props.status.state !== "?";
+  });
   return (
     <div className="diffcard">
       <Spin spinning={busy.value}>
         <Collapse
           bordered
-          key={props.key}
+          key={props.fkey}
           onChange={fetch}
           items={[
             {
               label: (
                 <div className="changes" ref={headerRef}>
-                  <div className="state">{stateIcon.value}</div>
+                  <div className="state">
+                    <Tooltip title={stateTip.value}>{stateIcon.value}</Tooltip>
+                  </div>
                   <div className="source">{props.status.source}</div>
                 </div>
               ),
@@ -185,15 +218,17 @@ export function SvnDiffCard(props: {
                       network.open_in_dir(props.status.source);
                     }}
                   />
-                  <Button
-                    loading={busy.value}
-                    icon={<HistoryOutlined spin={busy.value} />}
-                    title="Show Logs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      network.fetch_logs(props.status.source);
-                    }}
-                  />
+                  {canShowLog && (
+                    <Button
+                      loading={busy.value}
+                      icon={<HistoryOutlined spin={busy.value} />}
+                      title="Show Logs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.fetchLogs(props.status);
+                      }}
+                    />
+                  )}
                 </Space>
               ),
               children: [

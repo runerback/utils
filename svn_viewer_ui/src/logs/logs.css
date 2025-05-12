@@ -1,0 +1,14 @@
+.svnlogs {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+}
+
+.svnlogs .svnlogscard {
+  margin: 6px;
+  width: 100%;
+}
+
+.svnlogs .svnlogscard .title {
+  background-color: white;
+}

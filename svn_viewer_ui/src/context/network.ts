@@ -86,12 +86,37 @@ const fetch_logs = async (source?: string, job?: Job) => {
   if (!source) {
     return;
   }
-  const res = await fetch(`/api/server/logs?path=${encodeURI(source)}`, {
+  const res = await fetch(
+    "/api/server/logs" + (!!source ? `?path=${encodeURI(source)}` : ""),
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify({ job }),
+    }
+  );
+  return await res.text();
+};
+
+type FetchLogDiffParams = {
+  n?: number;
+  m?: number;
+};
+const fetch_log_diff = async (
+  source?: string,
+  job?: Job,
+  params?: FetchLogDiffParams
+) => {
+  if (!source || !params || !params.n) {
+    return;
+  }
+  const res = await fetch(`/api/server/logdiff?path=${encodeURI(source)}`, {
     headers: {
       "Content-Type": "application/json",
     },
     method: "POST",
-    body: JSON.stringify({ job }),
+    body: JSON.stringify({ job, n: params.n, m: params.m }),
   });
   return await res.text();
 };
@@ -140,6 +165,18 @@ const request = async <TReq = never, TRes = never>(
   }
 };
 
+const request2 = async <TReq1 = never, TReq2 = never, TRes = never>(
+  call: (req1?: TReq1, req2?: TReq2) => Promise<TRes | undefined>,
+  req1?: TReq1,
+  req2?: TReq2
+) => {
+  try {
+    return await call(req1, req2);
+  } catch (message) {
+    console.error(message);
+  }
+};
+
 export default {
   onMessage: onMessage as Observable<Message>,
   test_server: () => request(test_server),
@@ -151,8 +188,14 @@ export default {
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
   fetch_unversioned: (source: string) =>
     request((source) => fetch_unversioned(source, "FETCH_UNVERSIONED"), source),
-  fetch_logs: (source: string) =>
+  fetch_logs: (source?: string) =>
     request((source) => fetch_logs(source, "FETCH_LOGS"), source),
+  fetch_log_diff: (source?: string, params?: FetchLogDiffParams) =>
+    request2(
+      (source, params) => fetch_log_diff(source, "FETCH_LOGS", params),
+      source,
+      params
+    ),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
   open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
 };

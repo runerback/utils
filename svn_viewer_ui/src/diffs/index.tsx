@@ -7,6 +7,7 @@ import type { ReadonlySignal } from "@preact/signals-react";
 export default function (props: {
   status: SvnStatus[];
   settings: ReadonlySignal<Settings | undefined>;
+  fetchLogs: (status: SvnStatusItem) => void;
 }) {
   useSignals();
   const options = useMemo(
@@ -44,7 +45,7 @@ export default function (props: {
         .map((states, idx) => (
           <SvnChangelistCard
             {...props}
-            key={idx}
+            fkey={idx}
             status={states}
             observe={observe}
             unobserve={unobserve}
