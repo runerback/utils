@@ -208,7 +208,8 @@ export function App() {
         </Content>
         <Modal
           title="svn logs"
-          style={{ width: "80vw", maxHeight: "80vh" }}
+          width="80vw"
+          style={{ maxHeight: "80vh" }}
           closable
           closeIcon={
             <CloseOutlined onClick={() => (showSvnLogs.value = false)} />

@@ -5,43 +5,18 @@ import path from "path";
 import { exec, ExecException } from "child_process";
 import md5 from "md5";
 import moment from "moment";
-
-const messageHubUri = process.env["services__messages__http__0"];
-const uiHelperUri = process.env["services__uihelper__http__0"];
-const svn = await new Promise<string | undefined>((resolve, reject) => {
-  try {
-    const ps1 = exec(
-      "powershell -c (Get-Command svn).Source",
-      (error, stdout, stderror) => {
-        if (!!stdout) {
-          return resolve(stdout.trimEnd().replaceAll("\\", "/"));
-        }
-        if (!!error || !!stderror) {
-          return reject(error || stderror);
-        }
-      }
-    );
-    ps1.on("close", () => {
-      resolve(undefined);
-    });
-  } catch (error) {
-    reject(error);
-  }
-});
-if (!svn) {
-  console.warn("svn not found");
-} else {
-  console.log("svn", [svn]);
-}
-
-const settings = {
-  svn_root: "",
-  svn_root_hash: "",
-  dark_theme: false,
-};
+import cache from "node-cache";
+import {
+  messageHubUri,
+  serverPort,
+  settings,
+  svn,
+  uiHelperUri,
+} from "./settings.js";
+import { AddressInfo } from "net";
 
 const sendMessage = (id: string, content: any) => {
-  fetch(`${messageHubUri}/message?id=${id}`, {
+  fetch(`${messageHubUri}/message?id=${id}&sync`, {
     headers: {
       "Content-Type": "application/json",
     },
@@ -58,7 +33,7 @@ const app = express();
 app.use(bodyparser.urlencoded({ extended: false }));
 app.use(bodyparser.json());
 
-app.get("/test", (_, res) => {
+app.get("/test", async (_, res) => {
   res.send(": This doesn't means anything to me");
 });
 
@@ -76,16 +51,42 @@ app.post("/settings", (req, res) => {
   }
 });
 
+type SvnCommandCache = {
+  data: string;
+};
+const svn_cache = new cache({ stdTTL: 600, checkperiod: 600 });
+
 const execute = (
   command: string,
   callback?: (
     error: ExecException | null,
     stdout: string,
     stderr: string
-  ) => void
+  ) => void,
+  onClose?: () => void
 ) => {
   console.log(`executing: [${command}]`);
-  return exec(command, { maxBuffer: 1024 * 1024 }, callback);
+  const cached = svn_cache.get<SvnCommandCache>(command);
+  if (!!cached && !!cached.data) {
+    console.log("load from cache");
+    callback?.(null, cached.data, "");
+    onClose?.();
+    return;
+  }
+  const process = exec(
+    command,
+    { maxBuffer: 1024 * 1024 },
+    (error, stdout, stderror) => {
+      callback?.(error, stdout, stderror);
+      if (!error && !stderror && !!stdout) {
+        svn_cache.set<SvnCommandCache>(command, { data: stdout });
+        console.log(`cached: [${command}]`);
+      }
+    }
+  );
+  if (!!onClose) {
+    process.on("close", () => onClose?.());
+  }
 };
 
 app.post("/status", (req, res) => {
@@ -93,7 +94,7 @@ app.post("/status", (req, res) => {
   const params = req.body as { job?: string };
   sendMessage(settings.svn_root_hash, { processing: true, job: params.job });
   try {
-    const svn_status = execute(
+    execute(
       `"${svn}" status "${settings.svn_root}"`,
       (error, stdout, stderror) => {
         if (!!error || !!stderror) {
@@ -109,11 +110,14 @@ app.post("/status", (req, res) => {
             job: params.job,
           });
         }
+      },
+      () => {
+        sendMessage(settings.svn_root_hash, {
+          completed: true,
+          job: params.job,
+        });
       }
     );
-    svn_status.on("close", () => {
-      sendMessage(settings.svn_root_hash, { completed: true, job: params.job });
-    });
   } catch (error) {
     sendMessage(settings.svn_root_hash, { error, job: params.job });
     console.error(error);
@@ -137,8 +141,9 @@ app.post("/diff", (req, res) => {
     const id = md5(url);
     const params = req.body as { job?: string };
     res.send(id);
+    sendMessage(id, { processing: true, job: params.job });
     try {
-      const svndiff = execute(
+      execute(
         `"${svn}" diff "${url}"`,
         (error, stdout, stderror) => {
           if (!!error || !!stderror) {
@@ -151,12 +156,11 @@ app.post("/diff", (req, res) => {
           if (!!stdout) {
             sendMessage(id, { data: stdout, job: params.job });
           }
+        },
+        () => {
+          sendMessage(id, { completed: true, job: params.job });
         }
       );
-      sendMessage(id, { processing: true, job: params.job });
-      svndiff.on("close", () => {
-        sendMessage(id, { completed: true, job: params.job });
-      });
     } catch (error) {
       console.error(error);
       sendMessage(id, { error, job: params.job });
@@ -190,7 +194,7 @@ app.post("/unversioned", async (req, res) => {
   const status = await new Promise<string | null | undefined>((res, rej) => {
     let status = "";
     try {
-      const svnstatus = execute(
+      execute(
         `"${svn}" status "${url}"`,
         (error, stdout, stderror) => {
           if (!!error || !!stderror) {
@@ -199,13 +203,14 @@ app.post("/unversioned", async (req, res) => {
           if (!!stdout) {
             status = stdout;
           }
+        },
+        () => {
+          res(status);
         }
       );
-      svnstatus.on("close", () => {
-        res(status);
-      });
     } catch (error) {
       console.error(error);
+      rej(error);
     }
   });
   if (!status || status[0] !== "?") {
@@ -231,8 +236,9 @@ app.post("/logs", (req, res) => {
     const id = md5(url);
     const params = req.body as { job?: string };
     res.send(id);
+    sendMessage(id, { processing: true, job: params.job });
     try {
-      const svndiff = execute(
+      execute(
         `"${svn}" log "${url}"`,
         (error, stdout, stderror) => {
           if (!!error || !!stderror) {
@@ -245,12 +251,11 @@ app.post("/logs", (req, res) => {
           if (!!stdout) {
             sendMessage(id, { data: stdout, job: params.job });
           }
+        },
+        () => {
+          sendMessage(id, { completed: true, job: params.job });
         }
       );
-      sendMessage(id, { processing: true, job: params.job });
-      svndiff.on("close", () => {
-        sendMessage(id, { completed: true, job: params.job });
-      });
     } catch (error) {
       console.error(error);
       sendMessage(id, { error, job: params.job });
@@ -273,8 +278,10 @@ app.post("/logdiff", async (req, res) => {
       return;
     }
     const id = md5(url);
+    res.send(id);
+    sendMessage(id, { processing: true, job: params.job });
     try {
-      const svndiff = execute(
+      execute(
         `"${svn}" diff -r ${n}${m >= 0 ? `:${m}` : ""} "${url}"`,
         (error, stdout, stderror) => {
           if (!!error || !!stderror) {
@@ -287,17 +294,15 @@ app.post("/logdiff", async (req, res) => {
           if (!!stdout) {
             sendMessage(id, { data: stdout, job: params.job });
           }
+        },
+        () => {
+          sendMessage(id, { completed: true, job: params.job });
         }
       );
-      sendMessage(id, { processing: true, job: params.job });
-      svndiff.on("close", () => {
-        sendMessage(id, { completed: true, job: params.job });
-      });
     } catch (error) {
       console.error(error);
       sendMessage(id, { error, job: params.job });
     }
-    res.send(id);
   } else {
     console.warn("invalid url");
     res.end();
@@ -316,6 +321,23 @@ app.post("/opendir", async (req, res) => {
   res.end();
 });
 
-app.listen(process.env["SERVER_PORT"], () => {
-  console.log(`Server is Running on ${process.env["SERVER_PORT"]}`);
+app.listen(serverPort, () => {
+  console.log(`Server is Running on ${serverPort}`);
+  setTimeout(() => {
+    fetch(
+      `${process.env["services__svn__http__0"]}/e/${process.env["INNGEST_EVENT_KEY"]}`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+        body: JSON.stringify({
+          name: "hello.world",
+          data: { email: "asdfsdfa@asdf.cnd" },
+        }),
+      }
+    )
+      .then((res) => console.log([res.status, res.statusText]))
+      .catch(console.error);
+  }, 1000);
 });

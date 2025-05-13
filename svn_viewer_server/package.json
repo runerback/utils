@@ -4,15 +4,18 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "start": "cross-env NODE_OPTIONS=--max-old-space-size=8192 && npm run compile && node --trace-uncaught ./libs/dist/index.js",
+    "start": "cross-env NODE_OPTIONS=--max-old-space-size=8192 && npm run dev",
+    "dev": "npm run compile && node --trace-uncaught ./libs/dist/index.js",
     "compile": "npx tsc && npx swc dist -d libs"
   },
   "author": "runerback",
   "license": "ISC",
   "dependencies": {
     "express": "^5.1.0",
+    "inngest": "^3.35.1",
     "md5": "^2.3.0",
     "moment": "^2.30.1",
+    "node-cache": "^5.1.2",
     "svn_viewer_server": "file:"
   },
   "devDependencies": {

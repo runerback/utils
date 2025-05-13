@@ -4,3 +4,6 @@
 **/libs
 **/bin
 **/obj
+**/.venv
+**/__pycache__
+**/appsettings.*.json

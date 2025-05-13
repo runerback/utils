@@ -1,7 +1,12 @@
 import { Collapse, Descriptions } from "antd";
 import type { Key } from "preact";
 
-export default function (props: { log: SvnLogs; fkey?: Key }) {
+export default function (props: {
+  log: SvnLogs;
+  previousLog?: SvnLogs;
+  fkey?: Key;
+}) {
+  console.log({ props });
   return (
     <Collapse
       bordered

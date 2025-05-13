@@ -1,0 +1,10 @@
+{
+    "scripts": {
+        "start": "powershell.exe ./start.ps1",
+        "prestart": "npm i"
+    },
+    "devDependencies": {
+        "inngest-cli": "^1.5.10",
+        "monaco-editor": "^0.43.0"
+    }
+}

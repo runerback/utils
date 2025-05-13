@@ -12,11 +12,18 @@ builder.Services.AddSignalR();
 
 var app = builder.Build();
 
-app.MapPost("/message", async ([FromQuery, Required] string id, HttpContext context, [FromServices] IHubContext<MessageHub> hub, CancellationToken cancellationToken) =>
+app.MapPost("/message", async ([FromQuery, Required] string id, [FromQuery] bool? sync, HttpContext context, [FromServices] IHubContext<MessageHub> hub, CancellationToken cancellationToken) =>
 {
     var reader = new StreamReader(context.Request.Body);
     var content = await reader.ReadToEndAsync(cancellationToken);
-    await hub.Clients.All.SendAsync("message", JsonSerializer.Serialize(new { id, content }), cancellationToken);
+    if (sync.GetValueOrDefault())
+    {
+
+    }
+    else
+    {
+        await hub.Clients.All.SendAsync("message", JsonSerializer.Serialize(new { id, content }), cancellationToken);
+    }
     return Results.NoContent();
 });
 
