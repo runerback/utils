@@ -13,7 +13,6 @@ import {
   svn,
   uiHelperUri,
 } from "./settings.js";
-import { AddressInfo } from "net";
 
 const sendMessage = (id: string, content: any) => {
   fetch(`${messageHubUri}/message?id=${id}&sync`, {

@@ -1,4 +1,47 @@
-﻿var builder = DistributedApplication.CreateBuilder(args);
+﻿using System.Diagnostics;
+
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, _) => cts.Cancel();
+
+string? svn_executable = default;
+try
+{
+    var finder = Process.Start(new ProcessStartInfo("powershell", "-c (Get-Command svn).Source")
+    {
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+    });
+    if (finder == null)
+    {
+        Console.WriteLine("could not launch powershell process");
+        return;
+    }
+    finder.BeginOutputReadLine();
+    finder.OutputDataReceived += (_, e) =>
+    {
+        if (svn_executable == null && !string.IsNullOrWhiteSpace(e.Data))
+        {
+            var path = e.Data.Trim();
+            if (File.Exists(path))
+            {
+                svn_executable = path.Replace('\\', '/');
+            }
+        }
+    };
+    await finder.WaitForExitAsync(cts.Token);
+}
+catch (Exception exp)
+{
+    Console.WriteLine(exp);
+    return;
+}
+if (string.IsNullOrWhiteSpace(svn_executable))
+{
+    Console.WriteLine("svn executable not found");
+    return;
+}
+
+var builder = DistributedApplication.CreateBuilder(args);
 
 FreeTCPPortRangeProvider.Fetch();
 
@@ -15,6 +58,7 @@ var svn = builder.AddPythonApp("svn", "../svn_viewer_svn", "main.py")
     .WithEnvironment("INNGEST_SIGNING_KEY", builder.Configuration.GetSection("INNGEST_SIGNING_KEY").Value)
     .WithEnvironment("INNGEST_DEV", "1")
     .WithEnvironment("INNGEST_EVENT_KEY", "INNGEST-SVN")
+    .WithEnvironment("SVN_EXECUTABLE", svn_executable)
     .WithOtlpExporter()
     .WithExternalHttpEndpoints();
 
@@ -42,8 +86,6 @@ var ui = builder.AddNpmApp("ui", "../svn_viewer_ui", scriptName: "dev")
 
 var app = builder.Build();
 
-using var cts = new CancellationTokenSource();
-Console.CancelKeyPress += (_, _) => cts.Cancel();
 try
 {
     await app.RunAsync(cts.Token);
