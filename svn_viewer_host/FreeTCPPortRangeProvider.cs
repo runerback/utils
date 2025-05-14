@@ -5,10 +5,12 @@ internal sealed partial class FreeTCPPortRangeProvider
 {
     private static readonly List<(int start, int end)> freePortRanges = [];
 
-    public static int RandomPort(int min = 30000, int max = 50000)
+    public static int[] RandomPorts(int count = 1, int min = 30000, int max = 50000)
     {
-        var nextRange = Random.Shared.GetItems(freePortRanges.Where(it => it.start > min && it.start < max).ToArray(), 1);
-        return Random.Shared.GetItems(Enumerable.Range(nextRange[0].start, nextRange[0].end - nextRange[0].start).ToArray(), 1)[0];
+        var source = freePortRanges.Where(it => it.start > min && it.start < max).ToArray();
+        var nextRanges = Random.Shared.GetItems(source, Math.Min(count, source.Length));
+        var nextPorts = nextRanges.SelectMany(it => Enumerable.Range(it.start, it.end - it.start)).ToArray();
+        return Random.Shared.GetItems(nextPorts, count);
     }
 
     public static void Fetch()

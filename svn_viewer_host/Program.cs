@@ -6,19 +6,22 @@ var messages = builder.AddProject<Projects.svn_viewer_messages>("messages")
     .WithExternalHttpEndpoints();
 
 #pragma warning disable ASPIREHOSTINGPYTHON001
-var svnPort = FreeTCPPortRangeProvider.RandomPort();
+var svnPorts = FreeTCPPortRangeProvider.RandomPorts(2);
 
 var svn = builder.AddPythonApp("svn", "../svn_viewer_svn", "main.py")
     .WithReference(messages).WaitFor(messages)
-    .WithEnvironment("INNGEST_PORT", svnPort.ToString())
+    .WithEnvironment("INNGEST_PORT", svnPorts[0].ToString())
+    .WithEnvironment("INNGEST_DEV_PORT", svnPorts[1].ToString())
     .WithEnvironment("INNGEST_SIGNING_KEY", builder.Configuration.GetSection("INNGEST_SIGNING_KEY").Value)
     .WithEnvironment("INNGEST_DEV", "1")
     .WithEnvironment("INNGEST_EVENT_KEY", "INNGEST-SVN")
-    .WithOtlpExporter();
+    .WithOtlpExporter()
+    .WithExternalHttpEndpoints();
 
 var svncli = builder.AddNpmApp("svncli", "../svn_viewer_svn_dev")
     .WithReference(svn).WaitFor(svn)
-    .WithEnvironment("INNGEST_PORT", svnPort.ToString());
+    .WithHttpEndpoint(env: "PORT", targetPort: svnPorts[1])
+    .WithEnvironment("INNGEST_PORT", svnPorts[0].ToString());
 #pragma warning restore ASPIREHOSTINGPYTHON001
 
 var ui_helper = builder.AddProject<Projects.svn_viewer_ui_helper>("uihelper")

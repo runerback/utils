@@ -7,6 +7,7 @@ import uvicorn
 
 inngest_client = inngest.Inngest(
     app_id="svn",
+    api_base_url=f"http://localhost:{os.environ.get("INNGEST_DEV_PORT")}",
     logger=logging.getLogger("uvicorn"),
 )
 
