@@ -11,6 +11,7 @@ import {
   serverPort,
   settings,
   svn,
+  svnUri,
   uiHelperUri,
 } from "./settings.js";
 
@@ -40,14 +41,36 @@ app.get("/settings", (_, res) => {
   res.send(settings);
 });
 
-app.post("/settings", (req, res) => {
-  res.end();
+app.post("/settings", async (req, res) => {
   const payload = req.body as typeof settings;
-  settings.svn_root = payload?.svn_root ?? "";
-  settings.dark_theme = Boolean(payload?.dark_theme);
-  if (!!svn && !!settings.svn_root && fs.existsSync(settings.svn_root)) {
-    settings.svn_root_hash = md5(settings.svn_root);
+  const svn_root = payload?.svn_root ?? "";
+  if (!svn_root) {
+    res.status(400).json({ error: "svn_root is required" });
+    return;
   }
+  const result = await fetch(svnUri, {
+    method: "POST",
+    body: JSON.stringify({
+      name: "fetch.settings",
+      data: {
+        settings: {
+          svn_root,
+        },
+      },
+    }),
+  });
+  if (result.status !== 200) {
+    res.status(500).json({
+      error: {
+        status: result.status,
+        statusText: result.statusText,
+      },
+    });
+  }
+  settings.svn_root_hash = await result.text();
+  settings.svn_root = svn_root;
+  settings.dark_theme = Boolean(payload?.dark_theme);
+  res.end();
 });
 
 type SvnCommandCache = {
@@ -322,21 +345,4 @@ app.post("/opendir", async (req, res) => {
 
 app.listen(serverPort, () => {
   console.log(`Server is Running on ${serverPort}`);
-  setTimeout(() => {
-    fetch(
-      `${process.env["services__svn__http__0"]}/e/${process.env["INNGEST_EVENT_KEY"]}`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-        body: JSON.stringify({
-          name: "hello.world",
-          data: { email: "asdfsdfa@asdf.cnd" },
-        }),
-      }
-    )
-      .then((res) => console.log([res.status, res.statusText]))
-      .catch(console.error);
-  }, 1000);
 });

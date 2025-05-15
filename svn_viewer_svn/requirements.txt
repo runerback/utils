@@ -1,3 +1,4 @@
 fastapi
 inngest
 uvicorn
+fastapi-swagger

@@ -1,11 +1,12 @@
 from logging import Logger
 from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
 
-class LoggingMiddleware:
+class LoggingMiddleware(BaseHTTPMiddleware):
 
-    def __init__(self, _, logger: Logger | None = None):
-        # no one need app here
+    def __init__(self, app, dispatch, logger: Logger | None = None):
+        super().__init__(app, dispatch)
         self.logger = logger
 
     # end def
