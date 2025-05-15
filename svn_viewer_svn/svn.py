@@ -1,4 +1,8 @@
+import os
 import hashlib
+
+svn_executable = os.environ.get("SVN_EXECUTABLE")
+assert svn_executable and os.path.exists(svn_executable)
 
 _settings = {"svn_root": "", "svn_root_hash": ""}
 

@@ -6,26 +6,20 @@ import { exec, ExecException } from "child_process";
 import md5 from "md5";
 import moment from "moment";
 import cache from "node-cache";
-import {
-  messageHubUri,
-  serverPort,
-  settings,
-  svn,
-  svnUri,
-  uiHelperUri,
-} from "./settings.js";
+import fetch from "node-fetch";
+import { serverPort, settings, svn, svnUri, uiHelperUri } from "./settings.js";
 
 const sendMessage = (id: string, content: any) => {
-  fetch(`${messageHubUri}/message?id=${id}&sync`, {
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-    body: JSON.stringify({
-      ...content,
-      timestamp: moment().format("HH:mm:ss.SSS"),
-    }),
-  });
+  // fetch(`${messageHubUri}/message?id=${id}&sync`, {
+  //   headers: {
+  //     "Content-Type": "application/json",
+  //   },
+  //   method: "POST",
+  //   body: JSON.stringify({
+  //     ...content,
+  //     timestamp: moment().format("HH:mm:ss.SSS"),
+  //   }),
+  // });
 };
 
 const app = express();
@@ -48,14 +42,11 @@ app.post("/settings", async (req, res) => {
     res.status(400).json({ error: "svn_root is required" });
     return;
   }
-  const result = await fetch(svnUri, {
+  const result = await fetch(`${svnUri}/fetch/settings`, {
     method: "POST",
     body: JSON.stringify({
-      name: "fetch.settings",
-      data: {
-        settings: {
-          svn_root,
-        },
+      settings: {
+        svn_root,
       },
     }),
   });
@@ -66,10 +57,12 @@ app.post("/settings", async (req, res) => {
         statusText: result.statusText,
       },
     });
+    console.error(result);
+  } else {
+    settings.svn_root_hash = await result.text();
+    settings.svn_root = svn_root;
+    settings.dark_theme = Boolean(payload?.dark_theme);
   }
-  settings.svn_root_hash = await result.text();
-  settings.svn_root = svn_root;
-  settings.dark_theme = Boolean(payload?.dark_theme);
   res.end();
 });
 

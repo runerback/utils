@@ -72,7 +72,7 @@ export default function (props: {
     if (props.title.value) {
       return `Welcome ${props.title.value}`;
     }
-    return "Welcom, but 😵";
+    return "Welcom, but server is 😵";
   });
   const label = useComputed(() => {
     if (actived.value) {

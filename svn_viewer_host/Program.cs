@@ -41,50 +41,41 @@ if (string.IsNullOrWhiteSpace(svn_executable))
     return;
 }
 
-var builder = DistributedApplication.CreateBuilder(args);
-
 FreeTCPPortRangeProvider.Fetch();
 
-var messages = builder.AddProject<Projects.svn_viewer_messages>("messages")
-    .WithExternalHttpEndpoints();
+var builder = DistributedApplication.CreateBuilder(args);
+
+var messages = builder.AddProject<Projects.svn_viewer_messages>("messages");
+
+var thridPartyPorts = FreeTCPPortRangeProvider.RandomPorts(2);
+var svn_port = thridPartyPorts[0];
+var server_port = thridPartyPorts[1];
 
 #pragma warning disable ASPIREHOSTINGPYTHON001
-var svnPorts = FreeTCPPortRangeProvider.RandomPorts(2);
-
 var svn = builder.AddPythonApp("svn", "../svn_viewer_svn", "main.py")
     .WithReference(messages).WaitFor(messages)
-    .WithEnvironment("INNGEST_PORT", svnPorts[0].ToString())
-    .WithEnvironment("INNGEST_DEV_PORT", svnPorts[1].ToString())
-    .WithEnvironment("INNGEST_SIGNING_KEY", builder.Configuration.GetSection("INNGEST_SIGNING_KEY").Value)
-    .WithEnvironment("INNGEST_EVENT_KEY", builder.Configuration.GetSection("INNGEST_EVENT_KEY").Value)
-    .WithEnvironment("INNGEST_DEV", "0")
     .WithEnvironment("SVN_EXECUTABLE", svn_executable)
     .WithOtlpExporter()
+    .WithEnvironment("PORT", svn_port.ToString())
     .WithExternalHttpEndpoints();
-
-var svncli = builder.AddNpmApp("svncli", "../svn_viewer_svn_dev")
-    .WithReference(svn).WaitFor(svn)
-    .WithHttpEndpoint(env: "PORT", targetPort: svnPorts[1])
-    .WithEnvironment("INNGEST_PORT", svnPorts[0].ToString());
 #pragma warning restore ASPIREHOSTINGPYTHON001
 
-var ui_helper = builder.AddProject<Projects.svn_viewer_ui_helper>("uihelper")
-    .WithExternalHttpEndpoints();
+var ui_helper = builder.AddProject<Projects.svn_viewer_ui_helper>("uihelper");
 
 var server = builder.AddNpmApp("server", "../svn_viewer_server")
     .WithReference(ui_helper).WaitFor(ui_helper)
     .WithReference(svn).WaitFor(svn)
-    .WithEnvironment("BROWSER", "none")
-    .WithEnvironment("INNGEST_PORT", svnPorts[0].ToString())
-    .WithEnvironment("INNGEST_EVENT_KEY", builder.Configuration.GetSection("INNGEST_EVENT_KEY").Value)
-    .WithHttpEndpoint(env: "SERVER_PORT");
+    .WithEnvironment("SVN_PORT", svn_port.ToString())
+    .WithEnvironment("PORT", server_port.ToString());
 
 var ui = builder.AddNpmApp("ui", "../svn_viewer_ui", scriptName: "dev")
+    .WithReference(messages).WaitFor(messages)
     .WithReference(ui_helper).WaitFor(ui_helper)
     .WithReference(server).WaitFor(server)
     .WithEnvironment("BROWSER", "none")
-    .WithExternalHttpEndpoints()
-    .WithHttpEndpoint(env: "UI_PORT");
+    .WithEnvironment("SERVER_PORT", server_port.ToString())
+    .WithHttpEndpoint(env: "PORT")
+    .WithExternalHttpEndpoints();
 
 var app = builder.Build();
 

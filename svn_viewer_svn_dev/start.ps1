@@ -1,1 +1,0 @@
-& ./node_modules/inngest-cli/bin/inngest.exe dev -p $env:PORT -u http://localhost:$env:INNGEST_PORT/api/inngest

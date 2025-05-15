@@ -25,7 +25,7 @@ export default defineConfig({
     ],
   },
   server: {
-    port: parseInt(process.env["UI_PORT"]!),
+    port: parseInt(process.env["PORT"]!),
     proxy: {
       "/api/messages": {
         target: process.env["services__messages__http__0"],
@@ -34,7 +34,7 @@ export default defineConfig({
         ws: true,
       },
       "/api/server": {
-        target: process.env["services__server__http__0"],
+        target: `http://localhost:${process.env["SERVER_PORT"]}`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/server/, ""),
       },
