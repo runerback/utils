@@ -1,3 +1,4 @@
+from threading import Timer
 from uuid import uuid4
 from messages import send_message
 from svntypes import jtoken
@@ -83,12 +84,14 @@ class scheduler:
     running_job_ids: list[str] = []
 
     def __init__(self):
-        # TODO: timer
-        pass
+        self.timer = Timer(1, self._loop, args=(self), deamon=True)
+        self.timer.start()
+
     # end def
 
     def __del__(self):
-        pass
+        self.timer.cancel()
+
     # end def
 
     def add[TJob: job](self, factory: Callable[[str], TJob]):
@@ -98,7 +101,10 @@ class scheduler:
     # end def
 
     def _loop(self):
-        pass
+        if len(self.running_job_ids) > 0:
+            return
+        # end if
+        # TODO: run jobs
 
     # end def
 
