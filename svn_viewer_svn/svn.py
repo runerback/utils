@@ -1,8 +1,10 @@
 import os
 import hashlib
+import subprocess
+from typing import Callable
 
-svn_executable = os.environ.get("SVN_EXECUTABLE")
-assert svn_executable and os.path.exists(svn_executable)
+_svn_executable = os.environ.get("SVN_EXECUTABLE")
+assert _svn_executable and os.path.exists(_svn_executable)
 
 _settings = {"svn_root": "", "svn_root_hash": ""}
 
@@ -16,6 +18,30 @@ def fetch_settings(svn_root: str):
         _settings["svn_root_hash"] = ""
     # end if
     return _settings["svn_root_hash"]
+
+
+# end def
+
+
+def svn_hash():
+    svn_root_hash = _settings["svn_root_hash"]
+    assert svn_root_hash
+    return svn_root_hash
+
+
+# end def
+
+
+def svn_fetch_status() -> str | None:
+    svn_root = _settings["svn_root"]
+    assert svn_root
+    status = subprocess.run(
+        [_svn_executable, "status", f'"{svn_root}"'],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return status.stderr, status.stdout
 
 
 # end def
