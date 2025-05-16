@@ -49,7 +49,7 @@ class Job[TPayload: JobPayload]:
             self._execute()
             self.completed = True
         except Exception as e:
-            self.failed = False
+            self.failed = True
             self.error = e
         finally:
             self.running = False
