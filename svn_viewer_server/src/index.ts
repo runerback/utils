@@ -43,6 +43,10 @@ app.post("/settings", async (req, res) => {
     return;
   }
   const result = await fetch(`${svnUri}/fetch/settings`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
     method: "POST",
     body: JSON.stringify({
       settings: {
@@ -57,7 +61,6 @@ app.post("/settings", async (req, res) => {
         statusText: result.statusText,
       },
     });
-    console.error(result);
   } else {
     settings.svn_root_hash = await result.text();
     settings.svn_root = svn_root;

@@ -8,18 +8,13 @@ assert _messages_api
 
 
 def send_message(id: str, content: jtoken, sync=True):
-    try:
-        # requests.post(
-        #     f"{_messages_api}/message?id={id}" + ("&sync" if sync else ""),
-        #     json={
-        #         **content,
-        #         "timestamp": datetime.now.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
-        #     },
-        # )
-        pass
-    except:
-        print(f"bao cuo la!!")
-    # end try
+    requests.post(
+        f"{_messages_api}/message?id={id}" + ("&sync=true" if sync else ""),
+        json={
+            **content,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+        },
+    )
 
 
 # end def

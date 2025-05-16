@@ -1,18 +1,25 @@
+import json
 from fastapi import FastAPI, HTTPException
-import logging
 import os
 import uvicorn
+import logging
+from logging.config import dictConfig
 from fastapi_swagger import patch_fastapi
 from LoggingMiddleware import LoggingMiddleware
+from starlette.middleware.cors import CORSMiddleware
 from models import SettingsRequestModel
 from svn import fetch_settings
-from messages import send_message
+from worker import add_send_message_job
 
-app = FastAPI(docs_url=None, swagger_ui_oauth2_redirect_url=None)
+with open("logging.config.json", "r") as logging_config:
+    dictConfig(json.load(logging_config))
 logger = logging.getLogger("uvicorn")
 
 
-@app.post("/svn/fetch/settings")
+app = FastAPI(docs_url=None, swagger_ui_oauth2_redirect_url=None)
+
+
+@app.post("/svn/fetch/settings", response_model=str)
 async def create_item(data: SettingsRequestModel):
     settings = data.settings
     if not settings:
@@ -23,7 +30,7 @@ async def create_item(data: SettingsRequestModel):
         raise HTTPException(status_code=400, detail="settings.svn_root required")
     # end if
     id = fetch_settings(svn_root)
-    send_message(id, {"data": "settings fetched"})
+    add_send_message_job(id, {"data": "settings fetched"})
     return id
 
 
@@ -33,7 +40,14 @@ if __name__ == "__main__":
     port = os.environ.get("PORT")
     assert port
     app.add_middleware(LoggingMiddleware, dispatch=None, logger=logger)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     patch_fastapi(app)
-    uvicorn.run(app, port=int(port), log_level="info")
+    uvicorn.run(app, port=int(port))
 
 # end if

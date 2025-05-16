@@ -1,3 +1,4 @@
+import logging
 from threading import Timer
 from uuid import uuid4
 from messages import send_message
@@ -6,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Callable
 
 
-class job_payload(ABC):
+class JobPayload(ABC):
     def __init__(self, kind: str):
         self.kind = kind
 
@@ -16,7 +17,7 @@ class job_payload(ABC):
 # end class
 
 
-class job[TPayload: job_payload]:
+class Job[TPayload: JobPayload]:
     def __init__(self, id: str, payload: TPayload):
         self.id = id
         self.payload = payload
@@ -34,13 +35,13 @@ class job[TPayload: job_payload]:
     # end def
 
     @property
-    def started(self):
-        return self.running or self.finished
+    def pending(self):
+        return not self.running and not self.finished
 
     # end def
 
     def execute(self):
-        if self.started or self.finished:
+        if self.running or self.finished:
             return
         # end if
         self.running = True
@@ -61,12 +62,16 @@ class job[TPayload: job_payload]:
         pass
 
     # end def
+    def __str__(self):
+        return f"{{ id: {self.id}, payload: {self.payload} completed: {self.completed}, failed: {self.failed}, error: {self.error} }}"
+
+    # end def
 
 
 # end class
 
 
-class send_message_job_payload(job_payload):
+class send_message_job_payload(JobPayload):
     def __init__(self, id: str, content: jtoken, sync: bool | None = True):
         super().__init__(kind="send_message")
         self.id = id
@@ -79,37 +84,59 @@ class send_message_job_payload(job_payload):
 # end class
 
 
-class scheduler:
-    jobs: dict[str, job] = []
+_scheduler_timer_interval = 1
+_logger = logging.getLogger("scheduler")
+
+
+class Scheduler:
+    jobs: dict[str, Job] = {}
     running_job_ids: list[str] = []
 
     def __init__(self):
-        self.timer = Timer(1, self._loop, args=(self), deamon=True)
-        self.timer.start()
+        self._nextloop()
 
     # end def
 
-    def __del__(self):
-        self.timer.cancel()
-
-    # end def
-
-    def add[TJob: job](self, factory: Callable[[str], TJob]):
+    def add[TJob: Job](self, factory: Callable[[str], TJob]):
         id = str(uuid4())
-        self.jobs[id] = factory(id)
+        job = self.jobs[id] = factory(id)
+        _logger.info(f"job added - {id}: {job}")
 
     # end def
 
     def _loop(self):
-        if len(self.running_job_ids) > 0:
-            return
-        # end if
-        # TODO: run jobs
+        try:
+            if len(self.running_job_ids) > 0:
+                return
+            # end if
+            for pendingJobId in [
+                key for key, value in self.jobs.items() if value.pending
+            ]:
+                self.running_job_ids.append(pendingJobId)
+                _logger.info(f"executing job {pendingJobId}")
+                self.jobs[pendingJobId].execute()
+                self.running_job_ids.remove(pendingJobId)
+                job = self.jobs.pop(pendingJobId)
+                _logger.info(f"finish execute job {pendingJobId}: {job}")
+                break
+            # end for
+        finally:
+            self._nextloop()
+
+    # end def
+
+    def _nextloop(self):
+        self.timer = Timer(_scheduler_timer_interval, self._loop)
+        self.timer.daemon = True
+        self.timer.start()
 
     # end def
 
 
-class send_message_job(job[send_message_job_payload]):
+# end class
+
+
+class send_message_job(Job[send_message_job_payload]):
     def __init__(self, id, payload):
         super().__init__(id, payload)
 
@@ -123,9 +150,13 @@ class send_message_job(job[send_message_job_payload]):
 
 # end class
 
+_scheduler = Scheduler()
+
 
 def add_send_message_job(id: str, content: jtoken, sync=True):
-    pass
+    _scheduler.add(
+        lambda jid: send_message_job(jid, send_message_job_payload(id, content, sync))
+    )
 
 
 # end def
