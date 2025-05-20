@@ -1,24 +1,5 @@
-import { exec } from "child_process";
-
 export const svn = await new Promise<string | undefined>((resolve, reject) => {
-  try {
-    const ps1 = exec(
-      "powershell -c (Get-Command svn).Source",
-      (error, stdout, stderror) => {
-        if (!!stdout) {
-          return resolve(stdout.trimEnd().replaceAll("\\", "/"));
-        }
-        if (!!error || !!stderror) {
-          return reject(error || stderror);
-        }
-      }
-    );
-    ps1.on("close", () => {
-      resolve(undefined);
-    });
-  } catch (error) {
-    reject(error);
-  }
+  resolve("echo");
 });
 if (!svn) {
   console.warn("svn not found");

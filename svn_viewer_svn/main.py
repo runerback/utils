@@ -7,9 +7,9 @@ from logging.config import dictConfig
 from fastapi_swagger import patch_fastapi
 from LoggingMiddleware import LoggingMiddleware
 from starlette.middleware.cors import CORSMiddleware
-from models import SettingsRequestModel
-from svn import fetch_settings
-from worker import add_send_message_job
+from models import SettingsRequestModel, SvnRequestModel
+from svn import fetch_settings, svn_hash
+from worker import add_fetch_svn_status_job, add_send_message_job
 
 with open("logging.config.json", "r") as logging_config:
     dictConfig(json.load(logging_config))
@@ -32,6 +32,15 @@ async def create_item(data: SettingsRequestModel):
     id = fetch_settings(svn_root)
     add_send_message_job(id, {"data": "settings fetched"})
     return id
+
+
+# end def
+
+
+@app.post("/svn/fetch/status", response_model=str)
+async def fetch_status(data: SvnRequestModel):
+    add_fetch_svn_status_job(data.job)
+    return svn_hash()
 
 
 # end def

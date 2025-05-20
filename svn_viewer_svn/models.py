@@ -13,3 +13,10 @@ class SettingsRequestModel(BaseModel):
 
 
 # end class
+
+
+class SvnRequestModel(BaseModel):
+    job: str | None
+
+
+# end class

@@ -4,23 +4,11 @@ import fs from "fs";
 import path from "path";
 import { exec, ExecException } from "child_process";
 import md5 from "md5";
-import moment from "moment";
 import cache from "node-cache";
 import fetch from "node-fetch";
 import { serverPort, settings, svn, svnUri, uiHelperUri } from "./settings.js";
 
-const sendMessage = (id: string, content: any) => {
-  // fetch(`${messageHubUri}/message?id=${id}&sync`, {
-  //   headers: {
-  //     "Content-Type": "application/json",
-  //   },
-  //   method: "POST",
-  //   body: JSON.stringify({
-  //     ...content,
-  //     timestamp: moment().format("HH:mm:ss.SSS"),
-  //   }),
-  // });
-};
+const sendMessage = (id: string, content: any) => {};
 
 const app = express();
 
@@ -50,7 +38,7 @@ app.post("/settings", async (req, res) => {
     method: "POST",
     body: JSON.stringify({
       settings: {
-        svn_root,
+        svn_root: svn_root.replaceAll("\\", "/"),
       },
     }),
   });
@@ -107,39 +95,27 @@ const execute = (
   }
 };
 
-app.post("/status", (req, res) => {
-  res.send(settings.svn_root_hash);
+app.post("/status", async (req, res) => {
   const params = req.body as { job?: string };
-  sendMessage(settings.svn_root_hash, { processing: true, job: params.job });
-  try {
-    execute(
-      `"${svn}" status "${settings.svn_root}"`,
-      (error, stdout, stderror) => {
-        if (!!error || !!stderror) {
-          sendMessage(settings.svn_root_hash, {
-            error: error || stderror,
-            job: params.job,
-          });
-          console.error(error || stderror);
-        }
-        if (!!stdout) {
-          sendMessage(settings.svn_root_hash, {
-            data: stdout,
-            job: params.job,
-          });
-        }
+  const result = await fetch(`${svnUri}/fetch/status`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      job: params.job,
+    }),
+  });
+  if (result.status !== 200) {
+    res.status(500).json({
+      error: {
+        status: result.status,
+        statusText: result.statusText,
       },
-      () => {
-        sendMessage(settings.svn_root_hash, {
-          completed: true,
-          job: params.job,
-        });
-      }
-    );
-  } catch (error) {
-    sendMessage(settings.svn_root_hash, { error, job: params.job });
-    console.error(error);
+    });
   }
+  res.end();
 });
 
 const validateUrl = (source?: string | null) => {

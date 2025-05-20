@@ -35,11 +35,13 @@ def svn_hash():
 def svn_fetch_status() -> str | None:
     svn_root = _settings["svn_root"]
     assert svn_root
+    print(f'[svn_fetch_status] "{svn_root}"')
     status = subprocess.run(
-        [_svn_executable, "status", f'"{svn_root}"'],
+        [_svn_executable, "status", svn_root],
         capture_output=True,
         text=True,
         encoding="utf-8",
+        shell=True
     )
     return status.stderr, status.stdout
 

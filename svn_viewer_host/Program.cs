@@ -55,6 +55,7 @@ var server_port = thridPartyPorts[1];
 var svn = builder.AddPythonApp("svn", "../svn_viewer_svn", "main.py")
     .WithReference(messages).WaitFor(messages)
     .WithEnvironment("SVN_EXECUTABLE", svn_executable)
+    .WithEnvironment("PYTHONIOENCODING", "utf-8")
     .WithOtlpExporter()
     .WithEnvironment("PORT", svn_port.ToString())
     .WithExternalHttpEndpoints();

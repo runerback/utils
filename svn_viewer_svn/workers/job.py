@@ -56,6 +56,7 @@ class Job[TPayload: JobPayload]:
         pass
 
     # end def
+
     def __str__(self):
         return f"{{ id: {self.id}, payload: {self.payload} completed: {self.completed}, failed: {self.failed}, error: {self.error} }}"
 

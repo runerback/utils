@@ -1,4 +1,4 @@
-from job import Job, JobPayload
+from workers.job import Job, JobPayload
 from messages import send_message
 from svntypes import jtoken
 

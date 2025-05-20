@@ -1,16 +1,11 @@
-from job import Job, JobPayload
+from workers.job import Job, JobPayload
 from messages import send_message
 from svn import svn_fetch_status, svn_hash
-from svntypes import jtoken
 
 
-class svn_status_job_payload(JobPayload):
-    def __init__(self, id: str, path: str, type: str | None = None):
+class fetch_svn_status_job_payload(JobPayload):
+    def __init__(self, type: str | None = None):
         super().__init__(kind="fetch_svn_status")
-        assert id
-        self.id = id
-        assert path
-        self.path = path
         self.type = type
 
     # end def
@@ -19,7 +14,7 @@ class svn_status_job_payload(JobPayload):
 # end class
 
 
-class svn_status_job(Job[svn_status_job_payload]):
+class fetch_svn_status_job(Job[fetch_svn_status_job_payload]):
     def __init__(self, id, payload):
         super().__init__(id, payload)
 
