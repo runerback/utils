@@ -1,12 +1,27 @@
 import os
 import hashlib
 import subprocess
-from typing import Callable
 
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
 assert _svn_executable and os.path.exists(_svn_executable)
 
 _settings = {"svn_root": "", "svn_root_hash": ""}
+
+
+def validateUrl(source: str | None):
+    svn_root = _settings["svn_root"]
+    assert svn_root
+    if not source or len(source) == 0:
+        return None
+    # end if
+    url = os.path.join(svn_root, source).replace("\\", "/")
+    if not os.path.exists(url):
+        return None
+    # end if
+    return url
+
+
+# end def
 
 
 def fetch_settings(svn_root: str):
@@ -41,9 +56,23 @@ def svn_fetch_status() -> str | None:
         capture_output=True,
         text=True,
         encoding="utf-8",
-        shell=True
+        shell=True,
     )
     return status.stderr, status.stdout
 
 
 # end def
+
+
+def svn_fetch_diff(path: str) -> str | None:
+    url = validateUrl(path)
+    assert url
+    print(f'[fetch_svn_diff] "{url}"')
+    diff = subprocess.run(
+        [_svn_executable, "diff", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    return diff.stderr, diff.stdout

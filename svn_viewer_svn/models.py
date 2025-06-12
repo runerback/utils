@@ -20,3 +20,17 @@ class SvnRequestModel(BaseModel):
 
 
 # end class
+
+
+class SvnStatusRequestModel(SvnRequestModel):
+    pass
+
+
+# end class
+
+
+class SvnDiffRequestModel(SvnRequestModel):
+    path: str
+
+
+# end class

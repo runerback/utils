@@ -129,40 +129,30 @@ const validateUrl = (source?: string | null) => {
   return url;
 };
 
-app.post("/diff", (req, res) => {
-  const url = validateUrl(req.query?.["path"] as string);
-  if (!!url) {
-    const id = md5(url);
-    const params = req.body as { job?: string };
-    res.send(id);
-    sendMessage(id, { processing: true, job: params.job });
-    try {
-      execute(
-        `"${svn}" diff "${url}"`,
-        (error, stdout, stderror) => {
-          if (!!error || !!stderror) {
-            sendMessage(settings.svn_root_hash, {
-              error: error || stderror,
-              job: params.job,
-            });
-            console.error(error || stderror);
-          }
-          if (!!stdout) {
-            sendMessage(id, { data: stdout, job: params.job });
-          }
-        },
-        () => {
-          sendMessage(id, { completed: true, job: params.job });
-        }
-      );
-    } catch (error) {
-      console.error(error);
-      sendMessage(id, { error, job: params.job });
-    }
-  } else {
-    console.warn("invalid url");
-    res.end();
+app.post("/diff", async (req, res) => {
+  const path = req.query?.["path"] as string;
+  const params = req.body as { job?: string };
+  const result = await fetch(`${svnUri}/fetch/diff`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      path,
+      job: params.job,
+    }),
+  });
+  if (result.status !== 200) {
+    res.status(500).json({
+      error: {
+        status: result.status,
+        statusText: result.statusText,
+      },
+    });
   }
+  res.send(await result.json());
+  res.end();
 });
 
 app.post("/unversioned", async (req, res) => {

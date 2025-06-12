@@ -15,9 +15,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # Log request details
         client_ip = request.client.host
         method = request.method
-        url = request.url.path
 
-        self.logger.info(f"Request: {method} {url} from {client_ip}")
+        self.logger.info(
+            f"Request: {method} {request.url.path}{request.url.query} {{{await request.json()}}} from {client_ip}"
+        )
 
         # Process the request
         response = await call_next(request)
@@ -25,7 +26,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # Log response details
         status_code = response.status_code
         self.logger.info(
-            f"Response: {method} {url} returned {status_code} to {client_ip}"
+            f"Response: {method} {request.url.path} returned {status_code} to {client_ip}"
         )
 
         return response
