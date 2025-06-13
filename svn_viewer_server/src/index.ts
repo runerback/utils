@@ -6,7 +6,47 @@ import { exec, ExecException } from "child_process";
 import md5 from "md5";
 import cache from "node-cache";
 import fetch from "node-fetch";
-import { serverPort, settings, svn, svnUri, uiHelperUri } from "./settings.js";
+import * as signalr from "@microsoft/signalr";
+import {
+  messageHubUri,
+  serverPort,
+  settings,
+  svn,
+  svnUri,
+  uiHelperUri,
+} from "./settings.js";
+import onMessage from "./messages.js";
+
+const connection = new signalr.HubConnectionBuilder()
+  .withUrl(`${messageHubUri}/messages`)
+  .build();
+connection.on("pre_message", (data) => {
+  console.log({ pre_message: data });
+  const message = data as Message;
+  if (!message || !message.id) {
+    return;
+  }
+  onMessage(message);
+});
+connection.onclose((error) => {
+  console.log("hub closed", error);
+  if (!!error) {
+    connection
+      .start()
+      .then(() => console.log("connected to hub"))
+      .catch((error) => console.log("connecting to hub failed", error));
+  }
+});
+connection.onreconnecting((error) => {
+  console.log("reconnecting to hub", error);
+});
+connection.onreconnected((id) => {
+  console.log("reconnected to hub", id);
+});
+connection
+  .start()
+  .then(() => console.log("connected to hub"))
+  .catch((error) => console.log("connecting to hub failed", error));
 
 const sendMessage = (id: string, content: any) => {};
 

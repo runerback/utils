@@ -14,23 +14,19 @@ var app = builder.Build();
 
 app.MapPost("/message", async (
     [FromQuery, Required] string id,
-    [FromQuery] bool? sync,
+    [FromQuery] bool? preprocess,
     HttpContext context,
     [FromServices] IHubContext<MessageHub> hub,
     CancellationToken cancellationToken) =>
 {
     var reader = new StreamReader(context.Request.Body);
     var content = await reader.ReadToEndAsync(cancellationToken);
-    if (sync.GetValueOrDefault())
-    {
-        // TODO: call `InvokeAsync`
-        await hub.Clients.All.SendAsync("message", JsonSerializer.Serialize(new { id, content }), cancellationToken);
-    }
-    else
-    {
-        await hub.Clients.All.SendAsync("message", JsonSerializer.Serialize(new { id, content }), cancellationToken);
-    }
-    app.Logger.LogInformation("message sent");
+    var target = preprocess.GetValueOrDefault() ? "pre_message" : "message";
+    await hub.Clients.All.SendAsync(
+        target,
+        new { id, content },
+        cancellationToken);
+    app.Logger.LogInformation("message sent -> {target}: {content}", target, content);
     return Results.NoContent();
 });
 

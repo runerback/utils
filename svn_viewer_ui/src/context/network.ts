@@ -6,7 +6,7 @@ const connection = new signalr.HubConnectionBuilder()
   .withUrl("/api/messages")
   .build();
 connection.on("message", (data) => {
-  const message = JSON.parse(data) as Message;
+  const message = data as Message;
   if (!message || !message.id) {
     return;
   }

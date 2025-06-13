@@ -64,6 +64,7 @@ var svn = builder.AddPythonApp("svn", "../svn_viewer_svn", "main.py")
 var ui_helper = builder.AddProject<Projects.svn_viewer_ui_helper>("uihelper");
 
 var server = builder.AddNpmApp("server", "../svn_viewer_server")
+    .WithReference(messages).WaitFor(messages)
     .WithReference(ui_helper).WaitFor(ui_helper)
     .WithReference(svn).WaitFor(svn)
     .WithEnvironment("SVN_PORT", svn_port.ToString())

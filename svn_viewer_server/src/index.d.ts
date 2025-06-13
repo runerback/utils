@@ -1,25 +1,24 @@
 declare type Settings = {
-  readonly svn_root: string;
-  readonly dark_theme?: boolean;
+  svn_root: string;
+  svn_root_hash: string;
+  dark_theme: boolean;
 };
-
-declare type Job =
-  | "IDLE"
-  | "FETCH_SETTINGS"
-  | "FETCH_STATUS"
-  | "FETCH_DIFFS"
-  | "FETCH_UNVERSIONED"
-  | "FETCH_LOGS";
 
 declare type Message = {
   readonly id: string;
   readonly content?: string;
 };
 
+declare type Job =
+  | "FETCH_STATUS"
+  | "FETCH_DIFFS"
+  | "FETCH_UNVERSIONED"
+  | "FETCH_LOGS";
+
 declare type MessageContent = {
   readonly job?: Job;
   readonly processing?: boolean;
-  readonly data?: string | object;
+  readonly data?: string;
   readonly error?: string;
   readonly completed?: boolean;
   readonly timestamp: string;
@@ -35,6 +34,14 @@ declare type SvnStatusItem = {
 declare type SvnStatus = {
   readonly changelist: SvnChangelistName;
   readonly changes: SvnStatusItem[];
+};
+
+declare type SvnLog = {
+  readonly revision: string;
+  readonly author?: string;
+  readonly timestamp?: string;
+  message?: string;
+  readonly changes?: number;
 };
 
 declare type Chunk0 = {
@@ -67,26 +74,4 @@ declare type Chunk1 = {
     readonly version: string;
   }[];
   readonly sections: ChunkSection[];
-};
-
-declare type SvnLog = {
-  readonly revision: string;
-  readonly author?: string;
-  readonly timestamp?: string;
-  message?: string;
-  readonly changes?: number;
-};
-
-declare type SvnLogs = {
-  readonly status?: SvnStatusItem;
-  readonly logs?: SvnLog[];
-};
-
-declare type SvnDiffProviderStream = {
-  readonly id: string;
-  readonly job?: Job;
-  readonly chunks?: Chunk1[];
-  readonly logs?: SvnLogs[];
-  readonly unversioned?: string[];
-  readonly finished?: boolean;
 };

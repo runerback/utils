@@ -30,9 +30,9 @@ class fetch_svn_status_job(Job[fetch_svn_status_job_payload]):
                 return
             # end if
             if message:
-                send_message(id, {"data": message, "job": self.payload.type})
+                send_message(id, {"data": message, "job": self.payload.type}, preprocess=True)
             # end if
-            send_message(id, {"completed": True, "job": self.payload.type})
+            # send_message(id, {"completed": True, "job": self.payload.type})
         except Exception as exp:
             send_message(id, {"error": exp, "job": self.payload.type})
         # end try

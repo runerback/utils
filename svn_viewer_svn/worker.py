@@ -64,9 +64,9 @@ class Scheduler:
 _scheduler = Scheduler()
 
 
-def add_send_message_job(id: str, content: jtoken, sync=True):
+def add_send_message_job(id: str, content: jtoken):
     _scheduler.add(
-        lambda jid: send_message_job(jid, send_message_job_payload(id, content, sync))
+        lambda jid: send_message_job(jid, send_message_job_payload(id, content))
     )
 
 

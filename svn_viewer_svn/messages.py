@@ -7,9 +7,12 @@ _messages_api = os.environ["services__messages__http__0"]
 assert _messages_api
 
 
-def send_message(id: str, content: jtoken, sync=True):
+def send_message(id: str, content: jtoken, preprocess=False):
+    url = f"{_messages_api}/message?id={id}" + (
+        "&preprocess=true" if preprocess else ""
+    )
     requests.post(
-        f"{_messages_api}/message?id={id}" + ("&sync=true" if sync else ""),
+        url=url,
         json={
             **content,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],

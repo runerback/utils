@@ -1,7 +1,7 @@
 import { signal, useSignal, useSignalEffect } from "@preact/signals-react";
 import "./app.css";
 import network from "./context/network";
-import { useComputed, useSignals } from "@preact/signals-react/runtime";
+import { useSignals } from "@preact/signals-react/runtime";
 import { Modal, type FormProps } from "antd";
 import { useCallback } from "preact/hooks";
 import svnparser from "./context/svnparser";
@@ -33,16 +33,7 @@ export function App() {
   useSignals();
   const serverStatus = useSignal("");
   const settings = useSignal<Settings>();
-  const rawStatus = useSignal("");
-  const status = useComputed(() => {
-    if (!!rawStatus.value) {
-      const currentSettings = settings.peek();
-      if (!!currentSettings && currentSettings.svn_root) {
-        return svnparser.parse_status(rawStatus.value, currentSettings);
-      }
-    }
-    return [];
-  });
+  const status = useSignal(Array<SvnStatus>());
   const busy = useSignal(false);
 
   const fetchSettings = useCallback(() => {
@@ -62,18 +53,6 @@ export function App() {
       }
     });
   });
-
-  const parseDiff = useCallback((rawDiff: string) => {
-    if (!!rawDiff) {
-      const currentSettings = settings.peek();
-      if (!!currentSettings && currentSettings.svn_root) {
-        return svnparser.parse_diff(rawDiff, {
-          svn_root: currentSettings.svn_root.replace(/\\/g, "/"),
-        });
-      }
-    }
-    return [];
-  }, []);
 
   const svnLogId = useSignal<string>();
   const svnLogStatus = useSignal<SvnStatusItem>();
@@ -101,7 +80,7 @@ export function App() {
         busy.value = true;
         switch (content.job) {
           case "FETCH_STATUS":
-            rawStatus.value = "";
+            status.value = [];
             break;
           default:
             break;
@@ -124,20 +103,22 @@ export function App() {
       } else if (!!content.data) {
         switch (content.job) {
           case "FETCH_STATUS":
-            rawStatus.value = content.data;
+            status.value = (content.data as SvnStatus[]) ?? [];
             break;
           case "FETCH_DIFFS":
             publishSvnDiffStream({
               id,
               job: content.job,
-              chunks: parseDiff(content.data),
+              chunks: (content.data as Chunk1[]) ?? [],
             });
             break;
           case "FETCH_UNVERSIONED":
             publishSvnDiffStream({
               id,
               job: content.job,
-              unversioned: content.data.split(/\r|\n/g).filter(Boolean),
+              unversioned: (content.data as string)
+                .split(/\r|\n/g)
+                .filter(Boolean),
             });
             break;
           case "FETCH_LOGS": {
@@ -146,7 +127,7 @@ export function App() {
               job: content.job,
               logs: [
                 {
-                  logs: svnparser.parse_logs(content.data),
+                  logs: svnparser.parse_logs(content.data as string),
                 },
               ],
             });
