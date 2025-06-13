@@ -52,11 +52,7 @@ export default (props: {
     <div className="svnlogs">
       <Skeleton loading={props.busy.value}>
         {svnLogs.value?.map((log, idx) => (
-          <SvnLogsCard
-            fkey={idx.toString()}
-            log={log}
-            previousLog={svnLogs.value?.[idx - 1]}
-          />
+          <SvnLogsCard key={idx.toString()} log={log} />
         ))}
       </Skeleton>
     </div>

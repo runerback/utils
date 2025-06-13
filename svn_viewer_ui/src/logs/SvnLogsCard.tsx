@@ -1,58 +1,145 @@
-import { Collapse, Descriptions } from "antd";
-import type { Key } from "preact";
+import { useComputed, useSignal, useSignalEffect } from "@preact/signals-react";
+import { Button, Card, Checkbox, List, type CheckboxChangeEvent } from "antd";
+import type { Moment } from "moment";
+import moment from "moment";
+import { useCallback, useMemo } from "preact/hooks";
+import type { SvnLogsDiffCardProps } from "./SvnLogsDiffCard";
+import SvnLogsDiffCard from "./SvnLogsDiffCard";
+import { useSignals } from "@preact/signals-react/runtime";
 
-export default function (props: {
-  log: SvnLogs;
-  previousLog?: SvnLogs;
-  fkey?: Key;
-}) {
-  console.log({ props });
+export default function (props: { log: SvnLogs }) {
+  useSignals();
+  const source = useMemo(() => {
+    return props.log.status?.source;
+  }, []);
+  const checkedRevisions = useSignal(Array<string>());
+  const comparedRevisions = useSignal<
+    Record<string, { revisionR: string; timestamp: Moment }[]>
+  >({});
+  useSignalEffect(() =>
+    console.log({ comparedRevisions: comparedRevisions.value })
+  );
+  const canCheckMore = useComputed(() => checkedRevisions.value.length < 2);
+  const comparing = useSignal(false);
+  const logsDiffCardSource = useSignal(
+    Array<{
+      left: string;
+      right: string;
+    }>()
+  );
+  const handleRevisionSelect = useCallback((e: CheckboxChangeEvent) => {
+    if (e.target.checked) {
+      checkedRevisions.value = [...checkedRevisions.value, e.target.value];
+    } else {
+      const snapshot = checkedRevisions.value;
+      const idx = snapshot.indexOf(e.target.value);
+      if (idx >= 0) {
+        checkedRevisions.value = [
+          ...snapshot.slice(0, idx),
+          ...snapshot.slice(idx + 1),
+        ];
+      }
+    }
+  }, []);
+  const compare = useCallback(() => {
+    if (!comparing.value) {
+      const [revisionL, revisionR] = checkedRevisions.value;
+      const comparedRevisionsSnapshot = comparedRevisions.peek();
+      const comparedRs = comparedRevisionsSnapshot[revisionL];
+      if (
+        comparedRs &&
+        comparedRs.map((it) => it.revisionR).includes(revisionR)
+      ) {
+        // TODO: refresh exists
+      } else {
+        comparedRevisions.value = {
+          ...comparedRevisionsSnapshot,
+          [revisionL]: [
+            ...(comparedRs ?? []),
+            { revisionR, timestamp: moment() }, // sort by timestamp desc
+          ],
+        };
+      }
+      logsDiffCardSource.value = Object.entries(comparedRevisions.value)
+        .flatMap(([revisionL, revisionRs]) =>
+          revisionRs.map(
+            ({ revisionR, timestamp }) =>
+              [timestamp, revisionL, revisionR] as [Moment, string, string]
+          )
+        )
+        .sort(
+          ([timestampL], [timestampR]) =>
+            timestampL.valueOf() - timestampR.valueOf()
+        )
+        .map(([, left, right]) => ({ left, right }));
+    }
+  }, []);
+  const compareStatusChanged = useCallback(
+    (e: SvnLogsDiffCardProps, status: "STARTED" | "FINISHED") => {
+      switch (status) {
+        case "STARTED":
+          comparing.value = true;
+          console.log("comparing started: ", e);
+          break;
+        case "FINISHED":
+          comparing.value = false;
+          console.log("comparing finished: ", e);
+          break;
+        default:
+          break;
+      }
+    },
+    []
+  );
+  if (!source) {
+    return <div>{"<no-source>"}</div>;
+  }
   return (
-    <Collapse
-      bordered
-      key={props.fkey}
-      className="svnlogscard"
-      defaultActiveKey={props.fkey === "0" ? [1] : []}
-      items={[
-        {
-          key: 1,
-          label: (
-            <div className="title">
-              {props.log.status?.source ?? "<nothing>"}
-            </div>
-          ),
-          children: props.log.logs
-            ?.map((it) => (
-              <Descriptions column={1}>
-                {!!it.message && (
-                  <Descriptions.Item label="Message">
-                    {it.message}
-                  </Descriptions.Item>
-                )}
-                <Descriptions.Item label="Revision">
-                  <b>r</b>
-                  {it.revision}
-                </Descriptions.Item>
-                {!!it.author && (
-                  <Descriptions.Item label="Author">
-                    {it.author}
-                  </Descriptions.Item>
-                )}
-                {!!it.timestamp && (
-                  <Descriptions.Item label="Timestamp">
-                    {it.timestamp}
-                  </Descriptions.Item>
-                )}
-                {!!it.changes && it.changes > 0 && (
-                  <Descriptions.Item label="Changes">
-                    {it.changes}&nbsp;<b>line</b>
-                  </Descriptions.Item>
-                )}
-              </Descriptions>
-            ))
-            .filter(Boolean),
-        },
-      ]}
-    />
+    <Card title={source} className="svnlogscard">
+      <List
+        loading={comparing.value}
+        className="logs"
+        itemLayout="horizontal"
+        dataSource={props.log.logs}
+        renderItem={(item, index) => (
+          <List.Item key={index}>
+            <Checkbox
+              className="line"
+              disabled={
+                !checkedRevisions.value.includes(item.revision) &&
+                !canCheckMore.value
+              }
+              value={item.revision}
+              checked={checkedRevisions.value.includes(item.revision)}
+              onChange={(e) => handleRevisionSelect(e)}
+            >
+              <div className="title">
+                <span className="revision">{item.revision}</span>
+                <span className="message">
+                  {item.message ?? "<no-message>"}
+                </span>
+                <span className="timestamp">{item.timestamp}</span>
+                <span className="author">{item.author}</span>
+              </div>
+            </Checkbox>
+          </List.Item>
+        )}
+      />
+      {!canCheckMore.value && (
+        <div className="comparer">
+          <Button type="primary" loading={comparing.value} onClick={compare}>
+            Compare
+          </Button>
+        </div>
+      )}
+      {logsDiffCardSource.value.map(({ left, right }) => (
+        <SvnLogsDiffCard
+          source={source}
+          revisions={{ left, right }}
+          compareStarted={(e) => compareStatusChanged(e, "STARTED")}
+          compareFinished={(e) => compareStatusChanged(e, "FINISHED")}
+        />
+      ))}
+    </Card>
   );
 }

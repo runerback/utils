@@ -12,7 +12,7 @@ import SvnDiffProvider, {
 } from "./context/svnDiffProviderContext";
 import Layout, { Header, Content } from "./layout";
 import SvnLogs from "./logs";
-import { CloseOutlined } from "@ant-design/icons";
+import { CloseOutlined, HistoryOutlined } from "@ant-design/icons";
 
 const svnDiffProviderContext = SvnDiffProvider();
 
@@ -187,7 +187,12 @@ export function App() {
           />
         </Content>
         <Modal
-          title="svn logs"
+          title={
+            <div>
+              <HistoryOutlined />
+              &nbsp;svn logs
+            </div>
+          }
           width="80vw"
           style={{ maxHeight: "80vh" }}
           closable

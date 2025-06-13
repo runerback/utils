@@ -5,11 +5,79 @@
   background-color: white;
 }
 
-.svnlogs .svnlogscard {
+.svnlogscard {
   margin: 6px;
   width: 100%;
 }
 
-.svnlogs .svnlogscard .title {
+.logs {
   width: 100%;
+}
+
+.line {
+  width: 100%;
+
+  .ant-checkbox-label {
+    width: 100%;
+  }
+}
+
+.line .title {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+
+  span {
+    margin-left: 6px;
+  }
+}
+
+.revision {
+  flex: 5%;
+  text-align: left;
+  font-weight: bold;
+}
+
+.revision::before {
+  content: "r";
+  display: inline-block;
+  margin-right: 2px;
+  font-weight: normal;
+  color: black;
+}
+
+.message {
+  flex: 60%;
+  text-align: left;
+  font-weight: bold;
+  color: cornflowerblue;
+}
+
+.timestamp {
+  font-weight: bold;
+  color: burlywood;
+  align-self: flex-end;
+}
+
+.author {
+  font-weight: bold;
+  color: rgb(54, 94, 14);
+  align-self: flex-end;
+}
+
+.author::before {
+  content: "by";
+  display: inline-block;
+  margin-right: 6px;
+  font-weight: normal;
+  color: black;
+}
+
+.comparer {
+  width: 100%;
+  text-align: center;
+
+  button {
+    margin-bottom: 16px;
+  }
 }
