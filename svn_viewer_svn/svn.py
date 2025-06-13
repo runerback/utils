@@ -83,6 +83,8 @@ def svn_fetch_diff(path: str) -> str | None:
 
 def svn_unversioned(path: str) -> str | None:
     url = validateUrl(path)
+    assert url
+    print(f'[fetch_svn_unversioned] "{url}"')
     if not os.path.isfile(url):
         return "this is D.I.R, how copy? over!", None
     # end if
@@ -102,6 +104,23 @@ def svn_unversioned(path: str) -> str | None:
     with open(url, mode="r") as file:
         return None, file.read()
     # end with
+
+
+# end def
+
+
+def svn_fetch_logs(path: str) -> str | None:
+    url = validateUrl(path)
+    assert url
+    print(f'[fetch_svn_logs] "{url}"')
+    logs = subprocess.run(
+        [_svn_executable, "log", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    return logs.stderr, logs.stdout
 
 
 # end def

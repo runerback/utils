@@ -41,3 +41,10 @@ class SvnUnversionedRequestModel(SvnRequestModel):
 
 
 # end class
+
+
+class SvnLogsRequestModel(SvnRequestModel):
+    path: str
+
+
+# end class

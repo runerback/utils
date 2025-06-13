@@ -15,14 +15,20 @@ const sendMessage = (id: string, content: any) => {
   });
 };
 
-const fetch_status = (id: string, data: string, job: Job) => {
+const preprocess_status = (id: string, data: string, job: Job) => {
   const parsed = svnparser.parse_status(data, settings);
   sendMessage(id, { data: parsed, job });
   global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
 
-const fetch_diffs = (id: string, data: string, job: Job) => {
+const preprocess_diffs = (id: string, data: string, job: Job) => {
   const parsed = svnparser.parse_diff(data, settings);
+  sendMessage(id, { data: parsed, job });
+  global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
+};
+
+const preprocess_logs = (id: string, data: string, job: Job) => {
+  const parsed = svnparser.parse_logs(data);
   sendMessage(id, { data: parsed, job });
   global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
@@ -34,10 +40,13 @@ export default (message: Message) => {
     if (!!content && !!content.timestamp && !!content.data && !!content.job) {
       switch (content.job) {
         case "FETCH_STATUS":
-          fetch_status(message.id, content.data, content.job);
+          preprocess_status(message.id, content.data, content.job);
           break;
         case "FETCH_DIFFS":
-          fetch_diffs(message.id, content.data, content.job);
+          preprocess_diffs(message.id, content.data, content.job);
+          break;
+        case "FETCH_LOGS":
+          preprocess_logs(message.id, content.data, content.job);
           break;
         default:
           break;

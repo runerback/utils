@@ -10,12 +10,14 @@ from starlette.middleware.cors import CORSMiddleware
 from models import (
     SettingsRequestModel,
     SvnDiffRequestModel,
+    SvnLogsRequestModel,
     SvnStatusRequestModel,
     SvnUnversionedRequestModel,
 )
 from svn import fetch_settings, svn_hash
 from worker import (
     add_fetch_svn_diff_job,
+    add_fetch_svn_logs_job,
     add_fetch_svn_status_job,
     add_fetch_svn_unversioned_job,
     add_send_message_job,
@@ -68,6 +70,15 @@ async def fetch_diff(data: SvnDiffRequestModel):
 async def fetch_diff(data: SvnUnversionedRequestModel):
     assert data.path
     return add_fetch_svn_unversioned_job(data.path, data.job)
+
+
+# end def
+
+
+@app.post("/svn/fetch/logs", response_model=str)
+async def fetch_diff(data: SvnLogsRequestModel):
+    assert data.path
+    return add_fetch_svn_logs_job(data.path, data.job)
 
 
 # end def

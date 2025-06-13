@@ -4,7 +4,6 @@ import network from "./context/network";
 import { useSignals } from "@preact/signals-react/runtime";
 import { Modal, type FormProps } from "antd";
 import { useCallback } from "preact/hooks";
-import svnparser from "./context/svnparser";
 import Settings from "./settings";
 import Diffs from "./diffs";
 import SvnDiffProvider, {
@@ -113,7 +112,6 @@ export function App() {
             });
             break;
           case "FETCH_UNVERSIONED":
-            console.log(content.job, typeof content.data);
             publishSvnDiffStream({
               id,
               job: content.job,
@@ -128,7 +126,7 @@ export function App() {
               job: content.job,
               logs: [
                 {
-                  logs: svnparser.parse_logs(content.data as string),
+                  logs: (content.data as SvnLog[]) ?? [],
                 },
               ],
             });

@@ -9,11 +9,7 @@ declare type Message = {
   readonly content?: string;
 };
 
-declare type Job =
-  | "FETCH_STATUS"
-  | "FETCH_DIFFS"
-  | "FETCH_UNVERSIONED"
-  | "FETCH_LOGS";
+declare type Job = "FETCH_STATUS" | "FETCH_DIFFS" | "FETCH_LOGS";
 
 declare type MessageContent = {
   readonly job?: Job;
