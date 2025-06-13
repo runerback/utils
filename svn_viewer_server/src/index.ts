@@ -196,62 +196,29 @@ app.post("/diff", async (req, res) => {
 });
 
 app.post("/unversioned", async (req, res) => {
-  const url = validateUrl(req.query?.["path"] as string);
-  if (!url) {
-    res.end();
-    return;
-  }
+  const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };
-  if (fs.statSync(url).isDirectory()) {
-    console.log("this is D.I.R, how copy? over!");
-    sendMessage("", {
+  const result = await fetch(`${svnUri}/fetch/unversioned`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      path,
       job: params.job,
-      error: "this is D.I.R, how copy? over!",
-    });
-    res.end();
-    return;
-  }
-  const id = md5(url);
-  res.send(id);
-  sendMessage(id, { processing: true, job: params.job });
-  // make sure file is unversioned
-  const status = await new Promise<string | null | undefined>((res, rej) => {
-    let status = "";
-    try {
-      execute(
-        `"${svn}" status "${url}"`,
-        (error, stdout, stderror) => {
-          if (!!error || !!stderror) {
-            return;
-          }
-          if (!!stdout) {
-            status = stdout;
-          }
-        },
-        () => {
-          res(status);
-        }
-      );
-    } catch (error) {
-      console.error(error);
-      rej(error);
-    }
+    }),
   });
-  if (!status || status[0] !== "?") {
-    res.end();
-    return;
-  }
-  try {
-    sendMessage(id, {
-      data: fs.readFileSync(url, { encoding: "utf-8" }),
-      job: params.job,
+  if (result.status !== 200) {
+    res.status(500).json({
+      error: {
+        status: result.status,
+        statusText: result.statusText,
+      },
     });
-  } catch (error) {
-    console.error(error);
-    sendMessage(id, { error, job: params.job });
-  } finally {
-    sendMessage(id, { completed: true, job: params.job });
   }
+  res.send(await result.json());
+  res.end();
 });
 
 app.post("/logs", (req, res) => {

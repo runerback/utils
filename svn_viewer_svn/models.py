@@ -34,3 +34,10 @@ class SvnDiffRequestModel(SvnRequestModel):
 
 
 # end class
+
+
+class SvnUnversionedRequestModel(SvnRequestModel):
+    path: str
+
+
+# end class

@@ -8,6 +8,11 @@ from workers.job import Job
 from svntypes import jtoken
 from typing import Callable
 
+from workers.svn_unversioned import (
+    fetch_svn_unversioned_job,
+    fetch_svn_unversioned_job_payload,
+)
+
 
 _scheduler_timer_interval = 1
 _logger = logging.getLogger("scheduler")
@@ -26,6 +31,7 @@ class Scheduler:
         id = str(uuid4())
         job = self.jobs[id] = factory(id)
         _logger.info(f"job added - {id}: {job}")
+        return id
 
     # end def
 
@@ -74,7 +80,7 @@ def add_send_message_job(id: str, content: jtoken):
 
 
 def add_fetch_svn_status_job(type: str | None = None):
-    _scheduler.add(
+    return _scheduler.add(
         lambda jid: fetch_svn_status_job(jid, fetch_svn_status_job_payload(type))
     )
 
@@ -83,9 +89,17 @@ def add_fetch_svn_status_job(type: str | None = None):
 
 
 def add_fetch_svn_diff_job(path: str, type: str | None = None):
-    _scheduler.add(
+    return _scheduler.add(
         lambda jid: fetch_svn_diff_job(jid, fetch_svn_diff_job_payload(path, type))
     )
 
 
 # end def
+
+
+def add_fetch_svn_unversioned_job(path: str, type: str | None = None):
+    return _scheduler.add(
+        lambda jid: fetch_svn_unversioned_job(
+            jid, fetch_svn_unversioned_job_payload(path, type)
+        )
+    )

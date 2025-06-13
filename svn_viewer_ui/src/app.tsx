@@ -113,6 +113,7 @@ export function App() {
             });
             break;
           case "FETCH_UNVERSIONED":
+            console.log(content.job, typeof content.data);
             publishSvnDiffStream({
               id,
               job: content.job,

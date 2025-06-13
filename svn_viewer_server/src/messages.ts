@@ -18,15 +18,13 @@ const sendMessage = (id: string, content: any) => {
 const fetch_status = (id: string, data: string, job: Job) => {
   const parsed = svnparser.parse_status(data, settings);
   sendMessage(id, { data: parsed, job });
-  sendMessage(id, { completed: true, job });
+  global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
 
 const fetch_diffs = (id: string, data: string, job: Job) => {
-  console.log("before fetch_diffs");
   const parsed = svnparser.parse_diff(data, settings);
-  console.log("after fetch_diffs", parsed);
   sendMessage(id, { data: parsed, job });
-  sendMessage(id, { completed: true, job });
+  global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
 
 export default (message: Message) => {

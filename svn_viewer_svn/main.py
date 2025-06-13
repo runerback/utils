@@ -7,11 +7,17 @@ from logging.config import dictConfig
 from fastapi_swagger import patch_fastapi
 from LoggingMiddleware import LoggingMiddleware
 from starlette.middleware.cors import CORSMiddleware
-from models import SettingsRequestModel, SvnDiffRequestModel, SvnStatusRequestModel
+from models import (
+    SettingsRequestModel,
+    SvnDiffRequestModel,
+    SvnStatusRequestModel,
+    SvnUnversionedRequestModel,
+)
 from svn import fetch_settings, svn_hash
 from worker import (
     add_fetch_svn_diff_job,
     add_fetch_svn_status_job,
+    add_fetch_svn_unversioned_job,
     add_send_message_job,
 )
 
@@ -43,8 +49,7 @@ async def create_item(data: SettingsRequestModel):
 
 @app.post("/svn/fetch/status", response_model=str)
 async def fetch_status(data: SvnStatusRequestModel):
-    add_fetch_svn_status_job(data.job)
-    return svn_hash()
+    return add_fetch_svn_status_job(data.job)
 
 
 # end def
@@ -53,8 +58,16 @@ async def fetch_status(data: SvnStatusRequestModel):
 @app.post("/svn/fetch/diff", response_model=str)
 async def fetch_diff(data: SvnDiffRequestModel):
     assert data.path
-    add_fetch_svn_diff_job(data.path, data.job)
-    return svn_hash()
+    return add_fetch_svn_diff_job(data.path, data.job)
+
+
+# end def
+
+
+@app.post("/svn/fetch/unversioned", response_model=str)
+async def fetch_diff(data: SvnUnversionedRequestModel):
+    assert data.path
+    return add_fetch_svn_unversioned_job(data.path, data.job)
 
 
 # end def

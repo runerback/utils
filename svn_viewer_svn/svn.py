@@ -76,3 +76,32 @@ def svn_fetch_diff(path: str) -> str | None:
         shell=True,
     )
     return diff.stderr, diff.stdout
+
+
+# end def
+
+
+def svn_unversioned(path: str) -> str | None:
+    url = validateUrl(path)
+    if not os.path.isfile(url):
+        return "this is D.I.R, how copy? over!", None
+    # end if
+    status = subprocess.run(
+        [_svn_executable, "status", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    if status.stderr:
+        return status.stderr, None
+    # end if
+    if not status.stdout or status.stdout[0] != "?":
+        return "not ✌️unversioned✌️", None
+    # end if
+    with open(url, mode="r") as file:
+        return None, file.read()
+    # end with
+
+
+# end def

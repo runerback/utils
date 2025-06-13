@@ -235,9 +235,7 @@ export function SvnDiffCard(props: {
                 <div className="header">
                   <div className="indicator">
                     {isEmpty.value ? (
-                      <div>
-                        <i>🈳️ NOTHING HERE 🫥</i>
-                      </div>
+                      <div>{!busy.value && <i>🈳️ NOTHING HERE 🫥</i>}</div>
                     ) : (
                       !!diffs.value &&
                       diffs.value.versions.map(({ indicator, version }) => (
