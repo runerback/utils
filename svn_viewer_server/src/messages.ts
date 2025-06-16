@@ -33,6 +33,12 @@ const preprocess_logs = (id: string, data: string, job: Job) => {
   global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
 
+const preprocess_log_diffs = (id: string, data: string, job: Job) => {
+  const parsed = svnparser.parse_diff(data, settings);
+  sendMessage(id, { data: parsed, job });
+  global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
+};
+
 export default (message: Message) => {
   console.log("handle message: ", typeof message.content);
   if (!!message.content) {
@@ -48,6 +54,8 @@ export default (message: Message) => {
         case "FETCH_LOGS":
           preprocess_logs(message.id, content.data, content.job);
           break;
+        case "FETCH_LOG_DIFFS":
+          preprocess_log_diffs(message.id, content.data, content.job);
         default:
           break;
       }

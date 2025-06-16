@@ -1,6 +1,7 @@
 import os
 import hashlib
 import subprocess
+from typing import Any, Tuple
 
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
 assert _svn_executable and os.path.exists(_svn_executable)
@@ -47,7 +48,7 @@ def svn_hash():
 # end def
 
 
-def svn_fetch_status() -> str | None:
+def svn_fetch_status() -> Tuple[Any | None, str | None]:
     svn_root = _settings["svn_root"]
     assert svn_root
     print(f'[svn_fetch_status] "{svn_root}"')
@@ -64,7 +65,7 @@ def svn_fetch_status() -> str | None:
 # end def
 
 
-def svn_fetch_diff(path: str) -> str | None:
+def svn_fetch_diff(path: str) -> Tuple[Any | None, str | None]:
     url = validateUrl(path)
     assert url
     print(f'[fetch_svn_diff] "{url}"')
@@ -81,7 +82,7 @@ def svn_fetch_diff(path: str) -> str | None:
 # end def
 
 
-def svn_unversioned(path: str) -> str | None:
+def svn_unversioned(path: str) -> Tuple[Any | None, str | None]:
     url = validateUrl(path)
     assert url
     print(f'[fetch_svn_unversioned] "{url}"')
@@ -109,12 +110,34 @@ def svn_unversioned(path: str) -> str | None:
 # end def
 
 
-def svn_fetch_logs(path: str) -> str | None:
+def svn_fetch_logs(path: str) -> Tuple[Any | None, str | None]:
     url = validateUrl(path)
     assert url
     print(f'[fetch_svn_logs] "{url}"')
     logs = subprocess.run(
         [_svn_executable, "log", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    return logs.stderr, logs.stdout
+
+
+# end def
+
+
+def svn_fetch_log_diffs(
+    path: str, n: int, m: int | None
+) -> Tuple[Any | None, str | None]:
+    url = validateUrl(path)
+    assert url
+    assert n and n >= 0
+    assert not m or m > 0
+    range = f"{n}:{m}" if m > 0 else str(n)
+    print(f'[fetch_svn_log_diffs] "{url}" with [{range}]')
+    logs = subprocess.run(
+        [_svn_executable, "diff", "-r", range, url],
         capture_output=True,
         text=True,
         encoding="utf-8",

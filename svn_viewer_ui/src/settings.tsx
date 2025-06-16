@@ -1,4 +1,4 @@
-import { Button, Collapse, Form, Input, Switch } from "antd";
+import { Button, Collapse, Form, Input, Spin, Switch } from "antd";
 import { useForm } from "antd/es/form/Form";
 import {
   useComputed,
@@ -27,6 +27,7 @@ const hasChanged = (a?: Settings, b?: Settings) => {
 };
 
 export default function (props: {
+  loading: ReadonlySignal<boolean>;
   busy: boolean;
   title: ReadonlySignal<string>;
   source$: ReadonlySignal<Settings | undefined>;
@@ -85,78 +86,78 @@ export default function (props: {
   });
   return (
     <div className="settings">
-      <Collapse
-        bordered
-        className="card"
-        activeKey={actived.value ? [1] : []}
-        onChange={(e) => (actived.value = e.length > 0)}
-        items={[
-          {
-            key: 1,
-            label: (
-              <div className="header">
-                {actived.value ? (
-                  <b>{label.value}</b>
-                ) : (
-                  <div className="collapsed">
-                    <b>{label.value}</b>
-                  </div>
-                )}
-              </div>
-            ),
-            extra: !actived.value && canFetch.value && (
-              <Button
-                loading={props.busy}
-                icon={<ReloadOutlined spin={props.busy} />}
-                title="Check Status"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  fetch();
-                }}
-              />
-            ),
-            children: [
-              <Form
-                style={{ minWidth: 800, maxWidth: "100%", textAlign: "left" }}
-                initialValues={{ remember: false }}
-                autoComplete="off"
-                form={svnSettingsForm}
-                onValuesChange={() => changes$.next()}
-              >
-                <Form.Item<Settings>
-                  label="Project path"
-                  name="svn_root"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please choose your project path!",
-                    },
-                  ]}
+      <Spin spinning={props.loading.value}>
+        <Collapse
+          bordered
+          className="card"
+          activeKey={actived.value ? [1] : []}
+          onChange={(e) => (actived.value = e.length > 0)}
+          items={[
+            {
+              key: 1,
+              label: (
+                <div className="header">
+                  {actived.value ? (
+                    <span>{label.value}</span>
+                  ) : (
+                    <div className="collapsed">{label.value}</div>
+                  )}
+                </div>
+              ),
+              extra: !actived.value && canFetch.value && (
+                <Button
+                  loading={props.busy}
+                  icon={<ReloadOutlined spin={props.busy} />}
+                  title="Check Status"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetch();
+                  }}
+                />
+              ),
+              children: [
+                <Form
+                  style={{ minWidth: 800, maxWidth: "100%", textAlign: "left" }}
+                  initialValues={{ remember: false }}
+                  autoComplete="off"
+                  form={svnSettingsForm}
+                  onValuesChange={() => changes$.next()}
                 >
-                  <Input.Search
-                    readOnly
-                    disabled={props.busy}
-                    enterButton="..."
-                    onSearch={props.pickDir}
-                  />
-                </Form.Item>
-                <Form.Item<Settings> label="Use dark theme" name="dark_theme">
-                  <Switch />
-                </Form.Item>
-              </Form>,
-              <Button
-                type="primary"
-                size="small"
-                loading={props.busy}
-                disabled={!canFetch.value}
-                onClick={fetch}
-              >
-                Check Status
-              </Button>,
-            ],
-          },
-        ]}
-      ></Collapse>
+                  <Form.Item<Settings>
+                    label="Project path"
+                    name="svn_root"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please choose your project path!",
+                      },
+                    ]}
+                  >
+                    <Input.Search
+                      readOnly
+                      disabled={props.busy}
+                      enterButton="..."
+                      onSearch={props.pickDir}
+                    />
+                  </Form.Item>
+                  <Form.Item<Settings> label="Use dark theme" name="dark_theme">
+                    <Switch />
+                  </Form.Item>
+                </Form>,
+                <Button
+                  type="primary"
+                  size="small"
+                  loading={props.busy}
+                  disabled={!canFetch.value}
+                  onClick={fetch}
+                >
+                  Check Status
+                </Button>,
+              ],
+            },
+          ]}
+        />
+      </Spin>
     </div>
   );
 }

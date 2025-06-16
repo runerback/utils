@@ -2,6 +2,10 @@ import logging
 from threading import Timer
 from uuid import uuid4
 from workers.svn_diff import fetch_svn_diff_job, fetch_svn_diff_job_payload
+from workers.svn_log_diffs import (
+    fetch_svn_log_diffs_job,
+    fetch_svn_log_diffs_job_payload,
+)
 from workers.svn_logs import fetch_svn_logs_job, fetch_svn_logs_job_payload
 from workers.svn_status import fetch_svn_status_job, fetch_svn_status_job_payload
 from workers.send_message import send_message_job, send_message_job_payload
@@ -112,6 +116,19 @@ def add_fetch_svn_unversioned_job(path: str, type: str | None = None):
 def add_fetch_svn_logs_job(path: str, type: str | None = None):
     return _scheduler.add(
         lambda jid: fetch_svn_logs_job(jid, fetch_svn_logs_job_payload(path, type))
+    )
+
+
+# end def
+
+
+def add_fetch_svn_log_diffs_job(
+    path: str, n: int, m: int | None, type: str | None = None
+):
+    return _scheduler.add(
+        lambda jid: fetch_svn_log_diffs_job(
+            jid, fetch_svn_log_diffs_job_payload(path, n, m, type)
+        )
     )
 
 

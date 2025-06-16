@@ -82,31 +82,21 @@ const fetch_diff = async (source?: string, job?: Job) => {
   return await res.text();
 };
 
-const fetch_logs = async (source?: string, job?: Job) => {
-  if (!source) {
-    return;
-  }
-  const res = await fetch(
-    "/api/server/logs" + (!!source ? `?path=${encodeURI(source)}` : ""),
-    {
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-      body: JSON.stringify({ job }),
-    }
-  );
+const fetch_logs = async (source: string, job?: Job) => {
+  const res = await fetch(`/api/server/logs?path=${encodeURI(source)}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ job }),
+  });
   return await res.text();
 };
 
-type FetchLogDiffParams = {
-  n?: number;
-  m?: number;
-};
-const fetch_log_diff = async (
+const fetch_log_diffs = async (
   source?: string,
   job?: Job,
-  params?: FetchLogDiffParams
+  params?: FetchLogDiffsRange
 ) => {
   if (!source || !params || !params.n) {
     return;
@@ -188,11 +178,11 @@ export default {
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
   fetch_unversioned: (source: string) =>
     request((source) => fetch_unversioned(source, "FETCH_UNVERSIONED"), source),
-  fetch_logs: (source?: string) =>
-    request((source) => fetch_logs(source, "FETCH_LOGS"), source),
-  fetch_log_diff: (source?: string, params?: FetchLogDiffParams) =>
+  fetch_logs: (source: string) =>
+    request((source) => fetch_logs(source!, "FETCH_LOGS"), source),
+  fetch_log_diffs: (source?: string, params?: FetchLogDiffsRange) =>
     request2(
-      (source, params) => fetch_log_diff(source, "FETCH_LOGS", params),
+      (source, params) => fetch_log_diffs(source, "FETCH_LOG_DIFFS", params),
       source,
       params
     ),

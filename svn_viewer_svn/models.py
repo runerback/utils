@@ -48,3 +48,12 @@ class SvnLogsRequestModel(SvnRequestModel):
 
 
 # end class
+
+
+class SvnLogDiffsRequestModel(SvnRequestModel):
+    path: str
+    n: int
+    m: int | None
+
+
+# end class

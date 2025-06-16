@@ -79,6 +79,32 @@ var ui = builder.AddNpmApp("ui", "../svn_viewer_ui", scriptName: "dev")
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
 
+builder.Eventing.Subscribe<ResourceReadyEvent>((e, c) =>
+{
+    switch (e.Resource.Name)
+    {
+        case "ui":
+            if (e.Resource.TryGetUrls(out var urls))
+            {
+                foreach (var uri in urls)
+                {
+                    if (!string.IsNullOrWhiteSpace(uri.Url))
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            UseShellExecute = true,
+                            FileName = uri.Url,
+                        });
+                        break;
+                    }
+                }
+            }
+            break;
+        default: break;
+    }
+    return Task.CompletedTask;
+});
+
 var app = builder.Build();
 
 try

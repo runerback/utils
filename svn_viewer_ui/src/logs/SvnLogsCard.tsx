@@ -1,32 +1,27 @@
-import { useComputed, useSignal, useSignalEffect } from "@preact/signals-react";
+import {
+  useComputed,
+  useSignal,
+  type ReadonlySignal,
+} from "@preact/signals-react";
 import { Button, Card, Checkbox, List, type CheckboxChangeEvent } from "antd";
 import type { Moment } from "moment";
 import moment from "moment";
-import { useCallback, useMemo } from "preact/hooks";
+import { useCallback } from "preact/hooks";
 import type { SvnLogsDiffCardProps } from "./SvnLogsDiffCard";
 import SvnLogsDiffCard from "./SvnLogsDiffCard";
 import { useSignals } from "@preact/signals-react/runtime";
 
-export default function (props: { log: SvnLogs }) {
+export default function (props: {
+  log: SvnLogs;
+  settings: ReadonlySignal<Settings | undefined>;
+}) {
   useSignals();
-  const source = useMemo(() => {
-    return props.log.status?.source;
-  }, []);
   const checkedRevisions = useSignal(Array<string>());
   const comparedRevisions = useSignal<
     Record<string, { revisionR: string; timestamp: Moment }[]>
   >({});
-  useSignalEffect(() =>
-    console.log({ comparedRevisions: comparedRevisions.value })
-  );
   const canCheckMore = useComputed(() => checkedRevisions.value.length < 2);
   const comparing = useSignal(false);
-  const logsDiffCardSource = useSignal(
-    Array<{
-      left: string;
-      right: string;
-    }>()
-  );
   const handleRevisionSelect = useCallback((e: CheckboxChangeEvent) => {
     if (e.target.checked) {
       checkedRevisions.value = [...checkedRevisions.value, e.target.value];
@@ -41,10 +36,34 @@ export default function (props: { log: SvnLogs }) {
       }
     }
   }, []);
+  const canCompare = useComputed(() => {
+    if (comparing.value) {
+      return false;
+    }
+    if (checkedRevisions.value.length > 1) {
+      const [revisionL, revisionR] = checkedRevisions.peek();
+      const comparedRevisionsSnapshot = comparedRevisions.peek();
+      const comparedRs = comparedRevisionsSnapshot[revisionL];
+      if (
+        comparedRs &&
+        comparedRs.map((it) => it.revisionR).includes(revisionR)
+      ) {
+        return false;
+      }
+      const compareLs = comparedRevisionsSnapshot[revisionR];
+      if (
+        compareLs &&
+        compareLs.map((it) => it.revisionR).includes(revisionL)
+      ) {
+        return false;
+      }
+      return true;
+    }
+  });
   const compare = useCallback(() => {
     if (!comparing.value) {
       const [revisionL, revisionR] = checkedRevisions.value;
-      const comparedRevisionsSnapshot = comparedRevisions.peek();
+      const comparedRevisionsSnapshot = comparedRevisions.value;
       const comparedRs = comparedRevisionsSnapshot[revisionL];
       if (
         comparedRs &&
@@ -60,20 +79,22 @@ export default function (props: { log: SvnLogs }) {
           ],
         };
       }
-      logsDiffCardSource.value = Object.entries(comparedRevisions.value)
-        .flatMap(([revisionL, revisionRs]) =>
-          revisionRs.map(
-            ({ revisionR, timestamp }) =>
-              [timestamp, revisionL, revisionR] as [Moment, string, string]
-          )
-        )
-        .sort(
-          ([timestampL], [timestampR]) =>
-            timestampL.valueOf() - timestampR.valueOf()
-        )
-        .map(([, left, right]) => ({ left, right }));
     }
   }, []);
+  const logsDiffCardSource = useComputed(() =>
+    Object.entries(comparedRevisions.value)
+      .flatMap(([revisionL, revisionRs]) =>
+        revisionRs.map(
+          ({ revisionR, timestamp }) =>
+            [timestamp, revisionL, revisionR] as [Moment, string, string]
+        )
+      )
+      .sort(
+        ([timestampL], [timestampR]) =>
+          timestampR.valueOf() - timestampL.valueOf()
+      )
+      .map(([, left, right]) => ({ left, right }))
+  );
   const compareStatusChanged = useCallback(
     (e: SvnLogsDiffCardProps, status: "STARTED" | "FINISHED") => {
       switch (status) {
@@ -91,11 +112,11 @@ export default function (props: { log: SvnLogs }) {
     },
     []
   );
-  if (!source) {
+  if (!props.log.status?.source) {
     return <div>{"<no-source>"}</div>;
   }
   return (
-    <Card title={source} className="svnlogscard">
+    <Card title={props.log.status.source} className="svnlogscard">
       <List
         loading={comparing.value}
         className="logs"
@@ -127,14 +148,20 @@ export default function (props: { log: SvnLogs }) {
       />
       {!canCheckMore.value && (
         <div className="comparer">
-          <Button type="primary" loading={comparing.value} onClick={compare}>
+          <Button
+            type="primary"
+            loading={comparing.value}
+            disabled={!canCompare.value}
+            onClick={compare}
+          >
             Compare
           </Button>
         </div>
       )}
       {logsDiffCardSource.value.map(({ left, right }) => (
         <SvnLogsDiffCard
-          source={source}
+          status={props.log.status!}
+          settings={props.settings}
           revisions={{ left, right }}
           compareStarted={(e) => compareStatusChanged(e, "STARTED")}
           compareFinished={(e) => compareStatusChanged(e, "FINISHED")}

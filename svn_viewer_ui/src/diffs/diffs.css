@@ -21,22 +21,6 @@
   align-content: flex-end;
 }
 
-.statuscard .header {
-  display: flex;
-}
-
-.statuscard .header .indicator {
-  flex: 80%;
-  justify-content: flex-start;
-}
-
-.statuscard .header .operations {
-  flex: auto;
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 6px;
-}
-
 .statuscard .diffcard .diff_panel {
   --diff-addition-background: #f0fff4;
   --diff-deletion-background: #ffeef0;

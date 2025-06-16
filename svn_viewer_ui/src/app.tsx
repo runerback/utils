@@ -2,19 +2,23 @@ import { signal, useSignal, useSignalEffect } from "@preact/signals-react";
 import "./app.css";
 import network from "./context/network";
 import { useSignals } from "@preact/signals-react/runtime";
-import { Modal, type FormProps } from "antd";
+import { type FormProps } from "antd";
 import { useCallback } from "preact/hooks";
 import Settings from "./settings";
 import Diffs from "./diffs";
 import SvnDiffProvider, {
-  publishSvnDiffStream,
-  SvnDiffProviderContext,
-} from "./context/svnDiffProviderContext";
+  publishSvnStream,
+  SvnProviderContext,
+} from "./context/svnProviderContext";
+import SvnLogDiffsProvider, {
+  publishSvnLogDiffsStream,
+  SvnLogDiffsProviderContext,
+} from "./context/svnLogDiffsProviderContext";
 import Layout, { Header, Content } from "./layout";
-import SvnLogs from "./logs";
-import { CloseOutlined, HistoryOutlined } from "@ant-design/icons";
+import SvnLogsModal from "./logs/SvnLogsModal";
 
-const svnDiffProviderContext = SvnDiffProvider();
+const svnProviderContext = SvnDiffProvider();
+const svnLogDiffsProviderContext = SvnLogDiffsProvider();
 
 const messageId = signal("");
 const message = signal<MessageContent>();
@@ -43,26 +47,40 @@ export function App() {
     });
   }, []);
 
-  useSignalEffect(() => {
-    serverStatus.value = "";
+  const fetchingServerStatus = useSignal(false);
+  const fetchServerStatus = useCallback((retry: number) => {
     network.test_server().then((status) => {
-      serverStatus.value = status ?? "";
-      if (!!status) {
-        fetchSettings();
+      if (!status) {
+        if (retry > 0) {
+          setTimeout(() => fetchServerStatus(retry - 1), 1000);
+          return;
+        }
+      } else {
+        serverStatus.value = status;
       }
+      fetchingServerStatus.value = false;
     });
+  }, []);
+  useSignalEffect(() => {
+    if (!serverStatus.value) {
+      fetchingServerStatus.value = true;
+      fetchServerStatus(10);
+    } else {
+      fetchSettings();
+    }
   });
 
-  const svnLogId = useSignal<string>();
   const svnLogStatus = useSignal<SvnStatusItem>();
-  const showSvnLogs = useSignal(false);
+  const showSvnDiffLogs = useSignal(false);
+  // const showSvnAllLogs = useSignal(false);
   const onFetchLogs = useCallback((status?: SvnStatusItem) => {
-    network.fetch_logs(status?.source).then((id) => {
-      svnLogId.value = id ?? undefined;
-      svnLogStatus.value = status;
-      showSvnLogs.value = true;
-      busy.value = true;
-    });
+    if (status?.source) {
+      network.fetch_logs(status.source).then(() => {
+        svnLogStatus.value = status;
+        showSvnDiffLogs.value = true;
+        busy.value = true;
+      });
+    }
   }, []);
 
   useSignalEffect(() => {
@@ -84,13 +102,23 @@ export function App() {
           default:
             break;
         }
-      } else if (!!content.completed) {
+      } else if (!!content.completed || !!content.error) {
+        if (!!content.error) {
+          console.warn(content.error);
+        }
         busy.value = false;
         switch (content.job) {
           case "FETCH_DIFFS":
           case "FETCH_UNVERSIONED":
           case "FETCH_LOGS":
-            publishSvnDiffStream({
+            publishSvnStream({
+              id,
+              job: content.job,
+              finished: true,
+            });
+            break;
+          case "FETCH_LOG_DIFFS":
+            publishSvnLogDiffsStream({
               id,
               job: content.job,
               finished: true,
@@ -105,14 +133,14 @@ export function App() {
             status.value = (content.data as SvnStatus[]) ?? [];
             break;
           case "FETCH_DIFFS":
-            publishSvnDiffStream({
+            publishSvnStream({
               id,
               job: content.job,
               chunks: (content.data as Chunk1[]) ?? [],
             });
             break;
           case "FETCH_UNVERSIONED":
-            publishSvnDiffStream({
+            publishSvnStream({
               id,
               job: content.job,
               unversioned: (content.data as string)
@@ -121,7 +149,7 @@ export function App() {
             });
             break;
           case "FETCH_LOGS": {
-            publishSvnDiffStream({
+            publishSvnStream({
               id,
               job: content.job,
               logs: [
@@ -132,11 +160,17 @@ export function App() {
             });
             break;
           }
+          case "FETCH_LOG_DIFFS": {
+            publishSvnLogDiffsStream({
+              id,
+              job: content.job,
+              chunks: (content.data as Chunk1[]) ?? [],
+            });
+            break;
+          }
           default:
             break;
         }
-      } else if (!!content.error) {
-        console.warn(content.error);
       }
     }
   });
@@ -170,6 +204,7 @@ export function App() {
     <Layout>
       <Header>
         <Settings
+          loading={fetchingServerStatus}
           title={serverStatus}
           busy={busy.value}
           source$={settings}
@@ -178,7 +213,7 @@ export function App() {
           pickDir={pickDir}
         />
       </Header>
-      <SvnDiffProviderContext.Provider value={svnDiffProviderContext}>
+      <SvnProviderContext.Provider value={svnProviderContext}>
         <Content>
           <Diffs
             status={status.value}
@@ -186,26 +221,16 @@ export function App() {
             fetchLogs={onFetchLogs}
           />
         </Content>
-        <Modal
-          title={
-            <div>
-              <HistoryOutlined />
-              &nbsp;svn logs
-            </div>
-          }
-          width="80vw"
-          style={{ maxHeight: "80vh" }}
-          closable
-          closeIcon={
-            <CloseOutlined onClick={() => (showSvnLogs.value = false)} />
-          }
-          open={showSvnLogs.value}
-          cancelButtonProps={{ style: { display: "none" } }}
-          okButtonProps={{ style: { display: "none" } }}
-        >
-          <SvnLogs logId={svnLogId} status={svnLogStatus} busy={busy} />
-        </Modal>
-      </SvnDiffProviderContext.Provider>
+        <SvnLogDiffsProviderContext.Provider value={svnLogDiffsProviderContext}>
+          <SvnLogsModal
+            open={showSvnDiffLogs}
+            onClose={() => (showSvnDiffLogs.value = false)}
+            status={svnLogStatus}
+            settings={settings}
+            busy={busy}
+          />
+        </SvnLogDiffsProviderContext.Provider>
+      </SvnProviderContext.Provider>
     </Layout>
   );
 }

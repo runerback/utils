@@ -4,21 +4,21 @@ import {
   useSignals,
 } from "@preact/signals-react/runtime";
 import { useContext } from "preact/hooks";
-import { SvnDiffProviderContext } from "../context/svnDiffProviderContext";
+import { SvnProviderContext } from "../context/svnProviderContext";
 import type { ReadonlySignal } from "@preact/signals-react";
 import { filter } from "rxjs";
-import { Skeleton } from "antd";
 import SvnLogsCard from "./SvnLogsCard";
 import "./logs.css";
+import { Skeleton } from "antd";
 
 export default (props: {
-  logId: ReadonlySignal<string | undefined>;
   status: ReadonlySignal<SvnStatusItem | undefined>;
   busy: ReadonlySignal<boolean>;
+  settings: ReadonlySignal<Settings | undefined>;
 }) => {
   useSignals();
-  const svnLogs = useSignal<SvnLogs[]>();
-  const svnDiffProviderContext = useContext(SvnDiffProviderContext);
+  const svnLogs = useSignal(Array<SvnLogs>());
+  const svnDiffProviderContext = useContext(SvnProviderContext);
   useSignalEffect(() => {
     svnDiffProviderContext.stream$
       .pipe(filter((it) => it.job === "FETCH_LOGS"))
@@ -50,11 +50,10 @@ export default (props: {
   });
   return (
     <div className="svnlogs">
-      <Skeleton loading={props.busy.value}>
-        {svnLogs.value?.map((log, idx) => (
-          <SvnLogsCard key={idx.toString()} log={log} />
-        ))}
-      </Skeleton>
+      {props.busy.value && svnLogs.value.length === 0 && <Skeleton loading />}
+      {svnLogs.value.map((log, idx) => (
+        <SvnLogsCard key={idx} log={log} settings={props.settings} />
+      ))}
     </div>
   );
 };

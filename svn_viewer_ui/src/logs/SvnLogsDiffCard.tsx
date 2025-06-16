@@ -1,9 +1,18 @@
-import { useComputed, useSignal, useSignalEffect } from "@preact/signals-react";
-import { Collapse, Spin } from "antd";
-import { useMemo } from "preact/hooks";
+import {
+  useSignal,
+  useSignalEffect,
+  type ReadonlySignal,
+} from "@preact/signals-react";
+import { Button, Collapse, Space, Spin } from "antd";
+import { useCallback, useContext, useMemo } from "preact/hooks";
+import { SvnLogDiffsProviderContext } from "../context/svnLogDiffsProviderContext";
+import { ReloadOutlined } from "@ant-design/icons";
+import { filter } from "rxjs";
+import SvnDiffCardContent from "../diffs/svn_diff_card_content";
+import { useSignals } from "@preact/signals-react/runtime";
 
 export type SvnLogsDiffCardProps = {
-  source: string;
+  status: SvnStatusItem;
   revisions: {
     left: string;
     right: string;
@@ -12,27 +21,66 @@ export type SvnLogsDiffCardProps = {
 
 export default function (
   props: SvnLogsDiffCardProps & {
+    settings: ReadonlySignal<Settings | undefined>;
     compareStarted: (e: SvnLogsDiffCardProps) => void;
     compareFinished: (e: SvnLogsDiffCardProps) => void;
   }
 ) {
+  useSignals();
+  const svnLogDiffsProviderContext = useContext(SvnLogDiffsProviderContext);
   const actived = useSignal(true);
   const fetched = useSignal(false);
-  const fetching = useComputed(() => !fetched.value && actived.value);
+  const fetching = useSignal(false);
+  const fetchId = useSignal("");
+  const diffs = useSignal<Chunk1>();
+  const unversioned = useSignal(Array<string>());
   const key = useMemo(
     () => [props.revisions.left, props.revisions.right].join("-"),
     []
   );
   useSignalEffect(() => {
-    if (!fetched.value && fetching.value) {
-      props.compareStarted(props);
-      // TODO: impl
-      setTimeout(() => {
-        fetched.value = true;
-        props.compareFinished(props);
-      }, 1000);
+    svnLogDiffsProviderContext.stream$
+      .pipe(
+        filter(
+          (it) =>
+            !!it &&
+            !!it.id &&
+            it.job === "FETCH_LOG_DIFFS" &&
+            it.id === fetchId.value
+        )
+      )
+      .subscribe((e) => {
+        if (!!e.chunks && e.chunks.length > 0) {
+          diffs.value = e.chunks[0];
+        }
+        if (!!e.finished) {
+          fetching.value = false;
+          fetched.value = true;
+          props.compareFinished(props);
+        }
+      });
+  });
+  useSignalEffect(() => {
+    if (actived.value && !fetched.value && !fetching.value) {
+      fetch();
     }
   });
+  const fetch = useCallback(() => {
+    fetching.value = true;
+    props.compareStarted(props);
+    svnLogDiffsProviderContext
+      .provide(props.status, {
+        n: parseInt(props.revisions.left) ?? 0,
+        m: parseInt(props.revisions.right) ?? undefined,
+      })
+      .then((id) => {
+        if (!!id) {
+          fetchId.value = id;
+        } else {
+          fetchId.value = "";
+        }
+      });
+  }, []);
   return (
     <Spin spinning={fetching.value}>
       <Collapse
@@ -49,7 +97,28 @@ export default function (
                 <b>{props.revisions.right}</b>
               </div>
             ),
-            children: [<div>TODO</div>],
+            extra: (
+              <Space>
+                <Button
+                  loading={fetching.value}
+                  icon={<ReloadOutlined spin={fetching.value} />}
+                  title="Reload"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetch();
+                  }}
+                />
+              </Space>
+            ),
+            children: [
+              <SvnDiffCardContent
+                diffs={diffs}
+                unversioned={unversioned}
+                busy={fetching}
+                status={props.status}
+                settings={props.settings}
+              />,
+            ],
           },
         ]}
       />

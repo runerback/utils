@@ -1,4 +1,4 @@
-import { Button, Collapse, Space, Spin, Tooltip } from "antd";
+import { Button, Collapse, Space, Spin } from "antd";
 import {
   useComputed,
   useSignal,
@@ -6,18 +6,18 @@ import {
   useSignals,
 } from "@preact/signals-react/runtime";
 import type { Key } from "preact";
-import { useCallback, useContext, useMemo, useRef } from "preact/hooks";
-import { SvnDiffProviderContext } from "../context/svnDiffProviderContext";
+import { useCallback, useContext } from "preact/hooks";
+import { SvnProviderContext } from "../context/svnProviderContext";
 import { filter } from "rxjs";
 import type { ReadonlySignal } from "@preact/signals-react";
-import SvnDiffMarkdown from "./svn_diff_markdown";
-import SvnUnversionedMarkdown from "./svn_unversioned_markdown";
 import {
   FolderOpenOutlined,
   HistoryOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
 import network from "../context/network";
+import SvnDiffCardLabel from "./svn_diff_card_label";
+import SvnDiffCardContent from "./svn_diff_card_content";
 
 export function SvnDiffCard(props: {
   fkey?: Key;
@@ -28,22 +28,15 @@ export function SvnDiffCard(props: {
   fetchLogs: (status: SvnStatusItem) => void;
 }) {
   useSignals();
-  const headerRef = useRef<HTMLDivElement>(null);
   const fetching = useSignal(false);
   const fetched = useSignal(false);
   const busy = useSignal(false);
   const diffId = useSignal("");
   const diffs = useSignal<Chunk1>();
   const unversioned = useSignal(Array<string>());
-  const language = useMemo(() => {
-    const lastDotIdx = props.status.source.lastIndexOf(".");
-    if (lastDotIdx > 0) {
-      return props.status.source.substring(lastDotIdx + 1);
-    }
-  }, [props.status]);
-  const svnDiffProviderContext = useContext(SvnDiffProviderContext);
+  const svnProviderContext = useContext(SvnProviderContext);
   useSignalEffect(() => {
-    svnDiffProviderContext.stream$
+    svnProviderContext.stream$
       .pipe(
         filter(
           (it) =>
@@ -59,47 +52,12 @@ export function SvnDiffCard(props: {
         busy.value = false;
       });
   });
-  const diffContent = useComputed(() => {
-    if (!!diffs.value) {
-      return [
-        ...diffs.value.sections.flatMap((section, idx) => {
-          return [
-            idx > 0 && "---",
-            `\`\`\`diff ${JSON.stringify(section.hunk)}`,
-            ...section.changes,
-            "```",
-          ].filter(Boolean);
-        }),
-      ].join("\n");
-    }
-  });
-  const unversionedContent = useComputed(() => {
-    if (!!unversioned.value) {
-      return unversioned.value;
-    }
-    return [];
-  });
-  const maxLine = useComputed(() => {
-    let max = 0;
-    if (!!diffs.value) {
-      diffs.value.sections.forEach((section) => {
-        const current =
-          Math.max(section.hunk.b, section.hunk.e) + section.changes.length;
-        if (current > max) {
-          max = current;
-        }
-      });
-    } else if (!!unversioned.value) {
-      max = unversioned.value.length;
-    }
-    return max;
-  });
   useSignalEffect(() => {
     if (fetching.value && !fetched.value) {
       fetching.value = false;
       fetched.value = true;
       busy.value = true;
-      svnDiffProviderContext.provide(props.status).then((id) => {
+      svnProviderContext.provide(props.status).then((id) => {
         if (!!id) {
           diffId.value = id;
         } else {
@@ -115,69 +73,11 @@ export function SvnDiffCard(props: {
       fetching.value = true;
       return;
     }
-    if (!key || key.length === 0) {
-      if (!!headerRef.current) {
-        props.unobserve(headerRef.current);
-      }
-      return;
-    }
-    if (!!headerRef.current) {
-      props.observe(headerRef.current);
-    }
     if (fetched.value) {
       return;
     }
     fetching.value = true;
   }, []);
-  const isEmpty = useComputed(() => {
-    if (!!diffs.value) {
-      return false;
-    }
-    if (!!unversionedContent.value && unversionedContent.value.length > 0) {
-      return false;
-    }
-    return true;
-  });
-  const stateIcon = useComputed(() => {
-    switch (props.status.state) {
-      case "M":
-        return "Ⓜ️";
-      case "D":
-        return "❌";
-      case "A":
-        return "➕";
-      case "R":
-        return "🔃";
-      case "C":
-        return "💥";
-      case "?":
-        return "❓";
-      case "!":
-        return "❗";
-      default:
-        return props.status.state;
-    }
-  });
-  const stateTip = useComputed(() => {
-    switch (props.status.state) {
-      case "M":
-        return "Modified";
-      case "D":
-        return "Deletion";
-      case "A":
-        return "Adding";
-      case "R":
-        return "Replaced";
-      case "C":
-        return "Conflicted";
-      case "?":
-        return "Not under version control";
-      case "!":
-        return "Missing";
-      default:
-        return props.status.state;
-    }
-  });
   const canShowLog = useComputed(() => {
     return props.status.state !== "?";
   });
@@ -190,16 +90,20 @@ export function SvnDiffCard(props: {
           onChange={fetch}
           items={[
             {
-              label: (
-                <div className="changes" ref={headerRef}>
-                  <div className="state">
-                    <Tooltip title={stateTip.value}>{stateIcon.value}</Tooltip>
-                  </div>
-                  <div className="source">{props.status.source}</div>
-                </div>
-              ),
+              label: <SvnDiffCardLabel status={props.status} />,
               extra: (
                 <Space>
+                  {canShowLog.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={<HistoryOutlined spin={busy.value} />}
+                      title="Show Logs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.fetchLogs(props.status);
+                      }}
+                    />
+                  )}
                   <Button
                     loading={busy.value}
                     icon={<ReloadOutlined spin={busy.value} />}
@@ -218,57 +122,18 @@ export function SvnDiffCard(props: {
                       network.open_in_dir(props.status.source);
                     }}
                   />
-                  {canShowLog && (
-                    <Button
-                      loading={busy.value}
-                      icon={<HistoryOutlined spin={busy.value} />}
-                      title="Show Logs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        props.fetchLogs(props.status);
-                      }}
-                    />
-                  )}
                 </Space>
               ),
               children: [
-                <div className="header">
-                  <div className="indicator">
-                    {isEmpty.value ? (
-                      <div>{!busy.value && <i>🈳️ NOTHING HERE 🫥</i>}</div>
-                    ) : (
-                      !!diffs.value &&
-                      diffs.value.versions.map(({ indicator, version }) => (
-                        <div>
-                          <b>
-                            {indicator} {version}
-                          </b>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div className="operations"></div>
-                </div>,
-                !isEmpty.value &&
-                  (!!diffContent.value ? (
-                    <SvnDiffMarkdown
-                      content={diffContent.value}
-                      maxLine={maxLine}
-                      {...props}
-                    />
-                  ) : (
-                    !!unversionedContent.value &&
-                    unversionedContent.value.length > 0 && (
-                      <SvnUnversionedMarkdown
-                        lines$={unversionedContent}
-                        language={language}
-                        {...props}
-                      />
-                    )
-                  )),
+                <SvnDiffCardContent
+                  diffs={diffs}
+                  unversioned={unversioned}
+                  busy={busy}
+                  {...props}
+                />,
               ],
             },
-          ].filter(Boolean)}
+          ]}
         />
       </Spin>
     </div>

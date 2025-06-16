@@ -1,0 +1,8 @@
+.header {
+  display: flex;
+}
+
+.header .indicator {
+  flex: 80%;
+  justify-content: flex-start;
+}
