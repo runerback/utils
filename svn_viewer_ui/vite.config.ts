@@ -2,10 +2,12 @@ import { defineConfig } from "vite";
 import preact from "@preact/preset-vite";
 import monacoEditorPlugin from "vite-plugin-monaco-editor-esm";
 import { resolve } from "path";
+import svgr from "vite-plugin-svgr";
 
 export default defineConfig({
   plugins: [
     preact(),
+    svgr(),
     monacoEditorPlugin({
       languageWorkers: ["json", "html", "typescript"],
       globalAPI: true,

@@ -5,11 +5,11 @@ import {
 } from "@preact/signals-react";
 import { Button, Collapse, Space, Spin } from "antd";
 import { useCallback, useContext, useMemo } from "preact/hooks";
-import { SvnLogDiffsProviderContext } from "../context/svnLogDiffsProviderContext";
-import { ReloadOutlined } from "@ant-design/icons";
+import { SvnLogDiffsContext } from "../context/svnLogDiffsContext";
 import { filter } from "rxjs";
 import SvnDiffCardContent from "../diffs/svn_diff_card_content";
 import { useSignals } from "@preact/signals-react/runtime";
+import Refresh from "../assets/Refresh.svg?react";
 
 export type SvnLogsDiffCardProps = {
   status: SvnStatusItem;
@@ -27,7 +27,7 @@ export default function (
   }
 ) {
   useSignals();
-  const svnLogDiffsProviderContext = useContext(SvnLogDiffsProviderContext);
+  const svnLogDiffsContext = useContext(SvnLogDiffsContext);
   const actived = useSignal(true);
   const fetched = useSignal(false);
   const fetching = useSignal(false);
@@ -39,7 +39,7 @@ export default function (
     []
   );
   useSignalEffect(() => {
-    svnLogDiffsProviderContext.stream$
+    svnLogDiffsContext.stream$
       .pipe(
         filter(
           (it) =>
@@ -68,7 +68,7 @@ export default function (
   const fetch = useCallback(() => {
     fetching.value = true;
     props.compareStarted(props);
-    svnLogDiffsProviderContext
+    svnLogDiffsContext
       .provide(props.status, {
         n: parseInt(props.revisions.left) ?? 0,
         m: parseInt(props.revisions.right) ?? undefined,
@@ -101,7 +101,11 @@ export default function (
               <Space>
                 <Button
                   loading={fetching.value}
-                  icon={<ReloadOutlined spin={fetching.value} />}
+                  icon={
+                    <Refresh
+                      className={fetching.value ? "icon spin" : "icon"}
+                    />
+                  }
                   title="Reload"
                   onClick={(e) => {
                     e.stopPropagation();

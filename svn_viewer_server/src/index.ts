@@ -49,7 +49,7 @@ app.use(bodyparser.urlencoded({ extended: false }));
 app.use(bodyparser.json());
 
 app.get("/test", async (_, res) => {
-  res.send(": This doesn't means anything to me");
+  res.send(": This doesn't means anything to me").end();
 });
 
 app.get("/settings", (_, res) => {
@@ -110,19 +110,33 @@ app.post("/status", async (req, res) => {
       },
     });
   }
-  res.end();
+  res.send(await result.json()).end();
 });
 
-const validateUrl = (source?: string | null) => {
-  if (typeof source !== "string" || source.length === 0) {
-    return;
+app.post("/status/file", async (req, res) => {
+  const path = req.query?.["path"] as string;
+  const params = req.body as { job?: string };
+  const result = await fetch(`${svnUri}/fetch/status/file`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      path,
+      job: params.job,
+    }),
+  });
+  if (result.status !== 200) {
+    res.status(400).json({
+      error: {
+        status: result.status,
+        statusText: result.statusText,
+      },
+    });
   }
-  const url = path.join(settings.svn_root, source).replaceAll("\\", "/");
-  if (!fs.existsSync(url)) {
-    return;
-  }
-  return url;
-};
+  res.send(await result.json()).end();
+});
 
 app.post("/diff", async (req, res) => {
   const path = req.query?.["path"] as string;
@@ -146,8 +160,7 @@ app.post("/diff", async (req, res) => {
       },
     });
   }
-  res.send(await result.json());
-  res.end();
+  res.send(await result.json()).end();
 });
 
 app.post("/unversioned", async (req, res) => {
@@ -172,8 +185,7 @@ app.post("/unversioned", async (req, res) => {
       },
     });
   }
-  res.send(await result.json());
-  res.end();
+  res.send(await result.json()).end();
 });
 
 app.post("/logs", async (req, res) => {
@@ -198,8 +210,7 @@ app.post("/logs", async (req, res) => {
       },
     });
   }
-  res.send(await result.json());
-  res.end();
+  res.send(await result.json()).end();
 });
 
 app.post("/logdiff", async (req, res) => {
@@ -226,14 +237,49 @@ app.post("/logdiff", async (req, res) => {
       },
     });
   }
-  res.send(await result.json());
-  res.end();
+  res.send(await result.json()).end();
 });
+
+app.post("/tree", async (req, res) => {
+  const path = req.query?.["path"] as string;
+  const params = req.body as { job?: string };
+  const result = await fetch(`${svnUri}/fetch/tree`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      path,
+      job: params.job,
+    }),
+  });
+  if (result.status !== 200) {
+    res.status(400).json({
+      error: {
+        status: result.status,
+        statusText: result.statusText,
+      },
+    });
+  }
+  res.send(await result.json()).end();
+});
+
+const validateUrl = (source?: string | null) => {
+  if (typeof source !== "string" || source.length === 0) {
+    return;
+  }
+  const url = path.join(settings.svn_root, source).replaceAll("\\", "/");
+  if (!fs.existsSync(url)) {
+    return;
+  }
+  return url;
+};
 
 app.post("/opendir", async (req, res) => {
   const url = validateUrl(req.query?.["path"] as string);
   if (!url) {
-    res.end();
+    res.status(400).send("invalid path").end();
     return;
   }
   await fetch(`${uiHelperUri}/opendir?path=${encodeURI(url)}`, {

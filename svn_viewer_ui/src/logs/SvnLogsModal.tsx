@@ -1,8 +1,9 @@
-import { HistoryOutlined, CloseOutlined } from "@ant-design/icons";
 import type { ReadonlySignal } from "@preact/signals-react";
 import { Modal } from "antd";
 import SvnLogs from "./SvnLogs";
 import { useSignals } from "@preact/signals-react/runtime";
+import History from "../assets/History.svg?react";
+import Close from "../assets/ChromeClose.svg?react";
 
 export default (props: {
   status: ReadonlySignal<SvnStatusItem | undefined>;
@@ -16,14 +17,14 @@ export default (props: {
     <Modal
       title={
         <div>
-          <HistoryOutlined />
+          <History className="icon" />
           &nbsp;svn logs
         </div>
       }
       width="80vw"
       style={{ maxHeight: "80vh" }}
       closable
-      closeIcon={<CloseOutlined onClick={() => props.onClose()} />}
+      closeIcon={<Close className="icon" onClick={() => props.onClose()} />}
       open={props.open.value}
       cancelButtonProps={{ style: { display: "none" } }}
       okButtonProps={{ style: { display: "none" } }}

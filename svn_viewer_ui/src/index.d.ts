@@ -10,7 +10,9 @@ declare type Job =
   | "FETCH_DIFFS"
   | "FETCH_UNVERSIONED"
   | "FETCH_LOGS"
-  | "FETCH_LOG_DIFFS";
+  | "FETCH_LOG_DIFFS"
+  | "FETCH_FILE_STATUS"
+  | "FETCH_TREE";
 
 declare type Message = {
   readonly id: string;
@@ -83,7 +85,7 @@ declare type SvnLogs = {
   readonly logs?: SvnLog[];
 };
 
-declare type SvnProviderStream = {
+declare type SvnStream = {
   readonly id: string;
   readonly job?: Job;
   readonly chunks?: Chunk1[];
@@ -97,9 +99,21 @@ declare type FetchLogDiffsRange = {
   m?: number;
 };
 
-declare type SvnLogDiffsProviderStream = {
+declare type SvnLogDiffsStream = {
   readonly id: string;
   readonly job?: Job;
   readonly chunks?: Chunk1[];
   readonly finished?: boolean;
 } & FetchLogDiffsRange;
+
+declare type SvnTreeNode = {
+  readonly kind: "FILE" | "DIR";
+  readonly name: string;
+};
+
+declare type SvnTreeStream = {
+  readonly id: string;
+  readonly job?: Job;
+  readonly nodes?: SvnTreeNode[];
+  readonly finished?: boolean;
+};

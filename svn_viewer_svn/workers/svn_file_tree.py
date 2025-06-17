@@ -1,11 +1,12 @@
-from workers.job import Job, JobPayload
 from messages import send_message
-from svn import svn_fetch_status
+from svn import svn_fetch_file_tree
+from workers.job import Job, JobPayload
 
 
-class fetch_svn_status_job_payload(JobPayload):
-    def __init__(self, type: str | None = None):
-        super().__init__(kind="fetch_svn_status")
+class fetch_svn_file_tree_job_payload(JobPayload):
+    def __init__(self, path: str, type: str | None = None):
+        super().__init__(kind="fetch_svn_file_tree")
+        self.path = path
         self.type = type
 
     # end def
@@ -14,7 +15,7 @@ class fetch_svn_status_job_payload(JobPayload):
 # end class
 
 
-class fetch_svn_status_job(Job[fetch_svn_status_job_payload]):
+class fetch_svn_file_tree_job(Job[fetch_svn_file_tree_job_payload]):
     def __init__(self, id, payload):
         super().__init__(id, payload)
 
@@ -23,15 +24,15 @@ class fetch_svn_status_job(Job[fetch_svn_status_job_payload]):
     def _execute(self):
         send_message(self.id, {"processing": True, "job": self.payload.type})
         try:
-            error, message = svn_fetch_status()
-            if error:
-                send_message(self.id, {"error": error, "job": self.payload.type})
+            result = svn_fetch_file_tree(self.payload.path)
+            if result.error:
+                send_message(self.id, {"error": result.error, "job": self.payload.type})
                 return
             # end if
-            if message:
+            if result.nodes is not None:
                 send_message(
                     self.id,
-                    {"data": message, "job": self.payload.type},
+                    {"data": result.toJSON(), "job": self.payload.type},
                     preprocess=True,
                 )
             # end if

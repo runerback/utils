@@ -170,6 +170,28 @@ const parseLogs = (rawLogs: string) => {
   return logs;
 };
 
+const parse_props = (raw: string) => {
+  const result: Record<string, string[]> = {};
+  const lines = raw.split(/\r|\n/gs).filter(Boolean);
+  let currentLines = Array<string>();
+  lines.forEach((line) => {
+    if (line[0] !== " ") {
+      return;
+    }
+    if (line[1] === " ") {
+      if (line[2] === " " && line[3] === " ") {
+        const prop = line.trim();
+        if (!!prop) {
+          currentLines.push(line.trim());
+        }
+      } else {
+        result[line.trim()] = currentLines = [];
+      }
+    }
+  });
+  return result;
+};
+
 export default {
   parse_status: parseStatus,
   parse_diff: (rawdiff: string, settings: Settings) => {
@@ -177,4 +199,5 @@ export default {
     return chunks0.map((chunk0) => buildchunk1(chunk0, settings));
   },
   parse_logs: parseLogs,
+  parse_props: parse_props,
 };

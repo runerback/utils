@@ -36,15 +36,17 @@ class Job[TPayload: JobPayload]:
 
     def execute(self):
         if self.running or self.finished:
-            return
+            return None
         # end if
         self.running = True
         try:
             self._execute()
             self.completed = True
+            return True
         except Exception as e:
             self.failed = True
             self.error = e
+            return False
         finally:
             self.running = False
         # end try

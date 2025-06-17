@@ -1,5 +1,5 @@
 from messages import send_message
-from svn import svn_hash, svn_unversioned
+from svn import svn_unversioned
 from workers.job import Job, JobPayload
 
 
@@ -32,6 +32,8 @@ class fetch_svn_unversioned_job(Job[fetch_svn_unversioned_job_payload]):
             if message:
                 send_message(self.id, {"data": message, "job": self.payload.type})
             # end if
+        except TypeError as te:
+            send_message(self.id, {"error": str(te), "job": self.payload.type})
         except Exception as exp:
             send_message(self.id, {"error": exp, "job": self.payload.type})
         # end try

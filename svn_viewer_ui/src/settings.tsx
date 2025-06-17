@@ -10,7 +10,9 @@ import type { ReadonlySignal } from "@preact/signals-react";
 import "./settings.css";
 import { debounceTime, Subject } from "rxjs";
 import { useCallback } from "preact/hooks";
-import { ReloadOutlined } from "@ant-design/icons";
+import "./app.css";
+import Refresh from "./assets/Refresh.svg?react";
+import DOM from "./assets/DOM.svg?react";
 
 const changes$ = new Subject<void>();
 const hasChanged = (a?: Settings, b?: Settings) => {
@@ -33,7 +35,8 @@ export default function (props: {
   source$: ReadonlySignal<Settings | undefined>;
   pickDir: () => void;
   onFinish: (values: Settings) => void;
-  onFetch: () => void;
+  onFetchStatus: () => void;
+  onFetchTree: () => void;
 }) {
   useSignals();
   const fetched = useSignal(false);
@@ -65,8 +68,8 @@ export default function (props: {
     });
   });
   const actived = useSignal(true);
-  const fetch = useCallback(() => {
-    props.onFetch();
+  const fetchStatus = useCallback(() => {
+    props.onFetchStatus();
     actived.value = false;
   }, []);
   const title = useComputed(() => {
@@ -104,17 +107,28 @@ export default function (props: {
                   )}
                 </div>
               ),
-              extra: !actived.value && canFetch.value && (
-                <Button
-                  loading={props.busy}
-                  icon={<ReloadOutlined spin={props.busy} />}
-                  title="Check Status"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fetch();
-                  }}
-                />
-              ),
+              extra: !actived.value &&
+                canFetch.value && [
+                  <Button
+                    loading={props.busy}
+                    icon={
+                      <Refresh className={props.busy ? "icon spin" : "icon"} />
+                    }
+                    title="Check Status"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetchStatus();
+                    }}
+                  />,
+                  <Button
+                    icon={<DOM className={"icon"} />}
+                    title="Check Tree"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      props.onFetchTree();
+                    }}
+                  />,
+                ],
               children: [
                 <Form
                   style={{ minWidth: 800, maxWidth: "100%", textAlign: "left" }}
@@ -149,7 +163,7 @@ export default function (props: {
                   size="small"
                   loading={props.busy}
                   disabled={!canFetch.value}
-                  onClick={fetch}
+                  onClick={fetchStatus}
                 >
                   Check Status
                 </Button>,

@@ -43,6 +43,13 @@ class SvnUnversionedRequestModel(SvnRequestModel):
 # end class
 
 
+class SvnFileStatusRequestModel(SvnRequestModel):
+    path: str
+
+
+# end class
+
+
 class SvnLogsRequestModel(SvnRequestModel):
     path: str
 
@@ -54,6 +61,13 @@ class SvnLogDiffsRequestModel(SvnRequestModel):
     path: str
     n: int
     m: int | None
+
+
+# end class
+
+
+class SvnFetchTreeRequestModel(SvnRequestModel):
+    path: str
 
 
 # end class

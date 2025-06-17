@@ -7,17 +7,15 @@ import {
 } from "@preact/signals-react/runtime";
 import type { Key } from "preact";
 import { useCallback, useContext } from "preact/hooks";
-import { SvnProviderContext } from "../context/svnProviderContext";
+import { SvnContext } from "../context/svnContext";
 import { filter } from "rxjs";
 import type { ReadonlySignal } from "@preact/signals-react";
-import {
-  FolderOpenOutlined,
-  HistoryOutlined,
-  ReloadOutlined,
-} from "@ant-design/icons";
 import network from "../context/network";
 import SvnDiffCardLabel from "./svn_diff_card_label";
 import SvnDiffCardContent from "./svn_diff_card_content";
+import History from "../assets/History.svg?react";
+import Refresh from "../assets/Refresh.svg?react";
+import OpenFolder from "../assets/OpenFolderHorizontal.svg?react";
 
 export function SvnDiffCard(props: {
   fkey?: Key;
@@ -34,9 +32,9 @@ export function SvnDiffCard(props: {
   const diffId = useSignal("");
   const diffs = useSignal<Chunk1>();
   const unversioned = useSignal(Array<string>());
-  const svnProviderContext = useContext(SvnProviderContext);
+  const svnContext = useContext(SvnContext);
   useSignalEffect(() => {
-    svnProviderContext.stream$
+    svnContext.stream$
       .pipe(
         filter(
           (it) =>
@@ -57,7 +55,7 @@ export function SvnDiffCard(props: {
       fetching.value = false;
       fetched.value = true;
       busy.value = true;
-      svnProviderContext.provide(props.status).then((id) => {
+      svnContext.provide(props.status).then((id) => {
         if (!!id) {
           diffId.value = id;
         } else {
@@ -96,7 +94,11 @@ export function SvnDiffCard(props: {
                   {canShowLog.value && (
                     <Button
                       loading={busy.value}
-                      icon={<HistoryOutlined spin={busy.value} />}
+                      icon={
+                        <History
+                          className={busy.value ? "icon spin" : "icon"}
+                        />
+                      }
                       title="Show Logs"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -106,7 +108,9 @@ export function SvnDiffCard(props: {
                   )}
                   <Button
                     loading={busy.value}
-                    icon={<ReloadOutlined spin={busy.value} />}
+                    icon={
+                      <Refresh className={busy.value ? "icon spin" : "icon"} />
+                    }
                     title="Reload"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -115,7 +119,11 @@ export function SvnDiffCard(props: {
                   />
                   <Button
                     loading={busy.value}
-                    icon={<FolderOpenOutlined spin={busy.value} />}
+                    icon={
+                      <OpenFolder
+                        className={busy.value ? "icon spin" : "icon"}
+                      />
+                    }
                     title="Open Containing Folder"
                     onClick={(e) => {
                       e.stopPropagation();

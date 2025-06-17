@@ -125,6 +125,34 @@ const fetch_unversioned = async (source?: string, job?: Job) => {
   return await res.text();
 };
 
+const fetch_file_status = async (source?: string, job?: Job) => {
+  if (!source) {
+    return;
+  }
+  const res = await fetch(`/api/server/status/file?path=${encodeURI(source)}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ job }),
+  });
+  return await res.text();
+};
+
+const fetch_tree = async (source?: string, job?: Job) => {
+  const res = await fetch(
+    `/api/server/tree?path=${encodeURI(source ?? "/")}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify({ job }),
+    }
+  );
+  return await res.text();
+};
+
 const pick_dir = async (init?: string) => {
   const res = await fetch(
     "/api/uihelper/pickdir" + (!!init ? `?path=${encodeURI(init)}` : ""),
@@ -186,6 +214,10 @@ export default {
       source,
       params
     ),
+  fetch_file_status: (source: string) =>
+    request((source) => fetch_file_status(source, "FETCH_FILE_STATUS"), source),
+  fetch_tree: (source?: string) =>
+    request((source) => fetch_tree(source, "FETCH_TREE"), source),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
   open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
 };

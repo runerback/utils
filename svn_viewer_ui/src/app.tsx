@@ -8,17 +8,23 @@ import Settings from "./settings";
 import Diffs from "./diffs";
 import SvnDiffProvider, {
   publishSvnStream,
-  SvnProviderContext,
-} from "./context/svnProviderContext";
+  SvnContext,
+} from "./context/svnContext";
 import SvnLogDiffsProvider, {
   publishSvnLogDiffsStream,
-  SvnLogDiffsProviderContext,
-} from "./context/svnLogDiffsProviderContext";
+  SvnLogDiffsContext,
+} from "./context/svnLogDiffsContext";
 import Layout, { Header, Content } from "./layout";
 import SvnLogsModal from "./logs/SvnLogsModal";
+import SvnTreeContextProvider, {
+  publishSvnTreeStream,
+  SvnTreeContext,
+} from "./context/svnTreeContext";
+import SvnTreeModal from "./tree/SvnTreeModal";
 
-const svnProviderContext = SvnDiffProvider();
-const svnLogDiffsProviderContext = SvnLogDiffsProvider();
+const svnContext = SvnDiffProvider();
+const svnLogDiffsContext = SvnLogDiffsProvider();
+const svnTreeContext = SvnTreeContextProvider();
 
 const messageId = signal("");
 const message = signal<MessageContent>();
@@ -72,7 +78,6 @@ export function App() {
 
   const svnLogStatus = useSignal<SvnStatusItem>();
   const showSvnDiffLogs = useSignal(false);
-  // const showSvnAllLogs = useSignal(false);
   const onFetchLogs = useCallback((status?: SvnStatusItem) => {
     if (status?.source) {
       network.fetch_logs(status.source).then(() => {
@@ -82,6 +87,7 @@ export function App() {
       });
     }
   }, []);
+  const showSvnTree = useSignal(false);
 
   useSignalEffect(() => {
     const id = messageId.value;
@@ -119,6 +125,13 @@ export function App() {
             break;
           case "FETCH_LOG_DIFFS":
             publishSvnLogDiffsStream({
+              id,
+              job: content.job,
+              finished: true,
+            });
+            break;
+          case "FETCH_TREE":
+            publishSvnTreeStream({
               id,
               job: content.job,
               finished: true,
@@ -168,6 +181,22 @@ export function App() {
             });
             break;
           }
+          case "FETCH_TREE": {
+            publishSvnTreeStream({
+              id,
+              job: content.job,
+              nodes: (
+                (content.data as {
+                  name: string;
+                  dir?: boolean;
+                }[]) ?? []
+              ).map((it) => ({
+                name: it.name,
+                kind: !!it.dir ? "DIR" : "FILE",
+              })),
+            });
+            break;
+          }
           default:
             break;
         }
@@ -209,11 +238,12 @@ export function App() {
           busy={busy.value}
           source$={settings}
           onFinish={onSettingsChange}
-          onFetch={onFetchStatus}
+          onFetchStatus={onFetchStatus}
+          onFetchTree={() => (showSvnTree.value = true)}
           pickDir={pickDir}
         />
       </Header>
-      <SvnProviderContext.Provider value={svnProviderContext}>
+      <SvnContext.Provider value={svnContext}>
         <Content>
           <Diffs
             status={status.value}
@@ -221,7 +251,7 @@ export function App() {
             fetchLogs={onFetchLogs}
           />
         </Content>
-        <SvnLogDiffsProviderContext.Provider value={svnLogDiffsProviderContext}>
+        <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
           <SvnLogsModal
             open={showSvnDiffLogs}
             onClose={() => (showSvnDiffLogs.value = false)}
@@ -229,8 +259,16 @@ export function App() {
             settings={settings}
             busy={busy}
           />
-        </SvnLogDiffsProviderContext.Provider>
-      </SvnProviderContext.Provider>
+        </SvnLogDiffsContext.Provider>
+        <SvnTreeContext.Provider value={svnTreeContext}>
+          <SvnTreeModal
+            open={showSvnTree}
+            onClose={() => (showSvnTree.value = false)}
+            busy={busy}
+            onFetched={() => (busy.value = false)}
+          />
+        </SvnTreeContext.Provider>
+      </SvnContext.Provider>
     </Layout>
   );
 }

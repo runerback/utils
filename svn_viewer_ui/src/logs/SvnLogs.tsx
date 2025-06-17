@@ -4,7 +4,7 @@ import {
   useSignals,
 } from "@preact/signals-react/runtime";
 import { useContext } from "preact/hooks";
-import { SvnProviderContext } from "../context/svnProviderContext";
+import { SvnContext } from "../context/svnContext";
 import type { ReadonlySignal } from "@preact/signals-react";
 import { filter } from "rxjs";
 import SvnLogsCard from "./SvnLogsCard";
@@ -18,9 +18,9 @@ export default (props: {
 }) => {
   useSignals();
   const svnLogs = useSignal(Array<SvnLogs>());
-  const svnDiffProviderContext = useContext(SvnProviderContext);
+  const svnContext = useContext(SvnContext);
   useSignalEffect(() => {
-    svnDiffProviderContext.stream$
+    svnContext.stream$
       .pipe(filter((it) => it.job === "FETCH_LOGS"))
       .subscribe((e) => {
         if (!!e.logs && e.logs.length > 0) {

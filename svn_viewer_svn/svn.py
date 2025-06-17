@@ -1,7 +1,8 @@
+import json
 import os
 import hashlib
 import subprocess
-from typing import Any, Tuple
+from typing import Any, List, Tuple
 
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
 assert _svn_executable and os.path.exists(_svn_executable)
@@ -15,7 +16,7 @@ def validateUrl(source: str | None):
     if not source or len(source) == 0:
         return None
     # end if
-    url = os.path.join(svn_root, source).replace("\\", "/")
+    url = "/".join([svn_root, source.replace("\\", "/").strip("/")])
     if not os.path.exists(url):
         return None
     # end if
@@ -82,12 +83,29 @@ def svn_fetch_diff(path: str) -> Tuple[Any | None, str | None]:
 # end def
 
 
-def svn_unversioned(path: str) -> Tuple[Any | None, str | None]:
+class svn_fetch_file_status_result:
+    def __init__(
+        self,
+        error: Any | None = None,
+        status: str | None = None,
+        url: str | None = None,
+    ):
+        self.error = error
+        self.status = status
+        self.url = url
+
+    # end def
+
+
+# end class
+
+
+def svn_fetch_file_status(path: str) -> svn_fetch_file_status_result:
     url = validateUrl(path)
     assert url
-    print(f'[fetch_svn_unversioned] "{url}"')
+    print(f'[svn_fetch_file_status] "{url}"')
     if not os.path.isfile(url):
-        return "this is D.I.R, how copy? over!", None
+        return svn_fetch_file_status_result(error="this is D.I.R, how copy? over!")
     # end if
     status = subprocess.run(
         [_svn_executable, "status", url],
@@ -97,12 +115,29 @@ def svn_unversioned(path: str) -> Tuple[Any | None, str | None]:
         shell=True,
     )
     if status.stderr:
-        return status.stderr, None
+        return svn_fetch_file_status_result(error=status.stderr)
     # end if
-    if not status.stdout or status.stdout[0] != "?":
+
+    if not status.stdout:
+        return svn_fetch_file_status_result()
+    # end if
+
+    return svn_fetch_file_status_result(status=status.stdout[0], url=url)
+
+
+# end def
+
+
+def svn_unversioned(path: str) -> Tuple[Any | None, str | None]:
+    status = svn_fetch_file_status(path)
+    if status.error:
+        return status.error, None
+    # end if
+    if not status.status or status.status != "?":
         return "not ✌️unversioned✌️", None
     # end if
-    with open(url, mode="r") as file:
+    assert status.url
+    with open(status.url, mode="r") as file:
         return None, file.read()
     # end with
 
@@ -144,6 +179,81 @@ def svn_fetch_log_diffs(
         shell=True,
     )
     return logs.stderr, logs.stdout
+
+
+# end def
+
+
+class svn_fetch_file_tree_result_node:
+    def __init__(self, name: str, dir: bool = False):
+        self.name = name
+        self.dir = dir
+
+    # end def
+
+
+# end class
+
+
+class svn_fetch_file_tree_result:
+    def __init__(
+        self,
+        nodes: List[svn_fetch_file_tree_result_node] | None = None,
+        props: str | None = None,
+        error: Any | None = None,
+    ):
+        self.nodes = nodes
+        self.props = props
+        self.error = error
+
+    # end def
+
+    def toJSON(self):
+        if not self.nodes:
+            return "{}"
+        # end if
+        return (
+            "{"
+            + (('"props": ' + json.dumps(self.props) + ",") if self.props else "")
+            + '"nodes":'
+            + "["
+            + ",".join(
+                [json.dumps(x, default=lambda it: it.__dict__) for x in self.nodes]
+            )
+            + "]}"
+        )
+
+    # end def
+
+
+# end class
+
+
+def svn_fetch_file_tree(path: str) -> svn_fetch_file_tree_result:
+    url = validateUrl(path)
+    assert url
+    print(f'[svn_fetch_file_tree] "{url}"')
+    if not os.path.isdir(url):
+        return svn_fetch_file_tree_result(error="man need D.I.R")
+    # end if
+    nodes = [
+        (
+            svn_fetch_file_tree_result_node(name=x, dir=True)
+            if os.path.isdir(f"{url}/{x}")
+            else svn_fetch_file_tree_result_node(name=x)
+        )
+        for x in os.listdir(url)
+    ]
+    props = subprocess.run(
+        [_svn_executable, "proplist", "-v", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    return svn_fetch_file_tree_result(
+        nodes=nodes, props=props.stdout if (props.stdout and not props.stderr) else None
+    )
 
 
 # end def

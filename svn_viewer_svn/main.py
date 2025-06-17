@@ -10,17 +10,21 @@ from starlette.middleware.cors import CORSMiddleware
 from models import (
     SettingsRequestModel,
     SvnDiffRequestModel,
+    SvnFetchTreeRequestModel,
+    SvnFileStatusRequestModel,
     SvnLogDiffsRequestModel,
     SvnLogsRequestModel,
     SvnStatusRequestModel,
     SvnUnversionedRequestModel,
 )
-from svn import fetch_settings, svn_hash
+from svn import fetch_settings
 from worker import (
     add_fetch_svn_diff_job,
+    add_fetch_svn_file_status_job,
     add_fetch_svn_log_diffs_job,
     add_fetch_svn_logs_job,
     add_fetch_svn_status_job,
+    add_fetch_svn_tree_job,
     add_fetch_svn_unversioned_job,
     add_send_message_job,
 )
@@ -77,6 +81,15 @@ async def fetch_unversioned(data: SvnUnversionedRequestModel):
 # end def
 
 
+@app.post("/svn/fetch/status/file", response_model=str)
+async def fetch_file_status(data: SvnFileStatusRequestModel):
+    assert data.path
+    return add_fetch_svn_file_status_job(data.path, data.job)
+
+
+# end def
+
+
 @app.post("/svn/fetch/logs", response_model=str)
 async def fetch_logs(data: SvnLogsRequestModel):
     assert data.path
@@ -91,6 +104,15 @@ async def fetch_log_diffs(data: SvnLogDiffsRequestModel):
     assert data.path
     assert data.n
     return add_fetch_svn_log_diffs_job(data.path, data.n, data.m, data.job)
+
+
+# end def
+
+
+@app.post("/svn/fetch/tree", response_model=str)
+async def fetch_tree(data: SvnFetchTreeRequestModel):
+    assert data.path
+    return add_fetch_svn_tree_job(data.path, data.job)
 
 
 # end def
