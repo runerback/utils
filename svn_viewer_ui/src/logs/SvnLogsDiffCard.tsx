@@ -7,7 +7,7 @@ import { Button, Collapse, Space, Spin } from "antd";
 import { useCallback, useContext, useMemo } from "preact/hooks";
 import { SvnLogDiffsContext } from "../context/svnLogDiffsContext";
 import { filter } from "rxjs";
-import SvnDiffCardContent from "../diffs/svn_diff_card_content";
+import SvnDiffCardContent from "../diffs/SvnDiffCardContent";
 import { useSignals } from "@preact/signals-react/runtime";
 import Refresh from "../assets/Refresh.svg?react";
 

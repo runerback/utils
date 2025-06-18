@@ -6,16 +6,19 @@
 }
 
 .icon {
+  display: inline-block;
   width: 1em;
   height: 1em;
-  margin-right: .3em;
+  margin-right: 0.3em;
+  margin-bottom: auto;
 }
 
-.icon :hover {
-  transform: translate(-1px, -1px);
+.icon.p5 {
+  width: 1.5em;
+  height: 1.5em;
 }
 
-.spin {
+.icon.spin {
   animation: spin linear 1s infinite;
 }
 

@@ -11,6 +11,7 @@ from models import (
     SettingsRequestModel,
     SvnDiffRequestModel,
     SvnFetchTreeRequestModel,
+    SvnFileRemoteRequestModel,
     SvnFileStatusRequestModel,
     SvnLogDiffsRequestModel,
     SvnLogsRequestModel,
@@ -20,6 +21,7 @@ from models import (
 from svn import fetch_settings
 from worker import (
     add_fetch_svn_diff_job,
+    add_fetch_svn_file_remote_job,
     add_fetch_svn_file_status_job,
     add_fetch_svn_log_diffs_job,
     add_fetch_svn_logs_job,
@@ -76,6 +78,15 @@ async def fetch_diff(data: SvnDiffRequestModel):
 async def fetch_unversioned(data: SvnUnversionedRequestModel):
     assert data.path
     return add_fetch_svn_unversioned_job(data.path, data.job)
+
+
+# end def
+
+
+@app.post("/svn/fetch/remote/file", response_model=str)
+async def fetch_file_remote(data: SvnFileRemoteRequestModel):
+    assert data.path
+    return add_fetch_svn_file_remote_job(data.path, data.job)
 
 
 # end def

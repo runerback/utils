@@ -1,6 +1,6 @@
 import { useSignals } from "@preact/signals-react/runtime";
 import { Collapse } from "antd";
-import { SvnDiffCard } from "./svn_diff_card";
+import { SvnDiffCard } from "./SvnDiffCard";
 import type { Key } from "preact";
 import { useRef } from "preact/hooks";
 import type { ReadonlySignal } from "@preact/signals-react";

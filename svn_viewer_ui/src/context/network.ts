@@ -139,17 +139,28 @@ const fetch_file_status = async (source?: string, job?: Job) => {
   return await res.text();
 };
 
+const fetch_file_remote = async (source?: string, job?: Job) => {
+  if (!source) {
+    return;
+  }
+  const res = await fetch(`/api/server/remote/file?path=${encodeURI(source)}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ job }),
+  });
+  return await res.text();
+};
+
 const fetch_tree = async (source?: string, job?: Job) => {
-  const res = await fetch(
-    `/api/server/tree?path=${encodeURI(source ?? "/")}`,
-    {
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-      body: JSON.stringify({ job }),
-    }
-  );
+  const res = await fetch(`/api/server/tree?path=${encodeURI(source ?? "/")}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ job }),
+  });
   return await res.text();
 };
 
@@ -206,6 +217,8 @@ export default {
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
   fetch_unversioned: (source: string) =>
     request((source) => fetch_unversioned(source, "FETCH_UNVERSIONED"), source),
+  fetch_file_remote: (source: string) =>
+    request((source) => fetch_file_remote(source, "FETCH_FILE_REMOTE"), source),
   fetch_logs: (source: string) =>
     request((source) => fetch_logs(source!, "FETCH_LOGS"), source),
   fetch_log_diffs: (source?: string, params?: FetchLogDiffsRange) =>

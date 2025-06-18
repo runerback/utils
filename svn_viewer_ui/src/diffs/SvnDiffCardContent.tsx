@@ -1,14 +1,15 @@
 import type { ReadonlySignal } from "@preact/signals-react";
 import { useComputed, useSignals } from "@preact/signals-react/runtime";
 import { useMemo } from "preact/hooks";
-import SvnDiffMarkdown from "./svn_diff_markdown";
-import SvnUnversionedMarkdown from "./svn_unversioned_markdown";
+import SvnDiffMarkdown from "./SvnDiffMarkdown";
+import SvnRawMarkdown from "./SvnRawMarkdown";
 import "./svn_diff_card_content.css";
 
 export default (props: {
   status: SvnStatusItem;
   diffs: ReadonlySignal<Chunk1 | undefined>;
   unversioned: ReadonlySignal<Array<string>>;
+  missing?: ReadonlySignal<Array<string>>;
   busy: ReadonlySignal<boolean>;
   settings: ReadonlySignal<Settings | undefined>;
 }) => {
@@ -39,6 +40,14 @@ export default (props: {
     }
     return [];
   });
+  const missingContent =
+    !!props.missing &&
+    useComputed(() => {
+      if (!!props.missing!.value) {
+        return props.missing!.value;
+      }
+      return [];
+    });
   const maxLine = useComputed(() => {
     let max = 0;
     if (!!props.diffs.value) {
@@ -51,6 +60,8 @@ export default (props: {
       });
     } else if (!!props.unversioned.value) {
       max = props.unversioned.value.length;
+    } else if (!!props.missing && !!props.missing.value) {
+      max = props.missing.value.length;
     }
     return max;
   });
@@ -59,6 +70,13 @@ export default (props: {
       return true;
     }
     if (!!unversionedContent.value && unversionedContent.value.length > 0) {
+      return true;
+    }
+    if (
+      !!missingContent &&
+      !!missingContent.value &&
+      missingContent.value.length > 0
+    ) {
       return true;
     }
     return false;
@@ -90,12 +108,21 @@ export default (props: {
         />
       )}
       {!!unversionedContent.value && unversionedContent.value.length > 0 && (
-        <SvnUnversionedMarkdown
+        <SvnRawMarkdown
           lines$={unversionedContent}
           language={language}
           {...props}
         />
       )}
+      {!!missingContent &&
+        !!missingContent.value &&
+        missingContent.value.length > 0 && (
+          <SvnRawMarkdown
+            lines$={missingContent}
+            language={language}
+            {...props}
+          />
+        )}
     </div>
   );
 };

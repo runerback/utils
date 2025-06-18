@@ -39,11 +39,14 @@ class fetch_svn_log_diffs_job(Job[fetch_svn_log_diffs_job_payload]):
                     {"data": message, "job": self.payload.type},
                     preprocess=True,
                 )
+            else:
+                send_message(
+                    self.id,
+                    {"completed": True, "job": self.payload.type},
+                )
             # end if
-        except TypeError as te:
-            send_message(self.id, {"error": str(te), "job": self.payload.type})
         except Exception as exp:
-            send_message(self.id, {"error": exp, "job": self.payload.type})
+            send_message(self.id, {"error": str(exp), "job": self.payload.type})
         # end try
 
     # end def

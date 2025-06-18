@@ -1,5 +1,5 @@
 import { useSignals } from "@preact/signals-react/runtime";
-import { SvnChangelistCard } from "./svn_changelist_card";
+import { SvnChangelistCard } from "./SvnChangelistCard";
 import "./diffs.css";
 import { useCallback, useMemo } from "preact/hooks";
 import type { ReadonlySignal } from "@preact/signals-react";

@@ -2,7 +2,7 @@ import { signal, useSignal, useSignalEffect } from "@preact/signals-react";
 import "./app.css";
 import network from "./context/network";
 import { useSignals } from "@preact/signals-react/runtime";
-import { type FormProps } from "antd";
+import { notification, type FormProps } from "antd";
 import { useCallback } from "preact/hooks";
 import Settings from "./settings";
 import Diffs from "./diffs";
@@ -21,10 +21,15 @@ import SvnTreeContextProvider, {
   SvnTreeContext,
 } from "./context/svnTreeContext";
 import SvnTreeModal from "./tree/SvnTreeModal";
+import SignalPromiseContextProvider, {
+  SignalPromiseContext,
+} from "./context/signalPromiseContext";
+import type { NotificationInstance } from "antd/es/notification/interface";
 
 const svnContext = SvnDiffProvider();
 const svnLogDiffsContext = SvnLogDiffsProvider();
 const svnTreeContext = SvnTreeContextProvider();
+const signalPromiseContext = SignalPromiseContextProvider();
 
 const messageId = signal("");
 const message = signal<MessageContent>();
@@ -89,6 +94,34 @@ export function App() {
   }, []);
   const showSvnTree = useSignal(false);
 
+  const [api, contextHolder] = notification.useNotification({
+    placement: "top",
+  });
+  const notify = useCallback(
+    (
+      message: string,
+      type: keyof Omit<NotificationInstance, "open" | "destroy">
+    ) => {
+      switch (type) {
+        case "info":
+          api.info({ message, duration: 1 });
+          break;
+        case "success":
+          api.success({ message, duration: 1 });
+          break;
+        case "error":
+          api.error({ message, duration: 3 });
+          break;
+        case "warning":
+          api.warning({ message, duration: 2 });
+          break;
+        default:
+          break;
+      }
+    },
+    []
+  );
+
   useSignalEffect(() => {
     const id = messageId.value;
     if (!id) {
@@ -111,11 +144,15 @@ export function App() {
       } else if (!!content.completed || !!content.error) {
         if (!!content.error) {
           console.warn(content.error);
+          notify(`${content.job ?? "Something"}: ${content.error}`, "warning");
+        } else if (!!content.completed) {
+          notify(`${content.job ?? "Something"}: finished`, "success");
         }
         busy.value = false;
         switch (content.job) {
           case "FETCH_DIFFS":
           case "FETCH_UNVERSIONED":
+          case "FETCH_FILE_REMOTE":
           case "FETCH_LOGS":
             publishSvnStream({
               id,
@@ -161,6 +198,13 @@ export function App() {
                 .filter(Boolean),
             });
             break;
+          case "FETCH_FILE_REMOTE":
+            publishSvnStream({
+              id,
+              job: content.job,
+              missing: (content.data as string).split(/\r|\n/g).filter(Boolean),
+            });
+            break;
           case "FETCH_LOGS": {
             publishSvnStream({
               id,
@@ -189,10 +233,12 @@ export function App() {
                 (content.data as {
                   name: string;
                   dir?: boolean;
+                  children?: boolean;
                 }[]) ?? []
               ).map((it) => ({
                 name: it.name,
                 kind: !!it.dir ? "DIR" : "FILE",
+                expandable: it.children,
               })),
             });
             break;
@@ -230,45 +276,48 @@ export function App() {
   }, []);
 
   return (
-    <Layout>
-      <Header>
-        <Settings
-          loading={fetchingServerStatus}
-          title={serverStatus}
-          busy={busy.value}
-          source$={settings}
-          onFinish={onSettingsChange}
-          onFetchStatus={onFetchStatus}
-          onFetchTree={() => (showSvnTree.value = true)}
-          pickDir={pickDir}
-        />
-      </Header>
-      <SvnContext.Provider value={svnContext}>
-        <Content>
-          <Diffs
-            status={status.value}
-            settings={settings}
-            fetchLogs={onFetchLogs}
+    <SignalPromiseContext.Provider value={signalPromiseContext}>
+      {contextHolder}
+      <Layout>
+        <Header>
+          <Settings
+            loading={fetchingServerStatus}
+            title={serverStatus}
+            busy={busy.value}
+            source$={settings}
+            onFinish={onSettingsChange}
+            onFetchStatus={onFetchStatus}
+            onFetchTree={() => (showSvnTree.value = true)}
+            pickDir={pickDir}
           />
-        </Content>
-        <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
-          <SvnLogsModal
-            open={showSvnDiffLogs}
-            onClose={() => (showSvnDiffLogs.value = false)}
-            status={svnLogStatus}
-            settings={settings}
-            busy={busy}
-          />
-        </SvnLogDiffsContext.Provider>
-        <SvnTreeContext.Provider value={svnTreeContext}>
-          <SvnTreeModal
-            open={showSvnTree}
-            onClose={() => (showSvnTree.value = false)}
-            busy={busy}
-            onFetched={() => (busy.value = false)}
-          />
-        </SvnTreeContext.Provider>
-      </SvnContext.Provider>
-    </Layout>
+        </Header>
+        <SvnContext.Provider value={svnContext}>
+          <Content>
+            <Diffs
+              status={status.value}
+              settings={settings}
+              fetchLogs={onFetchLogs}
+            />
+          </Content>
+          <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
+            <SvnLogsModal
+              open={showSvnDiffLogs}
+              onClose={() => (showSvnDiffLogs.value = false)}
+              status={svnLogStatus}
+              settings={settings}
+              busy={busy}
+            />
+          </SvnLogDiffsContext.Provider>
+          <SvnTreeContext.Provider value={svnTreeContext}>
+            <SvnTreeModal
+              open={showSvnTree}
+              onClose={() => (showSvnTree.value = false)}
+              busy={busy}
+              onFetched={() => (busy.value = false)}
+            />
+          </SvnTreeContext.Provider>
+        </SvnContext.Provider>
+      </Layout>
+    </SignalPromiseContext.Provider>
   );
 }

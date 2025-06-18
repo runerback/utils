@@ -11,8 +11,8 @@ import { SvnContext } from "../context/svnContext";
 import { filter } from "rxjs";
 import type { ReadonlySignal } from "@preact/signals-react";
 import network from "../context/network";
-import SvnDiffCardLabel from "./svn_diff_card_label";
-import SvnDiffCardContent from "./svn_diff_card_content";
+import SvnDiffCardLabel from "./SvnDiffCardLabel";
+import SvnDiffCardContent from "./SvnDiffCardContent";
 import History from "../assets/History.svg?react";
 import Refresh from "../assets/Refresh.svg?react";
 import OpenFolder from "../assets/OpenFolderHorizontal.svg?react";
@@ -32,6 +32,7 @@ export function SvnDiffCard(props: {
   const diffId = useSignal("");
   const diffs = useSignal<Chunk1>();
   const unversioned = useSignal(Array<string>());
+  const missing = useSignal(Array<string>());
   const svnContext = useContext(SvnContext);
   useSignalEffect(() => {
     svnContext.stream$
@@ -44,8 +45,16 @@ export function SvnDiffCard(props: {
       .subscribe((e) => {
         if (!!e.chunks && e.chunks.length > 0) {
           diffs.value = e.chunks[0];
+          unversioned.value = [];
+          missing.value = [];
         } else if (!!e.unversioned && e.unversioned.length > 0) {
           unversioned.value = e.unversioned;
+          diffs.value = undefined;
+          missing.value = [];
+        } else if (!!e.missing && e.missing.length > 0) {
+          missing.value = e.missing;
+          diffs.value = undefined;
+          unversioned.value = [];
         }
         busy.value = false;
       });
@@ -77,7 +86,7 @@ export function SvnDiffCard(props: {
     fetching.value = true;
   }, []);
   const canShowLog = useComputed(() => {
-    return props.status.state !== "?";
+    return props.status.state !== "?" && props.status.state !== "A";
   });
   return (
     <div className="diffcard">
@@ -136,6 +145,7 @@ export function SvnDiffCard(props: {
                 <SvnDiffCardContent
                   diffs={diffs}
                   unversioned={unversioned}
+                  missing={missing}
                   busy={busy}
                   {...props}
                 />,

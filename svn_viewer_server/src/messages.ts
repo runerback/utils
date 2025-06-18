@@ -42,7 +42,7 @@ const preprocess_log_diffs = (id: string, data: string, job: Job) => {
 const preprocess_tree = (id: string, data: string, job: Job) => {
   const raw = JSON.parse(data) as {
     props?: string;
-    nodes?: { name: string; dir?: boolean }[];
+    nodes?: { name: string; dir?: boolean; children?: boolean }[];
   };
   const props = !!raw?.props ? svnparser.parse_props(raw.props) : {};
   const ignores = [

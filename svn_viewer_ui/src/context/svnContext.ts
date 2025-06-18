@@ -7,9 +7,7 @@ export interface ISvnContext {
   provide: (status: SvnStatusItem) => Promise<string | null | undefined>;
 }
 
-export const SvnContext = createContext<ISvnContext>(
-  null!
-);
+export const SvnContext = createContext<ISvnContext>(null!);
 
 const stream$ = new Subject<SvnStream>();
 
@@ -23,6 +21,8 @@ export default (): ISvnContext => ({
     switch (status.state) {
       case "?":
         return network.fetch_unversioned(status.source);
+      case "!":
+        return network.fetch_file_remote(status.source);
       default:
         return network.fetch_diff(status.source);
     }

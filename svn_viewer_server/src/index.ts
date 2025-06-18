@@ -138,6 +138,31 @@ app.post("/status/file", async (req, res) => {
   res.send(await result.json()).end();
 });
 
+app.post("/remote/file", async (req, res) => {
+  const path = req.query?.["path"] as string;
+  const params = req.body as { job?: string };
+  const result = await fetch(`${svnUri}/fetch/remote/file`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      path,
+      job: params.job,
+    }),
+  });
+  if (result.status !== 200) {
+    res.status(400).json({
+      error: {
+        status: result.status,
+        statusText: result.statusText,
+      },
+    });
+  }
+  res.send(await result.json()).end();
+});
+
 app.post("/diff", async (req, res) => {
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };

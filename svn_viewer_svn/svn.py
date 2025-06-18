@@ -7,7 +7,7 @@ from typing import Any, List, Tuple
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
 assert _svn_executable and os.path.exists(_svn_executable)
 
-_settings = {"svn_root": "", "svn_root_hash": ""}
+_settings = {"svn_root": "", "svn_root_hash": "", "svn_repo": ""}
 
 
 def validateUrl(source: str | None):
@@ -34,6 +34,18 @@ def fetch_settings(svn_root: str):
     else:
         _settings["svn_root_hash"] = ""
     # end if
+    repo = subprocess.run(
+        [_svn_executable, "info", "--show-item", "url", svn_root],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    assert not repo.stderr
+    if repo.stdout:
+        _settings["svn_repo"] = repo.stdout.strip("\n")
+    # end if
+    print(f"[settings] {_settings}")
     return _settings["svn_root_hash"]
 
 
@@ -137,9 +149,29 @@ def svn_unversioned(path: str) -> Tuple[Any | None, str | None]:
         return "not ✌️unversioned✌️", None
     # end if
     assert status.url
+    print(f'[svn_fetch_file_unversioned] "{status.url}"')
     with open(status.url, mode="r") as file:
         return None, file.read()
     # end with
+
+
+# end def
+
+
+def svn_file_remote(path: str) -> Tuple[Any | None, str | None]:
+    assert path
+    repo = _settings["svn_repo"]
+    assert repo
+    url = "/".join([repo, path.replace("\\", "/").strip("/")])
+    print(f'[svn_fetch_file_remote] "{url}"')
+    cat = subprocess.run(
+        [_svn_executable, "cat", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    return cat.stderr, cat.stdout
 
 
 # end def
@@ -185,9 +217,10 @@ def svn_fetch_log_diffs(
 
 
 class svn_fetch_file_tree_result_node:
-    def __init__(self, name: str, dir: bool = False):
+    def __init__(self, name: str, dir: bool = False, children: bool = False):
         self.name = name
         self.dir = dir
+        self.children = children
 
     # end def
 
@@ -238,7 +271,9 @@ def svn_fetch_file_tree(path: str) -> svn_fetch_file_tree_result:
     # end if
     nodes = [
         (
-            svn_fetch_file_tree_result_node(name=x, dir=True)
+            svn_fetch_file_tree_result_node(
+                name=x, dir=True, children=any(os.scandir(f"{url}/{x}"))
+            )
             if os.path.isdir(f"{url}/{x}")
             else svn_fetch_file_tree_result_node(name=x)
         )

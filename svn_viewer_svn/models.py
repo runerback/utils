@@ -43,6 +43,13 @@ class SvnUnversionedRequestModel(SvnRequestModel):
 # end class
 
 
+class SvnFileRemoteRequestModel(SvnRequestModel):
+    path: str
+
+
+# end class
+
+
 class SvnFileStatusRequestModel(SvnRequestModel):
     path: str
 

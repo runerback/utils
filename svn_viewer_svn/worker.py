@@ -2,6 +2,10 @@ import logging
 from threading import Timer
 from uuid import uuid4
 from workers.svn_diff import fetch_svn_diff_job, fetch_svn_diff_job_payload
+from workers.svn_file_remote import (
+    fetch_svn_file_remote_job,
+    fetch_svn_file_remote_job_payload,
+)
 from workers.svn_file_status import (
     fetch_svn_file_status_job,
     fetch_svn_file_status_job_payload,
@@ -161,6 +165,17 @@ def add_fetch_svn_tree_job(path: str, type: str | None = None):
     return _scheduler.add(
         lambda jid: fetch_svn_file_tree_job(
             jid, fetch_svn_file_tree_job_payload(path, type)
+        )
+    )
+
+
+# end def
+
+
+def add_fetch_svn_file_remote_job(path: str, type: str | None = None):
+    return _scheduler.add(
+        lambda jid: fetch_svn_file_remote_job(
+            jid, fetch_svn_file_remote_job_payload(path, type)
         )
     )
 

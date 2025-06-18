@@ -12,6 +12,7 @@ declare type Job =
   | "FETCH_LOGS"
   | "FETCH_LOG_DIFFS"
   | "FETCH_FILE_STATUS"
+  | "FETCH_FILE_REMOTE"
   | "FETCH_TREE";
 
 declare type Message = {
@@ -91,6 +92,7 @@ declare type SvnStream = {
   readonly chunks?: Chunk1[];
   readonly logs?: SvnLogs[];
   readonly unversioned?: string[];
+  readonly missing?: string[];
   readonly finished?: boolean;
 };
 
@@ -109,6 +111,7 @@ declare type SvnLogDiffsStream = {
 declare type SvnTreeNode = {
   readonly kind: "FILE" | "DIR";
   readonly name: string;
+  readonly expandable?: boolean;
 };
 
 declare type SvnTreeStream = {
