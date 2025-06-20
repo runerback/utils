@@ -27,3 +27,7 @@
   margin-right: 1em;
   display: flex;
 }
+
+.switcher {
+  user-select: none;
+}

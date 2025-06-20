@@ -3,7 +3,7 @@ import { useComputed, useSignals } from "@preact/signals-react/runtime";
 import { useMemo } from "preact/hooks";
 import SvnDiffMarkdown from "./SvnDiffMarkdown";
 import SvnRawMarkdown from "./SvnRawMarkdown";
-import "./svn_diff_card_content.css";
+import "./SvnDiffCardContent.css";
 
 export default (props: {
   status: SvnStatusItem;

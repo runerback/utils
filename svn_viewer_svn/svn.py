@@ -7,7 +7,7 @@ from typing import Any, List, Tuple
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
 assert _svn_executable and os.path.exists(_svn_executable)
 
-_settings = {"svn_root": "", "svn_root_hash": "", "svn_repo": ""}
+_settings = {"svn_root": "", "svn_root_hash": "", "svn_repo": "", "svn_props": ""}
 
 
 def validateUrl(source: str | None):
@@ -45,6 +45,16 @@ def fetch_settings(svn_root: str):
     if repo.stdout:
         _settings["svn_repo"] = repo.stdout.strip("\n")
     # end if
+    props = subprocess.run(
+        [_svn_executable, "proplist", "-v", svn_root],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    assert not props.stderr
+    if props.stdout:
+        _settings["svn_props"] = props.stdout
     print(f"[settings] {_settings}")
     return _settings["svn_root_hash"]
 
@@ -242,12 +252,13 @@ class svn_fetch_file_tree_result:
     # end def
 
     def toJSON(self):
+        props = ('"props": ' + json.dumps(self.props)) if self.props else ""
         if not self.nodes:
-            return "{}"
+            return "{" + props + "}"
         # end if
         return (
             "{"
-            + (('"props": ' + json.dumps(self.props) + ",") if self.props else "")
+            + ((props + ",") if self.props else "")
             + '"nodes":'
             + "["
             + ",".join(
@@ -287,7 +298,11 @@ def svn_fetch_file_tree(path: str) -> svn_fetch_file_tree_result:
         shell=True,
     )
     return svn_fetch_file_tree_result(
-        nodes=nodes, props=props.stdout if (props.stdout and not props.stderr) else None
+        nodes=nodes,
+        props=(
+            _settings["svn_props"]
+            + (props.stdout if (props.stdout and not props.stderr) else "")
+        ),
     )
 
 

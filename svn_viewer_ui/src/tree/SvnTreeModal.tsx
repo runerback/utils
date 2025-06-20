@@ -22,6 +22,7 @@ const treeNodesLookup: Record<string, SvnTreeNode[]> = {};
 type TreeDataNode = FieldDataNode<{
   key: Key;
   data: SvnTreeNode;
+  title?: React.ReactNode;
 }>;
 const buildTree = (root: string): TreeDataNode[] => {
   const nodes = treeNodesLookup[root];
@@ -41,6 +42,7 @@ const buildTree = (root: string): TreeDataNode[] => {
         root === "/" ? root + node.name : [root, node.name].join("/");
       return {
         key: next,
+        title: node.name,
         data: node,
         isLeaf: !node.expandable,
         children: node.kind === "DIR" ? buildTree(next) : [],
@@ -101,14 +103,15 @@ export default (props: {
       });
   });
   useSignalEffect(() => {
-    console.log("about to provide sth!!!!!!!!!!!!!!!", loadingRoot.value);
-    svnTreeContext.provide(loadingRoot.value).then((id) => {
-      if (!!id) {
-        fetchId.value = id;
-      } else {
-        fetchId.value = "";
-      }
-    });
+    if (props.open.value && !fetching.value && !fetchId.value) {
+      svnTreeContext.provide(loadingRoot.value).then((id) => {
+        if (!!id) {
+          fetchId.value = id;
+        } else {
+          fetchId.value = "";
+        }
+      });
+    }
   });
   const signalPromiseContext = useContext(SignalPromiseContext);
   const loadSubNodes = useCallback((e: EventDataNode<TreeDataNode>) => {
@@ -118,7 +121,6 @@ export default (props: {
     }
     return signalPromiseContext
       .provide(fetching, (value) => !value)
-      .then(() => console.log("not EMPTY PROMISY !!!!!!!!!!!!!!"))
       .catch(console.error);
   }, []);
 
@@ -143,9 +145,15 @@ export default (props: {
         rootClassName="tree"
         treeData={treeNodes.value}
         expandedKeys={expandedKeys.value}
-        switcherIcon={(node) =>
-          node.expanded ? <Up className="icon" /> : <Down className="icon" />
-        }
+        switcherIcon={(node) => (
+          <div className="switcher">
+            {node.expanded ? (
+              <Up className="icon" />
+            ) : (
+              <Down className="icon" />
+            )}
+          </div>
+        )}
         onClick={handleNodeClick}
         loadData={(e) => loadSubNodes(e)}
         titleRender={(node) => (

@@ -25,12 +25,10 @@ export default (): ISignalPromiseContext => ({
       },
     };
     const promise = new Promise<T>((resolve) => {
-      console.log("give an EMPTY PROMISY !!!!!!!!!!!!!!!!!");
       listener.onCompleted((value) => resolve(value));
     });
     const disposable = source.subscribe((value) => {
       if (!condition || !!condition?.(value)) {
-        console.log("Condition fetched !!!!!!!!!!!!!!!!!");
         listener.completed(value);
       }
     });
