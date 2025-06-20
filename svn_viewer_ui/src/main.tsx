@@ -1,5 +1,5 @@
-import { render } from 'preact'
-import './index.css'
-import { App } from './app.tsx'
+import { render } from "preact";
+import "./index.css";
+import Notifications from "./wrappers/notifications";
 
-render(<App />, document.getElementById('app')!)
+render(<Notifications />, document.getElementById("app")!);

@@ -14,15 +14,18 @@ from workers.svn_file_tree import (
     fetch_svn_file_tree_job,
     fetch_svn_file_tree_job_payload,
 )
+from workers.svn_info import fetch_svn_info_job, fetch_svn_info_job_payload
 from workers.svn_log_diffs import (
     fetch_svn_log_diffs_job,
     fetch_svn_log_diffs_job_payload,
 )
 from workers.svn_logs import fetch_svn_logs_job, fetch_svn_logs_job_payload
 from workers.svn_status import fetch_svn_status_job, fetch_svn_status_job_payload
-from workers.send_message import send_message_job, send_message_job_payload
+from workers.svn_settings import (
+    fetch_svn_settings_job,
+    fetch_svn_settings_job_payload,
+)
 from workers.job import Job
-from svntypes import jtoken
 from typing import Callable
 
 from workers.svn_unversioned import (
@@ -90,9 +93,11 @@ class Scheduler:
 _scheduler = Scheduler()
 
 
-def add_send_message_job(id: str, content: jtoken):
-    _scheduler.add(
-        lambda jid: send_message_job(jid, send_message_job_payload(id, content))
+def add_fetch_svn_settings_job(path: str, type: str | None = None):
+    return _scheduler.add(
+        lambda jid: fetch_svn_settings_job(
+            jid, fetch_svn_settings_job_payload(path, type)
+        )
     )
 
 
@@ -177,6 +182,15 @@ def add_fetch_svn_file_remote_job(path: str, type: str | None = None):
         lambda jid: fetch_svn_file_remote_job(
             jid, fetch_svn_file_remote_job_payload(path, type)
         )
+    )
+
+
+# end def
+
+
+def add_fetch_svn_info_job(path: str, type: str | None = None):
+    return _scheduler.add(
+        lambda jid: fetch_svn_info_job(jid, fetch_svn_info_job_payload(path, type))
     )
 
 

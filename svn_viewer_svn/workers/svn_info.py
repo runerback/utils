@@ -1,11 +1,11 @@
-from workers.job import Job, JobPayload
 from messages import send_message
-from svn import svn_file_remote
+from svn import svn_fetch_info
+from workers.job import Job, JobPayload
 
 
-class fetch_svn_file_remote_job_payload(JobPayload):
+class fetch_svn_info_job_payload(JobPayload):
     def __init__(self, path: str, type: str | None = None):
-        super().__init__(kind="fetch_svn_file_remote")
+        super().__init__(kind="fetch_svn_info")
         self.path = path
         self.type = type
 
@@ -15,7 +15,7 @@ class fetch_svn_file_remote_job_payload(JobPayload):
 # end class
 
 
-class fetch_svn_file_remote_job(Job[fetch_svn_file_remote_job_payload]):
+class fetch_svn_info_job(Job[fetch_svn_info_job_payload]):
     def __init__(self, id, payload):
         super().__init__(id, payload)
 
@@ -24,15 +24,16 @@ class fetch_svn_file_remote_job(Job[fetch_svn_file_remote_job_payload]):
     def _execute(self):
         send_message(self.id, {"processing": True, "job": self.payload.type})
         try:
-            error, content = svn_file_remote(self.payload.path)
+            error, message = svn_fetch_info(self.payload.path)
             if error:
                 send_message(self.id, {"error": error, "job": self.payload.type})
                 return
             # end if
-            if content:
+            if message:
                 send_message(
                     self.id,
-                    {"data": content, "job": self.payload.type},
+                    {"data": message, "job": self.payload.type},
+                    preprocess=True,
                 )
             else:
                 send_message(

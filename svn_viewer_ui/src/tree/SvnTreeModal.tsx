@@ -8,7 +8,6 @@ import { Modal, Skeleton, Tree } from "antd";
 import DOM from "../assets/DOM.svg?react";
 import Close from "../assets/ChromeClose.svg?react";
 import { useCallback, useContext } from "preact/hooks";
-import SvnTreeNodeIcon from "./SvnTreeNodeIcon";
 import "./tree.css";
 import type { EventDataNode, FieldDataNode } from "rc-tree/lib/interface";
 import type { Key } from "readline";
@@ -17,9 +16,10 @@ import Down from "../assets/CaretDown8.svg?react";
 import { SignalPromiseContext } from "../context/signalPromiseContext";
 import { SvnTreeContext } from "../context/svnTreeContext";
 import { filter } from "rxjs";
+import SvnTreeNode from "./SvnTreeNode";
 
 const treeNodesLookup: Record<string, SvnTreeNode[]> = {};
-type TreeDataNode = FieldDataNode<{
+export type TreeDataNode = FieldDataNode<{
   key: Key;
   data: SvnTreeNode;
   title?: React.ReactNode;
@@ -54,6 +54,7 @@ export default (props: {
   busy: ReadonlySignal<boolean>;
   open: ReadonlySignal<boolean>;
   onClose: () => void;
+  onFetchInfo: (path: string) => Promise<string | null | undefined>;
   onFetched: () => void;
 }) => {
   useSignals();
@@ -103,7 +104,7 @@ export default (props: {
       });
   });
   useSignalEffect(() => {
-    if (props.open.value && !fetching.value && !fetchId.value) {
+    if (props.open.value) {
       svnTreeContext.provide(loadingRoot.value).then((id) => {
         if (!!id) {
           fetchId.value = id;
@@ -114,14 +115,16 @@ export default (props: {
     }
   });
   const signalPromiseContext = useContext(SignalPromiseContext);
-  const loadSubNodes = useCallback((e: EventDataNode<TreeDataNode>) => {
+  const loadSubNodes = useCallback(async (e: EventDataNode<TreeDataNode>) => {
     if (!fetching.value) {
-      fetching.value = true;
       loadingRoot.value = e.key;
+      fetching.value = true;
+      try {
+        await signalPromiseContext.provide(fetching, (value) => !value);
+      } catch (message) {
+        console.error(message);
+      }
     }
-    return signalPromiseContext
-      .provide(fetching, (value) => !value)
-      .catch(console.error);
   }, []);
 
   return (
@@ -157,16 +160,12 @@ export default (props: {
         onClick={handleNodeClick}
         loadData={(e) => loadSubNodes(e)}
         titleRender={(node) => (
-          <div className="title">
-            <div className="name">
-              <SvnTreeNodeIcon
-                node={node.data}
-                opened={expandedKeys.value.includes(node.key as string)}
-              />
-              {node.data.name}
-            </div>
-            <div className="operations">aaa</div>
-          </div>
+          <SvnTreeNode
+            busy={props.busy}
+            node={node}
+            openned={expandedKeys.value.includes(node.key as string)}
+            fetch={(node) => props.onFetchInfo(node.key as string)}
+          />
         )}
       />
     </Modal>

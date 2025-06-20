@@ -1,13 +1,17 @@
 import json
 import os
-import hashlib
 import subprocess
 from typing import Any, List, Tuple
 
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
 assert _svn_executable and os.path.exists(_svn_executable)
 
-_settings = {"svn_root": "", "svn_root_hash": "", "svn_repo": "", "svn_props": ""}
+_settings = {
+    "svn_root": "",
+    "svn_repo": "",
+    "svn_props": "",
+    "svn_rev": "",
+}
 
 
 def validateUrl(source: str | None):
@@ -26,14 +30,8 @@ def validateUrl(source: str | None):
 # end def
 
 
-def fetch_settings(svn_root: str):
+def svn_fetch_settings(svn_root: str):
     _settings["svn_root"] = svn_root
-    if svn_root:
-        md5 = hashlib.md5(svn_root.encode())
-        _settings["svn_root_hash"] = md5.hexdigest()
-    else:
-        _settings["svn_root_hash"] = ""
-    # end if
     repo = subprocess.run(
         [_svn_executable, "info", "--show-item", "url", svn_root],
         capture_output=True,
@@ -44,6 +42,17 @@ def fetch_settings(svn_root: str):
     assert not repo.stderr
     if repo.stdout:
         _settings["svn_repo"] = repo.stdout.strip("\n")
+    # end if
+    rev = subprocess.run(
+        [_svn_executable, "info", "--show-item", "revision", svn_root],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    assert not rev.stderr
+    if rev.stdout:
+        _settings["svn_rev"] = repo.stdout.strip("\n")
     # end if
     props = subprocess.run(
         [_svn_executable, "proplist", "-v", svn_root],
@@ -56,16 +65,11 @@ def fetch_settings(svn_root: str):
     if props.stdout:
         _settings["svn_props"] = props.stdout
     print(f"[settings] {_settings}")
-    return _settings["svn_root_hash"]
-
-
-# end def
-
-
-def svn_hash():
-    svn_root_hash = _settings["svn_root_hash"]
-    assert svn_root_hash
-    return svn_root_hash
+    return {
+        "svn_root": _settings["svn_root"],
+        "svn_repo": _settings["svn_repo"],
+        "svn_rev": _settings["svn_rev"],
+    }
 
 
 # end def
@@ -304,6 +308,23 @@ def svn_fetch_file_tree(path: str) -> svn_fetch_file_tree_result:
             + (props.stdout if (props.stdout and not props.stderr) else "")
         ),
     )
+
+
+# end def
+
+
+def svn_fetch_info(path: str) -> Tuple[Any | None, str | None]:
+    url = validateUrl(path)
+    assert url
+    print(f'[fetch_svn_info] "{url}" with [{range}]')
+    info = subprocess.run(
+        [_svn_executable, "info", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    return info.stderr, info.stdout
 
 
 # end def

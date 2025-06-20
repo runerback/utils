@@ -1,5 +1,5 @@
 import json
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 import os
 import uvicorn
 import logging
@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from models import (
     SettingsRequestModel,
     SvnDiffRequestModel,
+    SvnFetchInfoRequestModel,
     SvnFetchTreeRequestModel,
     SvnFileRemoteRequestModel,
     SvnFileStatusRequestModel,
@@ -18,17 +19,17 @@ from models import (
     SvnStatusRequestModel,
     SvnUnversionedRequestModel,
 )
-from svn import fetch_settings
 from worker import (
     add_fetch_svn_diff_job,
     add_fetch_svn_file_remote_job,
     add_fetch_svn_file_status_job,
+    add_fetch_svn_info_job,
     add_fetch_svn_log_diffs_job,
     add_fetch_svn_logs_job,
+    add_fetch_svn_settings_job,
     add_fetch_svn_status_job,
     add_fetch_svn_tree_job,
     add_fetch_svn_unversioned_job,
-    add_send_message_job,
 )
 
 with open("logging.config.json", "r") as logging_config:
@@ -40,17 +41,9 @@ app = FastAPI(docs_url=None, swagger_ui_oauth2_redirect_url=None)
 
 
 @app.post("/svn/fetch/settings", response_model=str)
-async def create_item(data: SettingsRequestModel):
-    settings = data.settings
-    if not settings:
-        raise HTTPException(status_code=400, detail="settings required")
-    # end if
-    svn_root = settings.svn_root
-    if not svn_root or not isinstance(svn_root, str):
-        raise HTTPException(status_code=400, detail="settings.svn_root required")
-    # end if
-    id = fetch_settings(svn_root)
-    add_send_message_job(id, {"data": "settings fetched"})
+async def fetch_settings(data: SettingsRequestModel):
+    assert data.path
+    id = add_fetch_svn_settings_job(data.path, data.job)
     return id
 
 
@@ -128,6 +121,14 @@ async def fetch_tree(data: SvnFetchTreeRequestModel):
 
 # end def
 
+
+@app.post("/svn/fetch/info", response_model=str)
+async def fetch_info(data: SvnFetchInfoRequestModel):
+    assert data.path
+    return add_fetch_svn_info_job(data.path, data.job)
+
+
+# end def
 if __name__ == "__main__":
     port = os.environ.get("PORT")
     assert port

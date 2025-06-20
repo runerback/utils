@@ -108,6 +108,7 @@ export default function (
                   }
                   title="Reload"
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     fetch();
                   }}

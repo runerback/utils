@@ -53,16 +53,17 @@ app.get("/test", async (_, res) => {
 });
 
 app.get("/settings", (_, res) => {
-  res.send(settings);
+  if (!settings.fetched) {
+    res.status(400).send("settings not fetched yet").end();
+    return;
+  }
+  res.send(settings).end();
 });
 
 app.post("/settings", async (req, res) => {
-  const payload = req.body as typeof settings;
-  const svn_root = payload?.svn_root ?? "";
-  if (!svn_root) {
-    res.status(400).json({ error: "svn_root is required" });
-    return;
-  }
+  const path = req.query?.["path"] as string;
+  const params = req.body as { job?: string };
+  settings.fetched = undefined;
   const result = await fetch(`${svnUri}/fetch/settings`, {
     headers: {
       "Content-Type": "application/json",
@@ -70,24 +71,24 @@ app.post("/settings", async (req, res) => {
     },
     method: "POST",
     body: JSON.stringify({
-      settings: {
-        svn_root: svn_root.replaceAll("\\", "/"),
-      },
+      path,
+      job: params.job,
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
-  } else {
-    settings.svn_root_hash = await result.text();
-    settings.svn_root = svn_root;
-    settings.dark_theme = Boolean(payload?.dark_theme);
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
-  res.end();
+  settings.dark_theme = Boolean(req.query?.["dark"]);
+  res.send(await result.json()).end();
 });
 
 app.post("/status", async (req, res) => {
@@ -103,12 +104,16 @@ app.post("/status", async (req, res) => {
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
   res.send(await result.json()).end();
 });
@@ -128,12 +133,16 @@ app.post("/status/file", async (req, res) => {
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
   res.send(await result.json()).end();
 });
@@ -153,12 +162,16 @@ app.post("/remote/file", async (req, res) => {
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
   res.send(await result.json()).end();
 });
@@ -178,12 +191,16 @@ app.post("/diff", async (req, res) => {
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
   res.send(await result.json()).end();
 });
@@ -203,12 +220,16 @@ app.post("/unversioned", async (req, res) => {
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
   res.send(await result.json()).end();
 });
@@ -228,12 +249,16 @@ app.post("/logs", async (req, res) => {
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
   res.send(await result.json()).end();
 });
@@ -255,12 +280,16 @@ app.post("/logdiff", async (req, res) => {
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
   res.send(await result.json()).end();
 });
@@ -280,12 +309,45 @@ app.post("/tree", async (req, res) => {
     }),
   });
   if (result.status !== 200) {
-    res.status(400).json({
-      error: {
-        status: result.status,
-        statusText: result.statusText,
-      },
-    });
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
+  }
+  res.send(await result.json()).end();
+});
+
+app.post("/info", async (req, res) => {
+  const path = req.query?.["path"] as string;
+  const params = req.body as { job?: string };
+  const result = await fetch(`${svnUri}/fetch/info`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      path,
+      job: params.job,
+    }),
+  });
+  if (result.status !== 200) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
   }
   res.send(await result.json()).end();
 });

@@ -10,6 +10,7 @@ import { useCallback } from "preact/hooks";
 import type { SvnLogsDiffCardProps } from "./SvnLogsDiffCard";
 import SvnLogsDiffCard from "./SvnLogsDiffCard";
 import { useSignals } from "@preact/signals-react/runtime";
+import SvnLogTitle from "./SvnLogTitle";
 
 export default function (props: {
   log: SvnLogs;
@@ -134,14 +135,7 @@ export default function (props: {
               checked={checkedRevisions.value.includes(item.revision)}
               onChange={(e) => handleRevisionSelect(e)}
             >
-              <div className="title">
-                <span className="revision">{item.revision}</span>
-                <span className="message">
-                  {item.message ?? "<no-message>"}
-                </span>
-                <span className="timestamp">{item.timestamp}</span>
-                <span className="author">{item.author}</span>
-              </div>
+              <SvnLogTitle log={item} />
             </Checkbox>
           </List.Item>
         )}

@@ -76,27 +76,59 @@ const preprocess_tree = (id: string, data: string, job: Job) => {
   global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
 
+const preprocess_info = (id: string, data: string, job: Job) => {
+  const parsed = svnparser.parse_info(data);
+  if (!!parsed) {
+    console.log({ parsed });
+    sendMessage(id, { data: parsed, job });
+  }
+  global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
+};
+
 export default (message: Message) => {
-  console.log("handle message: ", typeof message.content);
   if (!!message.content) {
     const content = JSON.parse(message.content) as MessageContent;
     if (!!content && !!content.timestamp && !!content.data && !!content.job) {
       try {
         switch (content.job) {
+          case "FETCH_SETTINGS":
+            {
+              const value = content.data as Settings;
+              settings.svn_root = value.svn_root;
+              settings.svn_repo = value.svn_repo;
+              settings.svn_rev = value.svn_rev;
+              settings.fetched = true;
+              global.setTimeout(
+                () =>
+                  sendMessage(message.id, {
+                    completed: true,
+                    job: content.job,
+                  }),
+                30
+              );
+            }
+            break;
           case "FETCH_STATUS":
-            preprocess_status(message.id, content.data, content.job);
+            preprocess_status(message.id, content.data as string, content.job);
             break;
           case "FETCH_DIFFS":
-            preprocess_diffs(message.id, content.data, content.job);
+            preprocess_diffs(message.id, content.data as string, content.job);
             break;
           case "FETCH_LOGS":
-            preprocess_logs(message.id, content.data, content.job);
+            preprocess_logs(message.id, content.data as string, content.job);
             break;
           case "FETCH_LOG_DIFFS":
-            preprocess_log_diffs(message.id, content.data, content.job);
+            preprocess_log_diffs(
+              message.id,
+              content.data as string,
+              content.job
+            );
             break;
           case "FETCH_TREE":
-            preprocess_tree(message.id, content.data, content.job);
+            preprocess_tree(message.id, content.data as string, content.job);
+            break;
+          case "FETCH_INFO":
+            preprocess_info(message.id, content.data as string, content.job);
             break;
           default:
             break;

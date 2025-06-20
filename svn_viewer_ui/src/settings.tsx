@@ -6,75 +6,108 @@ import {
   useSignalEffect,
   useSignals,
 } from "@preact/signals-react/runtime";
-import type { ReadonlySignal } from "@preact/signals-react";
 import "./settings.css";
-import { debounceTime, Subject } from "rxjs";
-import { useCallback } from "preact/hooks";
+import { useCallback, useContext } from "preact/hooks";
 import "./app.css";
 import Refresh from "./assets/Refresh.svg?react";
 import DOM from "./assets/DOM.svg?react";
-
-const changes$ = new Subject<void>();
-const hasChanged = (a?: Settings, b?: Settings) => {
-  if (!a || !b) {
-    return false;
-  }
-  if (a.svn_root !== b.svn_root) {
-    return true;
-  }
-  if (Boolean(a.dark_theme) !== Boolean(b.dark_theme)) {
-    return true;
-  }
-  return false;
-};
+import { SvnSettingsContext, createRequest } from "./context/settingsContext";
+import network from "./context/network";
 
 export default function (props: {
-  loading: ReadonlySignal<boolean>;
   busy: boolean;
-  title: ReadonlySignal<string>;
-  source$: ReadonlySignal<Settings | undefined>;
-  pickDir: () => void;
-  onFinish: (values: Settings) => void;
+  onFetchSettings: () => void;
+  onRequest: (values: Settings) => void;
+  onValidateFailed: (error: any) => void;
   onFetchStatus: () => void;
   onFetchTree: () => void;
 }) {
   useSignals();
-  const fetched = useSignal(false);
-  useSignalEffect(() => console.log({ fetched: fetched.value }));
-  const canFetch = useSignal(false);
-  const [svnSettingsForm] = useForm<Settings>();
-  useSignalEffect(() => {
-    svnSettingsForm.setFieldsValue(props.source$.value ?? {});
-    changes$.next();
-  });
-  useSignalEffect(() => {
-    changes$.pipe(debounceTime(200)).subscribe(() => {
-      const shouldFetch = fetched.peek() === false;
-      canFetch.value = false;
-      svnSettingsForm
-        .validateFields()
-        .then((values) => {
-          const changed = hasChanged(values, props.source$.peek());
-          console.log("form values changed", { shouldFetch, changed, values });
-          canFetch.value = true;
-          if (shouldFetch || changed) {
-            props.onFinish(values);
-            fetched.value = true;
-          }
-        })
-        .catch((error) => {
-          console.log("Form validation failed:", error);
-        });
+  const serverStatus = useSignal("");
+  const fetchingServerStatus = useSignal(false);
+  const fetchServerStatus = useCallback((retry: number) => {
+    network.test_server().then((status) => {
+      if (!status) {
+        if (retry > 0) {
+          setTimeout(() => fetchServerStatus(retry - 1), 1000);
+          return;
+        }
+      } else {
+        serverStatus.value = status;
+      }
+      fetchingServerStatus.value = false;
     });
+  }, []);
+  useSignalEffect(() => {
+    if (!serverStatus.value) {
+      fetchingServerStatus.value = true;
+      fetchServerStatus(10);
+    } else {
+      props.onFetchSettings();
+    }
   });
+
+  const settingsContext = useContext(SvnSettingsContext);
+  const canFetch = useSignal(false);
+  useSignalEffect(() => {
+    console.log({ canFetch: canFetch.value });
+  });
+  const fetching = useSignal(false);
+  useSignalEffect(() => {
+    console.log({ fetching: fetching.value });
+  });
+  const currentSettings = useSignal<Settings>();
+  const [svnSettingsForm] = useForm<Settings>();
+  const validate = useCallback(() => {
+    svnSettingsForm
+      .validateFields()
+      .then(() => (canFetch.value = true))
+      .catch(() => (canFetch.value = false));
+  }, []);
+  useSignalEffect(() => {
+    validate();
+  });
+  const fetchSettings = useCallback(() => {
+    svnSettingsForm
+      .validateFields()
+      .then((values) => {
+        fetching.value = true;
+        canFetch.value = true;
+        currentSettings.value = undefined;
+        createRequest(values);
+      })
+      .catch((error) => {
+        props.onValidateFailed(error);
+        canFetch.value = false;
+      });
+  }, []);
   const actived = useSignal(true);
   const fetchStatus = useCallback(() => {
     props.onFetchStatus();
     actived.value = false;
   }, []);
+  const pickRootDir = useCallback(() => {
+    settingsContext.pickDir().then((dir) => {
+      if (!!dir) {
+        svnSettingsForm.setFieldValue("svn_root", dir);
+        validate();
+      }
+    });
+  }, []);
+  useSignalEffect(() => {
+    settingsContext.request$.subscribe((request) => {
+      props.onRequest(request);
+    });
+    settingsContext.stream$.subscribe((settings) => {
+      svnSettingsForm.setFieldsValue(settings);
+      currentSettings.value = settings;
+      fetching.value = false;
+      fetchStatus();
+    });
+  });
   const title = useComputed(() => {
-    if (props.title.value) {
-      return `Welcome ${props.title.value}`;
+    if (serverStatus.value) {
+      return `Welcome ${serverStatus.value}`;
     }
     return "Welcom, but server is 😵";
   });
@@ -82,14 +115,14 @@ export default function (props: {
     if (actived.value) {
       return title.value;
     }
-    if (!!props.source$.value?.svn_root) {
-      return props.source$.value.svn_root;
+    if (!!currentSettings.value) {
+      return currentSettings.value.svn_root;
     }
     return title.value;
   });
   return (
     <div className="settings">
-      <Spin spinning={props.loading.value}>
+      <Spin spinning={fetchingServerStatus.value}>
         <Collapse
           bordered
           className="card"
@@ -108,7 +141,8 @@ export default function (props: {
                 </div>
               ),
               extra: !actived.value &&
-                canFetch.value && [
+                !fetching.value &&
+                !!currentSettings.value && [
                   <Button
                     loading={props.busy}
                     icon={
@@ -116,6 +150,7 @@ export default function (props: {
                     }
                     title="Check Status"
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       fetchStatus();
                     }}
@@ -124,6 +159,7 @@ export default function (props: {
                     icon={<DOM className={"icon"} />}
                     title="Check Tree"
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       props.onFetchTree();
                     }}
@@ -135,7 +171,7 @@ export default function (props: {
                   initialValues={{ remember: false }}
                   autoComplete="off"
                   form={svnSettingsForm}
-                  onValuesChange={() => changes$.next()}
+                  onValuesChange={fetchSettings}
                 >
                   <Form.Item<Settings>
                     label="Project path"
@@ -151,7 +187,7 @@ export default function (props: {
                       readOnly
                       disabled={props.busy}
                       enterButton="..."
-                      onSearch={props.pickDir}
+                      onSearch={pickRootDir}
                     />
                   </Form.Item>
                   <Form.Item<Settings> label="Use dark theme" name="dark_theme">
@@ -161,9 +197,9 @@ export default function (props: {
                 <Button
                   type="primary"
                   size="small"
-                  loading={props.busy}
-                  disabled={!canFetch.value}
-                  onClick={fetchStatus}
+                  loading={props.busy || fetching.value}
+                  disabled={!canFetch.value || fetching.value}
+                  onClick={fetchSettings}
                 >
                   Check Status
                 </Button>,

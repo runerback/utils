@@ -1,7 +1,7 @@
 import * as signalr from "@microsoft/signalr";
-import { Observable, Subject } from "rxjs";
+import { Subject } from "rxjs";
 
-const onMessage = new Subject<Message>();
+const messages$ = new Subject<Message>();
 const connection = new signalr.HubConnectionBuilder()
   .withUrl("/api/messages")
   .build();
@@ -11,7 +11,7 @@ connection.on("message", (data) => {
     return;
   }
   console.log({ message });
-  onMessage.next(message);
+  messages$.next(message);
 });
 connection.onclose((error) => {
   console.log("hub closed", error);
@@ -44,17 +44,25 @@ const get_settings = async () => {
   const res = await fetch("/api/server/settings", {
     method: "GET",
   });
+  if (res.status !== 200) {
+    throw await res.text();
+  }
   return (await res.json()) as Settings;
 };
 
-const update_settings = async (settings: Settings) => {
-  await fetch("/api/server/settings", {
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-    body: JSON.stringify(settings),
-  });
+const update_settings = async (settings: SettingsRequest, job?: Job) => {
+  const res = await fetch(
+    `/api/server/settings?path=${encodeURI(settings.svn_root)}` +
+      (!!settings.dark_theme ? "&dark" : ""),
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify({ job }),
+    }
+  );
+  return await res.text();
 };
 
 const fetch_status = async (job?: Job) => {
@@ -164,6 +172,17 @@ const fetch_tree = async (source?: string, job?: Job) => {
   return await res.text();
 };
 
+const fetch_info = async (source: string, job?: Job) => {
+  const res = await fetch(`/api/server/info?path=${encodeURI(source)}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ job }),
+  });
+  return await res.text();
+};
+
 const pick_dir = async (init?: string) => {
   const res = await fetch(
     "/api/uihelper/pickdir" + (!!init ? `?path=${encodeURI(init)}` : ""),
@@ -183,14 +202,16 @@ const open_in_dir = async (path?: string) => {
   });
 };
 
+const errors$ = new Subject<any>();
+
 const request = async <TReq = never, TRes = never>(
   call: (req?: TReq) => Promise<TRes | undefined>,
   req?: TReq
 ) => {
   try {
     return await call(req);
-  } catch (message) {
-    console.error(message);
+  } catch (error) {
+    errors$.next(error);
   }
 };
 
@@ -201,17 +222,21 @@ const request2 = async <TReq1 = never, TReq2 = never, TRes = never>(
 ) => {
   try {
     return await call(req1, req2);
-  } catch (message) {
-    console.error(message);
+  } catch (error) {
+    errors$.next(error);
   }
 };
 
 export default {
-  onMessage: onMessage as Observable<Message>,
+  messages$,
+  errors$,
   test_server: () => request(test_server),
   get_settings: () => request(get_settings),
-  update_settings: (settings: Settings) =>
-    request((settings) => update_settings(settings!), settings),
+  update_settings: (settings: SettingsRequest) =>
+    request(
+      (settings) => update_settings(settings!, "FETCH_SETTINGS"),
+      settings
+    ),
   fetch_status: () => request(() => fetch_status("FETCH_STATUS")),
   fetch_diff: (source: string) =>
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
@@ -221,6 +246,8 @@ export default {
     request((source) => fetch_file_remote(source, "FETCH_FILE_REMOTE"), source),
   fetch_logs: (source: string) =>
     request((source) => fetch_logs(source!, "FETCH_LOGS"), source),
+  fetch_info: (source: string) =>
+    request((source) => fetch_info(source!, "FETCH_INFO"), source),
   fetch_log_diffs: (source?: string, params?: FetchLogDiffsRange) =>
     request2(
       (source, params) => fetch_log_diffs(source, "FETCH_LOG_DIFFS", params),
@@ -233,4 +260,4 @@ export default {
     request((source) => fetch_tree(source, "FETCH_TREE"), source),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
   open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
-};
+} as INetwork;

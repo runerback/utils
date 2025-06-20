@@ -7,21 +7,28 @@ import {
   useSignals,
 } from "@preact/signals-react/runtime";
 import { useCallback, useContext } from "preact/hooks";
-import { SvnContext } from "../context/svnContext";
+import { SvnDiffContext } from "../context/svnDiffContext";
 import History from "../assets/History.svg?react";
 import Close from "../assets/ChromeClose.svg?react";
 import { filter } from "rxjs";
+import { SvnSettingsContext } from "../context/settingsContext";
 
 export default (props: {
   status: ReadonlySignal<SvnStatusItem | undefined>;
-  settings: ReadonlySignal<Settings | undefined>;
   busy: ReadonlySignal<boolean>;
   open: ReadonlySignal<boolean>;
   onClose: () => void;
 }) => {
   useSignals();
+  const settingsContext = useContext(SvnSettingsContext);
+  const settings = useSignal<Settings>();
+  useSignalEffect(() => {
+    settingsContext.stream$.subscribe((value) => {
+      settings.value = value;
+    });
+  });
   const svnLogs = useSignal(Array<SvnLogs>());
-  const svnContext = useContext(SvnContext);
+  const svnContext = useContext(SvnDiffContext);
   useSignalEffect(() => {
     svnContext.stream$
       .pipe(filter((it) => it.job === "FETCH_LOGS"))
@@ -75,7 +82,7 @@ export default (props: {
         status={props.status}
         logs={svnLogs}
         busy={props.busy}
-        settings={props.settings}
+        settings={settings}
       />
     </Modal>
   );

@@ -7,7 +7,7 @@ import {
 } from "@preact/signals-react/runtime";
 import type { Key } from "preact";
 import { useCallback, useContext } from "preact/hooks";
-import { SvnContext } from "../context/svnContext";
+import { SvnDiffContext } from "../context/svnDiffContext";
 import { filter } from "rxjs";
 import type { ReadonlySignal } from "@preact/signals-react";
 import network from "../context/network";
@@ -33,7 +33,7 @@ export function SvnDiffCard(props: {
   const diffs = useSignal<Chunk1>();
   const unversioned = useSignal(Array<string>());
   const missing = useSignal(Array<string>());
-  const svnContext = useContext(SvnContext);
+  const svnContext = useContext(SvnDiffContext);
   useSignalEffect(() => {
     svnContext.stream$
       .pipe(
@@ -110,6 +110,7 @@ export function SvnDiffCard(props: {
                       }
                       title="Show Logs"
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         props.fetchLogs(props.status);
                       }}
@@ -122,6 +123,7 @@ export function SvnDiffCard(props: {
                     }
                     title="Reload"
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       fetch();
                     }}
@@ -135,6 +137,7 @@ export function SvnDiffCard(props: {
                     }
                     title="Open Containing Folder"
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       network.open_in_dir(props.status.source);
                     }}

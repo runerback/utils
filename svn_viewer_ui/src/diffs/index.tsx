@@ -1,15 +1,25 @@
-import { useSignals } from "@preact/signals-react/runtime";
+import {
+  useSignal,
+  useSignalEffect,
+  useSignals,
+} from "@preact/signals-react/runtime";
 import { SvnChangelistCard } from "./SvnChangelistCard";
 import "./diffs.css";
-import { useCallback, useMemo } from "preact/hooks";
-import type { ReadonlySignal } from "@preact/signals-react";
+import { useCallback, useContext, useMemo } from "preact/hooks";
+import { SvnSettingsContext } from "../context/settingsContext";
 
 export default function (props: {
   status: SvnStatus[];
-  settings: ReadonlySignal<Settings | undefined>;
   fetchLogs: (status: SvnStatusItem) => void;
 }) {
   useSignals();
+  const settingsContext = useContext(SvnSettingsContext);
+  const settings = useSignal<Settings>();
+  useSignalEffect(() => {
+    settingsContext.stream$.subscribe((value) => {
+      settings.value = value;
+    });
+  });
   const options = useMemo(
     () => ({
       root: document.querySelector(".status"),
@@ -45,6 +55,7 @@ export default function (props: {
         .map((states, idx) => (
           <SvnChangelistCard
             {...props}
+            settings={settings}
             fkey={idx}
             status={states}
             observe={observe}

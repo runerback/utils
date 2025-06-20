@@ -192,6 +192,47 @@ const parse_props = (raw: string) => {
   return result;
 };
 
+const parse_info = (raw: string): SvnTreeNodeInfo | undefined => {
+  if (!raw) {
+    return undefined;
+  }
+  const lines = raw.split(/\r|\n/gs).filter(Boolean);
+  if (!lines) {
+    return undefined;
+  }
+  const result: SvnTreeNodeInfo = {};
+  let anyMatched = false;
+  lines.forEach((line) => {
+    const titleIdx = line.indexOf(":");
+    const value = line.substring(titleIdx + 1).trim();
+    if (!value) {
+      return;
+    }
+    const title = line.substring(0, titleIdx).trim().toLocaleLowerCase();
+    switch (title) {
+      case "revision":
+        result.revision = value;
+        anyMatched = true;
+        break;
+      case "last changed author":
+        result.lastChangedAuthor = value;
+        anyMatched = true;
+        break;
+      case "last changed rev":
+        result.lastChangedRev = value;
+        anyMatched = true;
+        break;
+      case "last changed date":
+        result.lastChangedTime = value.replace(/\s+\(.+\)/g, "");
+        anyMatched = true;
+        break;
+      default:
+        break;
+    }
+  });
+  return anyMatched ? result : undefined;
+};
+
 export default {
   parse_status: parseStatus,
   parse_diff: (rawdiff: string, settings: Settings) => {
@@ -200,4 +241,5 @@ export default {
   },
   parse_logs: parseLogs,
   parse_props: parse_props,
+  parse_info: parse_info,
 };

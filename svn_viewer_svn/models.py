@@ -1,22 +1,15 @@
 from pydantic import BaseModel
 
 
-class SettingsModel(BaseModel):
-    svn_root: str
-
-
-# end class
-
-
-class SettingsRequestModel(BaseModel):
-    settings: SettingsModel
-
-
-# end class
-
-
 class SvnRequestModel(BaseModel):
     job: str | None
+
+
+# end class
+
+
+class SettingsRequestModel(SvnRequestModel):
+    path: str
 
 
 # end class
@@ -74,6 +67,13 @@ class SvnLogDiffsRequestModel(SvnRequestModel):
 
 
 class SvnFetchTreeRequestModel(SvnRequestModel):
+    path: str
+
+
+# end class
+
+
+class SvnFetchInfoRequestModel(SvnRequestModel):
     path: str
 
 

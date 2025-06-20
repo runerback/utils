@@ -2,20 +2,20 @@ import { createContext } from "preact";
 import { Subject, type Observable } from "rxjs";
 import network from "./network";
 
-export interface ISvnContext {
-  readonly stream$: Observable<SvnStream>;
+export interface ISvnDiffContext {
+  readonly stream$: Observable<SvnDiffStream>;
   provide: (status: SvnStatusItem) => Promise<string | null | undefined>;
 }
 
-export const SvnContext = createContext<ISvnContext>(null!);
+export const SvnDiffContext = createContext<ISvnDiffContext>(null!);
 
-const stream$ = new Subject<SvnStream>();
+const stream$ = new Subject<SvnDiffStream>();
 
-export const publishSvnStream = (stream: SvnStream) => {
+export const publishSvnDiffStream = (stream: SvnDiffStream) => {
   stream$.next(stream);
 };
 
-export default (): ISvnContext => ({
+export default (): ISvnDiffContext => ({
   stream$,
   provide: (status) => {
     switch (status.state) {

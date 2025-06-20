@@ -5,6 +5,7 @@ export const svnUri = `http://127.0.0.1:${process.env["SVN_PORT"]}/svn`;
 
 export const settings: Settings = {
   svn_root: "",
-  svn_root_hash: "",
+  svn_repo: "",
+  svn_rev: "",
   dark_theme: false,
 };

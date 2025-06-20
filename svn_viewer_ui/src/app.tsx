@@ -1,15 +1,15 @@
-import { signal, useSignal, useSignalEffect } from "@preact/signals-react";
+import { useSignal, useSignalEffect } from "@preact/signals-react";
 import "./app.css";
 import network from "./context/network";
 import { useSignals } from "@preact/signals-react/runtime";
-import { notification, type FormProps } from "antd";
-import { useCallback } from "preact/hooks";
+import { type FormProps } from "antd";
+import { useCallback, useContext } from "preact/hooks";
 import Settings from "./settings";
 import Diffs from "./diffs";
 import SvnDiffProvider, {
-  publishSvnStream,
-  SvnContext,
-} from "./context/svnContext";
+  publishSvnDiffStream,
+  SvnDiffContext,
+} from "./context/svnDiffContext";
 import SvnLogDiffsProvider, {
   publishSvnLogDiffsStream,
   SvnLogDiffsContext,
@@ -20,66 +20,42 @@ import SvnTreeContextProvider, {
   publishSvnTreeStream,
   SvnTreeContext,
 } from "./context/svnTreeContext";
+import SvnInfoContextProvider, {
+  publishSvnInfoStream,
+  SvnInfoContext,
+} from "./context/svnInfoContext";
 import SvnTreeModal from "./tree/SvnTreeModal";
-import SignalPromiseContextProvider, {
-  SignalPromiseContext,
-} from "./context/signalPromiseContext";
+import {
+  onSettingsFetched,
+  SvnSettingsContext,
+} from "./context/settingsContext";
 import type { NotificationInstance } from "antd/es/notification/interface";
 
 const svnContext = SvnDiffProvider();
 const svnLogDiffsContext = SvnLogDiffsProvider();
 const svnTreeContext = SvnTreeContextProvider();
-const signalPromiseContext = SignalPromiseContextProvider();
+const svnInfoContext = SvnInfoContextProvider();
 
-const messageId = signal("");
-const message = signal<MessageContent>();
-network.onMessage.subscribe((e) => {
-  if (!!e.content) {
-    const content = JSON.parse(e.content) as MessageContent;
-    if (!!content?.timestamp) {
-      messageId.value = e.id;
-      message.value = content;
-    }
-  }
-});
-
-export function App() {
+export default (props: {
+  notify: (
+    message: string,
+    type: keyof Omit<NotificationInstance, "open" | "destroy">
+  ) => void;
+}) => {
   useSignals();
-  const serverStatus = useSignal("");
-  const settings = useSignal<Settings>();
   const status = useSignal(Array<SvnStatus>());
   const busy = useSignal(false);
 
+  const fetchSettingsId = useSignal("");
   const fetchSettings = useCallback(() => {
     busy.value = true;
     network.get_settings().then((value) => {
-      settings.value = !!value ? { ...value } : undefined;
+      if (!!value) {
+        onSettingsFetched(value);
+      }
       busy.value = false;
     });
   }, []);
-
-  const fetchingServerStatus = useSignal(false);
-  const fetchServerStatus = useCallback((retry: number) => {
-    network.test_server().then((status) => {
-      if (!status) {
-        if (retry > 0) {
-          setTimeout(() => fetchServerStatus(retry - 1), 1000);
-          return;
-        }
-      } else {
-        serverStatus.value = status;
-      }
-      fetchingServerStatus.value = false;
-    });
-  }, []);
-  useSignalEffect(() => {
-    if (!serverStatus.value) {
-      fetchingServerStatus.value = true;
-      fetchServerStatus(10);
-    } else {
-      fetchSettings();
-    }
-  });
 
   const svnLogStatus = useSignal<SvnStatusItem>();
   const showSvnDiffLogs = useSignal(false);
@@ -94,33 +70,23 @@ export function App() {
   }, []);
   const showSvnTree = useSignal(false);
 
-  const [api, contextHolder] = notification.useNotification({
-    placement: "top",
-  });
-  const notify = useCallback(
-    (
-      message: string,
-      type: keyof Omit<NotificationInstance, "open" | "destroy">
-    ) => {
-      switch (type) {
-        case "info":
-          api.info({ message, duration: 1 });
-          break;
-        case "success":
-          api.success({ message, duration: 1 });
-          break;
-        case "error":
-          api.error({ message, duration: 3 });
-          break;
-        case "warning":
-          api.warning({ message, duration: 2 });
-          break;
-        default:
-          break;
+  const messageId = useSignal("");
+  const message = useSignal<MessageContent>();
+  useSignalEffect(() => {
+    network.messages$.subscribe((e: Message) => {
+      if (!!e.content) {
+        const content = JSON.parse(e.content) as MessageContent;
+        if (!!content?.timestamp) {
+          messageId.value = e.id;
+          message.value = content;
+        }
       }
-    },
-    []
-  );
+    });
+    network.errors$.subscribe((e: any) => {
+      props.notify(`${e}`, "error");
+      busy.value = false;
+    });
+  });
 
   useSignalEffect(() => {
     const id = messageId.value;
@@ -133,6 +99,7 @@ export function App() {
     }
     if (!!content?.timestamp) {
       if (!!content.processing) {
+        props.notify(`${content.job ?? "Something"} started`, "success");
         busy.value = true;
         switch (content.job) {
           case "FETCH_STATUS":
@@ -142,40 +109,56 @@ export function App() {
             break;
         }
       } else if (!!content.completed || !!content.error) {
+        busy.value = false;
         if (!!content.error) {
           console.warn(content.error);
-          notify(`${content.job ?? "Something"}: ${content.error}`, "warning");
-        } else if (!!content.completed) {
-          notify(`${content.job ?? "Something"}: finished`, "success");
+          props.notify(
+            `${content.job ?? "Something"} failed: ${
+              content.error ?? "Unknown Error"
+            }`,
+            "warning"
+          );
         }
-        busy.value = false;
-        switch (content.job) {
-          case "FETCH_DIFFS":
-          case "FETCH_UNVERSIONED":
-          case "FETCH_FILE_REMOTE":
-          case "FETCH_LOGS":
-            publishSvnStream({
-              id,
-              job: content.job,
-              finished: true,
-            });
-            break;
-          case "FETCH_LOG_DIFFS":
-            publishSvnLogDiffsStream({
-              id,
-              job: content.job,
-              finished: true,
-            });
-            break;
-          case "FETCH_TREE":
-            publishSvnTreeStream({
-              id,
-              job: content.job,
-              finished: true,
-            });
-            break;
-          default:
-            break;
+        if (!!content.completed) {
+          props.notify(`${content.job ?? "Something"} finished`, "success");
+          switch (content.job) {
+            case "FETCH_SETTINGS":
+              fetchSettings();
+              break;
+            case "FETCH_DIFFS":
+            case "FETCH_UNVERSIONED":
+            case "FETCH_FILE_REMOTE":
+            case "FETCH_LOGS":
+              publishSvnDiffStream({
+                id,
+                job: content.job,
+                finished: true,
+              });
+              break;
+            case "FETCH_LOG_DIFFS":
+              publishSvnLogDiffsStream({
+                id,
+                job: content.job,
+                finished: true,
+              });
+              break;
+            case "FETCH_TREE":
+              publishSvnTreeStream({
+                id,
+                job: content.job,
+                finished: true,
+              });
+              break;
+            case "FETCH_INFO":
+              publishSvnInfoStream({
+                id,
+                job: content.job,
+                finished: true,
+              });
+              break;
+            default:
+              break;
+          }
         }
       } else if (!!content.data) {
         switch (content.job) {
@@ -183,14 +166,14 @@ export function App() {
             status.value = (content.data as SvnStatus[]) ?? [];
             break;
           case "FETCH_DIFFS":
-            publishSvnStream({
+            publishSvnDiffStream({
               id,
               job: content.job,
               chunks: (content.data as Chunk1[]) ?? [],
             });
             break;
           case "FETCH_UNVERSIONED":
-            publishSvnStream({
+            publishSvnDiffStream({
               id,
               job: content.job,
               unversioned: (content.data as string)
@@ -199,14 +182,14 @@ export function App() {
             });
             break;
           case "FETCH_FILE_REMOTE":
-            publishSvnStream({
+            publishSvnDiffStream({
               id,
               job: content.job,
               missing: (content.data as string).split(/\r|\n/g).filter(Boolean),
             });
             break;
           case "FETCH_LOGS": {
-            publishSvnStream({
+            publishSvnDiffStream({
               id,
               job: content.job,
               logs: [
@@ -243,6 +226,13 @@ export function App() {
             });
             break;
           }
+          case "FETCH_INFO":
+            publishSvnInfoStream({
+              id,
+              job: content.job,
+              info: content.data as SvnTreeNodeInfo,
+            });
+            break;
           default:
             break;
         }
@@ -250,74 +240,66 @@ export function App() {
     }
   });
 
-  const pickDir = useCallback(() => {
-    network.pick_dir(settings.value?.svn_root).then((dir) => {
-      console.log({ pick_dir: dir });
-      if (!!dir) {
-        settings.value = {
-          ...settings.peek(),
-          svn_root: dir,
-        };
-      }
-    });
-  }, []);
-
-  const onSettingsChange: FormProps<Settings>["onFinish"] = useCallback(
+  const svnSettingsContext = useContext(SvnSettingsContext);
+  const onFetchSettings: FormProps<Settings>["onFinish"] = useCallback(
     (values: Settings) => {
-      network.update_settings(values).then(() => {
-        fetchSettings();
+      busy.value = true;
+      svnSettingsContext.provide(values).then((id) => {
+        fetchSettingsId.value = !!id ? id : "";
       });
     },
     []
   );
+  const onSettingsRequestValidateFailed = useCallback((error: any) => {
+    props.notify(error.toString(), "error");
+  }, []);
 
   const onFetchStatus = useCallback(() => {
+    busy.value = true;
     network.fetch_status();
   }, []);
 
+  const fetchInfo = useCallback((path: string) => {
+    busy.value = true;
+    return svnInfoContext.provide(path);
+  }, []);
+
   return (
-    <SignalPromiseContext.Provider value={signalPromiseContext}>
-      {contextHolder}
-      <Layout>
-        <Header>
-          <Settings
-            loading={fetchingServerStatus}
-            title={serverStatus}
-            busy={busy.value}
-            source$={settings}
-            onFinish={onSettingsChange}
-            onFetchStatus={onFetchStatus}
-            onFetchTree={() => (showSvnTree.value = true)}
-            pickDir={pickDir}
+    <Layout>
+      <Header>
+        <Settings
+          busy={busy.value}
+          onFetchSettings={fetchSettings}
+          onRequest={onFetchSettings}
+          onValidateFailed={onSettingsRequestValidateFailed}
+          onFetchStatus={onFetchStatus}
+          onFetchTree={() => (showSvnTree.value = true)}
+        />
+      </Header>
+      <SvnDiffContext.Provider value={svnContext}>
+        <Content>
+          <Diffs status={status.value} fetchLogs={onFetchLogs} />
+        </Content>
+        <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
+          <SvnLogsModal
+            open={showSvnDiffLogs}
+            onClose={() => (showSvnDiffLogs.value = false)}
+            status={svnLogStatus}
+            busy={busy}
           />
-        </Header>
-        <SvnContext.Provider value={svnContext}>
-          <Content>
-            <Diffs
-              status={status.value}
-              settings={settings}
-              fetchLogs={onFetchLogs}
-            />
-          </Content>
-          <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
-            <SvnLogsModal
-              open={showSvnDiffLogs}
-              onClose={() => (showSvnDiffLogs.value = false)}
-              status={svnLogStatus}
-              settings={settings}
-              busy={busy}
-            />
-          </SvnLogDiffsContext.Provider>
-          <SvnTreeContext.Provider value={svnTreeContext}>
+        </SvnLogDiffsContext.Provider>
+        <SvnTreeContext.Provider value={svnTreeContext}>
+          <SvnInfoContext.Provider value={svnInfoContext}>
             <SvnTreeModal
               open={showSvnTree}
               onClose={() => (showSvnTree.value = false)}
               busy={busy}
+              onFetchInfo={fetchInfo}
               onFetched={() => (busy.value = false)}
             />
-          </SvnTreeContext.Provider>
-        </SvnContext.Provider>
-      </Layout>
-    </SignalPromiseContext.Provider>
+          </SvnInfoContext.Provider>
+        </SvnTreeContext.Provider>
+      </SvnDiffContext.Provider>
+    </Layout>
   );
-}
+};

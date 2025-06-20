@@ -1,7 +1,9 @@
 declare type Settings = {
   svn_root: string;
-  svn_root_hash: string;
+  svn_repo: string;
+  svn_rev: string;
   dark_theme: boolean;
+  fetched?: boolean;
 };
 
 declare type Message = {
@@ -10,22 +12,24 @@ declare type Message = {
 };
 
 declare type Job =
+  | "FETCH_SETTINGS"
   | "FETCH_STATUS"
   | "FETCH_DIFFS"
   | "FETCH_LOGS"
   | "FETCH_LOG_DIFFS"
-  | "FETCH_TREE";
+  | "FETCH_TREE"
+  | "FETCH_INFO";
 
 declare type MessageContent = {
   readonly job?: Job;
   readonly processing?: boolean;
-  readonly data?: string;
+  readonly data?: string | object;
   readonly error?: string;
   readonly completed?: boolean;
   readonly timestamp: string;
 };
 
-declare type SvnChangelistName = "NO-CHANGE-LIST" | string;
+declare type SvnChangelistName = "<NO-CHANGE-LIST>" | string;
 
 declare type SvnStatusItem = {
   readonly state: string;
@@ -75,4 +79,11 @@ declare type Chunk1 = {
     readonly version: string;
   }[];
   readonly sections: ChunkSection[];
+};
+
+declare type SvnTreeNodeInfo = {
+  revision?: string;
+  lastChangedAuthor?: string;
+  lastChangedRev?: string;
+  lastChangedTime?: string;
 };
