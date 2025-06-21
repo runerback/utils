@@ -1,10 +1,23 @@
+const NO_CHANGE_LIST_NAME = "no-change-list";
+const IGNORE_ON_COMMIT_NAME = "ignore-on-commit";
+const changeListPriority = (name: string) => {
+  switch (name) {
+    case NO_CHANGE_LIST_NAME:
+      return -1;
+    case IGNORE_ON_COMMIT_NAME:
+      return 1;
+    default:
+      return 0;
+  }
+};
+
 const parseStatus = (rawStatus: string, settings: Settings): SvnStatus[] => {
   if (!rawStatus) {
     return [];
   }
   const status = Array<SvnStatus>();
   const lines = rawStatus.split(/\r|\n/gs).filter(Boolean);
-  let changelist = "NO_CHANGE_LIST";
+  let changelist = NO_CHANGE_LIST_NAME;
   const changes = Array<SvnStatusItem>();
   const flush = () => {
     status.push({
@@ -37,6 +50,15 @@ const parseStatus = (rawStatus: string, settings: Settings): SvnStatus[] => {
     }
   });
   flush();
+  status.sort((a, b) => {
+    const p0 = changeListPriority(a.changelist);
+    const p1 = changeListPriority(b.changelist);
+    if (p0 === p1 && p1 === 0) {
+      return a.changelist.localeCompare(b.changelist);
+    } else {
+      return p0 - p1;
+    }
+  });
   return status;
 };
 
