@@ -1,9 +1,9 @@
 from messages import send_message
 from svn import svn_fetch_file_status
-from workers.job import Job, JobPayload
+from workers.task import Task, TaskData
 
 
-class fetch_svn_file_status_job_payload(JobPayload):
+class fetch_svn_file_status_task_data(TaskData):
     def __init__(self, path: str, type: str | None = None):
         super().__init__(kind="fetch_svn_file_status")
         self.path = path
@@ -15,34 +15,34 @@ class fetch_svn_file_status_job_payload(JobPayload):
 # end class
 
 
-class fetch_svn_file_status_job(Job[fetch_svn_file_status_job_payload]):
-    def __init__(self, id, payload):
-        super().__init__(id, payload)
+class fetch_svn_file_status_task(Task[fetch_svn_file_status_task_data]):
+    def __init__(self, id, data):
+        super().__init__(id, data)
 
     # end def
 
     def _execute(self):
-        send_message(self.id, {"processing": True, "job": self.payload.type})
+        send_message(self.id, {"processing": True, "job": self.data.type})
         try:
-            result = svn_fetch_file_status(self.payload.path)
+            result = svn_fetch_file_status(self.data.path)
             if result.error:
-                send_message(self.id, {"error": result.error, "job": self.payload.type})
+                send_message(self.id, {"error": result.error, "job": self.data.type})
                 return
             # end if
             if result.status:
                 send_message(
                     self.id,
-                    {"data": result.status, "job": self.payload.type},
+                    {"data": result.status, "job": self.data.type},
                     preprocess=True,
                 )
             else:
                 send_message(
                     self.id,
-                    {"completed": True, "job": self.payload.type},
+                    {"completed": True, "job": self.data.type},
                 )
             # end if
         except Exception as exp:
-            send_message(self.id, {"error": str(exp), "job": self.payload.type})
+            send_message(self.id, {"error": str(exp), "job": self.data.type})
         # end try
 
     # end def

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class JobPayload(ABC):
+class TaskData(ABC):
     def __init__(self, kind: str):
         self.kind = kind
 
@@ -11,10 +11,10 @@ class JobPayload(ABC):
 # end class
 
 
-class Job[TPayload: JobPayload]:
-    def __init__(self, id: str, payload: TPayload):
+class Task[TData: TaskData]:
+    def __init__(self, id: str, data: TData):
         self.id = id
-        self.payload = payload
+        self.data = data
         self.running: bool = False
         self.completed: bool = False
         self.failed: bool = False
@@ -60,7 +60,7 @@ class Job[TPayload: JobPayload]:
     # end def
 
     def __str__(self):
-        return f"{{ id: {self.id}, payload: {self.payload} completed: {self.completed}, failed: {self.failed}, error: {self.error} }}"
+        return f"{{ id: {self.id}, payload: {self.data} completed: {self.completed}, failed: {self.failed}, error: {self.error} }}"
 
     # end def
 
