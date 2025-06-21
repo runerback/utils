@@ -2,7 +2,8 @@ import type { NotificationInstance } from "antd/es/notification/interface";
 import SvnSettingsContextProvider, {
   SvnSettingsContext,
 } from "../context/settingsContext";
-import App from "../app";
+import Messages from "./messages";
+import { useMemo } from "preact/hooks";
 
 export default (props: {
   notify: (
@@ -10,10 +11,10 @@ export default (props: {
     type: keyof Omit<NotificationInstance, "open" | "destroy">
   ) => void;
 }) => {
-  const svnSettingsContext = SvnSettingsContextProvider();
+  const svnSettingsContext = useMemo(() => SvnSettingsContextProvider(), []);
   return (
     <SvnSettingsContext.Provider value={svnSettingsContext}>
-      <App {...props} />
+      <Messages {...props} />
     </SvnSettingsContext.Provider>
   );
 };

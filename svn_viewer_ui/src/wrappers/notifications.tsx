@@ -1,7 +1,7 @@
 import type { NotificationInstance } from "antd/es/notification/interface";
 import { notification } from "antd";
 import { useCallback } from "preact/hooks";
-import Signals from "./signals";
+import Status from "./status";
 
 export default () => {
   const [api, notificationContextHolder] = notification.useNotification({
@@ -35,7 +35,7 @@ export default () => {
   return (
     <>
       {notificationContextHolder}
-      <Signals notify={notify} />
+      <Status notify={notify} />
     </>
   );
 };

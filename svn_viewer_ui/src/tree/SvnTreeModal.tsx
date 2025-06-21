@@ -17,6 +17,8 @@ import { SignalPromiseContext } from "../context/signalPromiseContext";
 import { SvnTreeContext } from "../context/svnTreeContext";
 import { filter } from "rxjs";
 import SvnTreeNode from "./SvnTreeNode";
+import { StatusContext } from "../context/statusContext";
+import { SvnInfoContext } from "../context/svnInfoContext";
 
 const treeNodesLookup: Record<string, SvnTreeNode[]> = {};
 export type TreeDataNode = FieldDataNode<{
@@ -51,13 +53,11 @@ const buildTree = (root: string): TreeDataNode[] => {
 };
 
 export default (props: {
-  busy: ReadonlySignal<boolean>;
   open: ReadonlySignal<boolean>;
   onClose: () => void;
-  onFetchInfo: (path: string) => Promise<string | null | undefined>;
-  onFetched: () => void;
 }) => {
   useSignals();
+  const statusContext = useContext(StatusContext);
   const treeNodes = useSignal(Array<TreeDataNode>());
   const loadingRoot = useSignal("/");
   const expandedKeys = useSignal(Array<string>());
@@ -126,6 +126,16 @@ export default (props: {
       }
     }
   }, []);
+  const svnInfoContext = useContext(SvnInfoContext);
+  const fetchInfo = useCallback((path: string) => {
+    statusContext.busy();
+    return svnInfoContext.provide(path);
+  }, []);
+
+  const close = useCallback(() => {
+    props.onClose();
+    treeNodes.value = [];
+  }, []);
 
   return (
     <Modal
@@ -138,7 +148,8 @@ export default (props: {
       width="80vw"
       height="80vh"
       closable
-      closeIcon={<Close className="icon" onClick={() => props.onClose()} />}
+      closeIcon={<Close className="icon" />}
+      onCancel={close}
       open={props.open.value}
       cancelButtonProps={{ style: { display: "none" } }}
       okButtonProps={{ style: { display: "none" } }}
@@ -161,10 +172,10 @@ export default (props: {
         loadData={(e) => loadSubNodes(e)}
         titleRender={(node) => (
           <SvnTreeNode
-            busy={props.busy}
+            busy={statusContext.busy$}
             node={node}
             openned={expandedKeys.value.includes(node.key as string)}
-            fetch={(node) => props.onFetchInfo(node.key as string)}
+            fetch={(node) => fetchInfo(node.key as string)}
           />
         )}
       />

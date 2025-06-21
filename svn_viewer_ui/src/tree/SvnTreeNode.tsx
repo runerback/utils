@@ -23,6 +23,7 @@ export default (props: {
   useSignals();
   const svnInfoContext = useContext(SvnInfoContext);
   const fetching = useSignal(false);
+  const fetched = useSignal(false);
   const fetchId = useSignal("");
   const info = useSignal<SvnTreeNodeInfo>();
   const log = useComputed<SvnLog | undefined>(() => {
@@ -46,12 +47,13 @@ export default (props: {
           }
           if (!!e.finished) {
             fetching.value = false;
+            fetched.value = true;
           }
         }
       });
   });
   const fetch = useCallback(() => {
-    if (!fetching.value) {
+    if (!fetched.value && !fetching.value) {
       fetching.value = true;
       props.fetch(props.node).then((id) => (fetchId.value = !!id ? id : ""));
     }

@@ -1,6 +1,13 @@
 from pydantic import BaseModel
 
 
+class SchedulerStateResponseModel(BaseModel):
+    runningJobsCount: int
+
+
+# end class
+
+
 class SvnRequestModel(BaseModel):
     job: str | None
 

@@ -7,12 +7,30 @@ import { SvnChangelistCard } from "./SvnChangelistCard";
 import "./diffs.css";
 import { useCallback, useContext, useMemo } from "preact/hooks";
 import { SvnSettingsContext } from "../context/settingsContext";
+import { MessageContext } from "../context/messageContext";
+import { filter, map } from "rxjs";
 
 export default function (props: {
-  status: SvnStatus[];
   fetchLogs: (status: SvnStatusItem) => void;
 }) {
   useSignals();
+  const messageContext = useContext(MessageContext);
+  const status = useSignal(Array<SvnStatus>());
+  useSignalEffect(() => {
+    messageContext.stream$
+      .pipe(
+        map((it) => it.content),
+        filter(Boolean),
+        filter((it) => it.job === "FETCH_STATUS")
+      )
+      .subscribe((content) => {
+        if (!!content.processing) {
+          status.value = [];
+        } else if (!!content.data) {
+          status.value = (content.data as SvnStatus[]) ?? [];
+        }
+      });
+  });
   const settingsContext = useContext(SvnSettingsContext);
   const settings = useSignal<Settings>();
   useSignalEffect(() => {
@@ -50,7 +68,7 @@ export default function (props: {
   }, []);
   return (
     <div className="status">
-      {props.status
+      {status.value
         .filter((it) => it.changes.length > 0)
         .map((states, idx) => (
           <SvnChangelistCard

@@ -34,7 +34,6 @@ from workers.svn_unversioned import (
 )
 
 
-_scheduler_timer_interval = 1
 _logger = logging.getLogger("scheduler")
 
 
@@ -42,8 +41,18 @@ class Scheduler:
     jobs: dict[str, Job] = {}
     running_job_ids: list[str] = []
 
-    def __init__(self):
+    def __init__(self, max: int = 2, interval: int = 1):
+        assert max > 0
+        assert interval > 0
+        self.interval = interval
+        self.max = max
         self._nextloop()
+
+    # end def
+
+    @property
+    def running_jobs_count(self):
+        return len(self.running_job_ids)
 
     # end def
 
@@ -59,7 +68,7 @@ class Scheduler:
 
     def _loop(self):
         try:
-            if len(self.running_job_ids) > 0:
+            if self.running_jobs_count > self.max:
                 return
             # end if
             for pendingJobId in [
@@ -80,7 +89,7 @@ class Scheduler:
     # end def
 
     def _nextloop(self):
-        self.timer = Timer(_scheduler_timer_interval, self._loop)
+        self.timer = Timer(self.interval, self._loop)
         self.timer.daemon = True
         self.timer.start()
 
@@ -91,6 +100,13 @@ class Scheduler:
 
 
 _scheduler = Scheduler()
+
+
+def get_running_jobs_count() -> int:
+    return _scheduler.running_jobs_count
+
+
+# end def
 
 
 def add_fetch_svn_settings_job(path: str, type: str | None = None):

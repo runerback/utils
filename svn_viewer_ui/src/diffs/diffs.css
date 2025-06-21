@@ -38,36 +38,3 @@
   flex: 90%;
   align-content: flex-end;
 }
-
-.statuscard .diffcard .diff_panel {
-  --diff-addition-background: #f0fff4;
-  --diff-deletion-background: #ffeef0;
-  --line-number-width: 30px;
-
-  border: solid lightgray 1px;
-}
-
-.statuscard .diffcard .diff_panel .diff_row {
-  display: grid;
-  grid-template-columns: var(--line-number-width) var(--line-number-width) auto;
-}
-
-.statuscard .diffcard .diff_panel .diff_row .number {
-  font-weight: bold;
-  user-select: none;
-  color: gray;
-  padding-right: 8px;
-}
-
-.statuscard .diffcard .diff_panel .diff_row .hunk {
-  color: gray;
-  font-style: italic;
-}
-
-.statuscard .diffcard .diff_panel .diff_row .addition {
-  background-color: var(--diff-addition-background);
-}
-
-.statuscard .diffcard .diff_panel .diff_row .deletion {
-  background-color: var(--diff-deletion-background);
-}

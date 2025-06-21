@@ -11,18 +11,26 @@ import { useCallback, useContext } from "preact/hooks";
 import "./app.css";
 import Refresh from "./assets/Refresh.svg?react";
 import DOM from "./assets/DOM.svg?react";
-import { SvnSettingsContext, createRequest } from "./context/settingsContext";
+import {
+  SvnSettingsContext,
+  createRequest,
+  onSettingsFetched,
+} from "./context/settingsContext";
 import network from "./context/network";
+import { StatusContext } from "./context/statusContext";
+import type { NotificationInstance } from "antd/es/notification/interface";
+import { MessageContext } from "./context/messageContext";
+import { filter, map } from "rxjs";
 
 export default function (props: {
-  busy: boolean;
-  onFetchSettings: () => void;
-  onRequest: (values: Settings) => void;
-  onValidateFailed: (error: any) => void;
-  onFetchStatus: () => void;
+  notify: (
+    message: string,
+    type: keyof Omit<NotificationInstance, "open" | "destroy">
+  ) => void;
   onFetchTree: () => void;
 }) {
   useSignals();
+  const statusContext = useContext(StatusContext);
   const serverStatus = useSignal("");
   const fetchingServerStatus = useSignal(false);
   const fetchServerStatus = useCallback((retry: number) => {
@@ -38,24 +46,43 @@ export default function (props: {
       fetchingServerStatus.value = false;
     });
   }, []);
+  const getSettings = useCallback(() => {
+    statusContext.busy();
+    network.get_settings().then((value) => {
+      if (!!value) {
+        onSettingsFetched(value);
+      }
+      statusContext.idle();
+    });
+  }, []);
   useSignalEffect(() => {
     if (!serverStatus.value) {
       fetchingServerStatus.value = true;
       fetchServerStatus(10);
     } else {
-      props.onFetchSettings();
+      getSettings();
     }
   });
+  const messageContext = useContext(MessageContext);
+  useSignalEffect(() => {
+    messageContext.stream$
+      .pipe(
+        map((it) => it.content),
+        filter(Boolean),
+        filter((it) => it.job === "FETCH_SETTINGS" && !!it.completed)
+      )
+      .subscribe(() => {
+        getSettings();
+      });
+  });
 
+  const fetchSettingsId = useSignal("");
+  useSignalEffect(() =>
+    console.log({ fetchSettingsId: fetchSettingsId.value })
+  );
   const settingsContext = useContext(SvnSettingsContext);
   const canFetch = useSignal(false);
-  useSignalEffect(() => {
-    console.log({ canFetch: canFetch.value });
-  });
   const fetching = useSignal(false);
-  useSignalEffect(() => {
-    console.log({ fetching: fetching.value });
-  });
   const currentSettings = useSignal<Settings>();
   const [svnSettingsForm] = useForm<Settings>();
   const validate = useCallback(() => {
@@ -77,13 +104,14 @@ export default function (props: {
         createRequest(values);
       })
       .catch((error) => {
-        props.onValidateFailed(error);
+        props.notify(error.toString(), "error");
         canFetch.value = false;
       });
   }, []);
   const actived = useSignal(true);
   const fetchStatus = useCallback(() => {
-    props.onFetchStatus();
+    statusContext.busy();
+    network.fetch_status();
     actived.value = false;
   }, []);
   const pickRootDir = useCallback(() => {
@@ -96,7 +124,10 @@ export default function (props: {
   }, []);
   useSignalEffect(() => {
     settingsContext.request$.subscribe((request) => {
-      props.onRequest(request);
+      statusContext.busy();
+      settingsContext.provide(request).then((id) => {
+        fetchSettingsId.value = !!id ? id : "";
+      });
     });
     settingsContext.stream$.subscribe((settings) => {
       svnSettingsForm.setFieldsValue(settings);
@@ -144,9 +175,13 @@ export default function (props: {
                 !fetching.value &&
                 !!currentSettings.value && [
                   <Button
-                    loading={props.busy}
+                    loading={statusContext.busy$.value}
                     icon={
-                      <Refresh className={props.busy ? "icon spin" : "icon"} />
+                      <Refresh
+                        className={
+                          statusContext.busy$.value ? "icon spin" : "icon"
+                        }
+                      />
                     }
                     title="Check Status"
                     onClick={(e) => {
@@ -185,7 +220,7 @@ export default function (props: {
                   >
                     <Input.Search
                       readOnly
-                      disabled={props.busy}
+                      disabled={statusContext.busy$.value}
                       enterButton="..."
                       onSearch={pickRootDir}
                     />
@@ -197,7 +232,7 @@ export default function (props: {
                 <Button
                   type="primary"
                   size="small"
-                  loading={props.busy || fetching.value}
+                  loading={statusContext.busy$.value || fetching.value}
                   disabled={!canFetch.value || fetching.value}
                   onClick={fetchSettings}
                 >

@@ -61,6 +61,11 @@ declare type MessageContent = {
   readonly timestamp: string;
 };
 
+declare type MessageStream = {
+  readonly id: string;
+  readonly content?: MessageContent;
+};
+
 declare type SvnChangelistName = "NO-CHANGE-LIST" | string;
 
 declare type SvnStatusItem = {

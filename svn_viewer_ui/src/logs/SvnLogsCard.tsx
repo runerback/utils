@@ -128,8 +128,10 @@ export default function (props: {
             <Checkbox
               className="line"
               disabled={
-                !checkedRevisions.value.includes(item.revision) &&
-                !canCheckMore.value
+                !props.log.logs ||
+                props.log.logs.length < 2 ||
+                (!checkedRevisions.value.includes(item.revision) &&
+                  !canCheckMore.value)
               }
               value={item.revision}
               checked={checkedRevisions.value.includes(item.revision)}

@@ -12,14 +12,15 @@ import History from "../assets/History.svg?react";
 import Close from "../assets/ChromeClose.svg?react";
 import { filter } from "rxjs";
 import { SvnSettingsContext } from "../context/settingsContext";
+import { StatusContext } from "../context/statusContext";
 
 export default (props: {
   status: ReadonlySignal<SvnStatusItem | undefined>;
-  busy: ReadonlySignal<boolean>;
   open: ReadonlySignal<boolean>;
   onClose: () => void;
 }) => {
   useSignals();
+  const statusContext = useContext(StatusContext);
   const settingsContext = useContext(SvnSettingsContext);
   const settings = useSignal<Settings>();
   useSignalEffect(() => {
@@ -72,8 +73,8 @@ export default (props: {
       }
       width="80vw"
       style={{ maxHeight: "80vh" }}
-      closable
-      closeIcon={<Close className="icon" onClick={close} />}
+      closeIcon={<Close className="icon" />}
+      onCancel={close}
       open={props.open.value}
       cancelButtonProps={{ style: { display: "none" } }}
       okButtonProps={{ style: { display: "none" } }}
@@ -81,7 +82,7 @@ export default (props: {
       <SvnLogs
         status={props.status}
         logs={svnLogs}
-        busy={props.busy}
+        busy={statusContext.busy$}
         settings={settings}
       />
     </Modal>

@@ -8,6 +8,7 @@ from fastapi_swagger import patch_fastapi
 from LoggingMiddleware import LoggingMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from models import (
+    SchedulerStateResponseModel,
     SettingsRequestModel,
     SvnDiffRequestModel,
     SvnFetchInfoRequestModel,
@@ -30,6 +31,7 @@ from worker import (
     add_fetch_svn_status_job,
     add_fetch_svn_tree_job,
     add_fetch_svn_unversioned_job,
+    get_running_jobs_count,
 )
 
 with open("logging.config.json", "r") as logging_config:
@@ -40,8 +42,16 @@ logger = logging.getLogger("uvicorn")
 app = FastAPI(docs_url=None, swagger_ui_oauth2_redirect_url=None)
 
 
+@app.get("/scheduler/state", response_model=SchedulerStateResponseModel)
+def get_scheduler_state():
+    return SchedulerStateResponseModel(runningJobsCount=get_running_jobs_count())
+
+
+# end def
+
+
 @app.post("/svn/fetch/settings", response_model=str)
-async def fetch_settings(data: SettingsRequestModel):
+def fetch_settings(data: SettingsRequestModel):
     assert data.path
     id = add_fetch_svn_settings_job(data.path, data.job)
     return id
@@ -51,7 +61,7 @@ async def fetch_settings(data: SettingsRequestModel):
 
 
 @app.post("/svn/fetch/status", response_model=str)
-async def fetch_status(data: SvnStatusRequestModel):
+def fetch_status(data: SvnStatusRequestModel):
     return add_fetch_svn_status_job(data.job)
 
 
@@ -59,7 +69,7 @@ async def fetch_status(data: SvnStatusRequestModel):
 
 
 @app.post("/svn/fetch/diff", response_model=str)
-async def fetch_diff(data: SvnDiffRequestModel):
+def fetch_diff(data: SvnDiffRequestModel):
     assert data.path
     return add_fetch_svn_diff_job(data.path, data.job)
 
@@ -68,7 +78,7 @@ async def fetch_diff(data: SvnDiffRequestModel):
 
 
 @app.post("/svn/fetch/unversioned", response_model=str)
-async def fetch_unversioned(data: SvnUnversionedRequestModel):
+def fetch_unversioned(data: SvnUnversionedRequestModel):
     assert data.path
     return add_fetch_svn_unversioned_job(data.path, data.job)
 
@@ -77,7 +87,7 @@ async def fetch_unversioned(data: SvnUnversionedRequestModel):
 
 
 @app.post("/svn/fetch/remote/file", response_model=str)
-async def fetch_file_remote(data: SvnFileRemoteRequestModel):
+def fetch_file_remote(data: SvnFileRemoteRequestModel):
     assert data.path
     return add_fetch_svn_file_remote_job(data.path, data.job)
 
@@ -86,7 +96,7 @@ async def fetch_file_remote(data: SvnFileRemoteRequestModel):
 
 
 @app.post("/svn/fetch/status/file", response_model=str)
-async def fetch_file_status(data: SvnFileStatusRequestModel):
+def fetch_file_status(data: SvnFileStatusRequestModel):
     assert data.path
     return add_fetch_svn_file_status_job(data.path, data.job)
 
@@ -95,7 +105,7 @@ async def fetch_file_status(data: SvnFileStatusRequestModel):
 
 
 @app.post("/svn/fetch/logs", response_model=str)
-async def fetch_logs(data: SvnLogsRequestModel):
+def fetch_logs(data: SvnLogsRequestModel):
     assert data.path
     return add_fetch_svn_logs_job(data.path, data.job)
 
@@ -104,7 +114,7 @@ async def fetch_logs(data: SvnLogsRequestModel):
 
 
 @app.post("/svn/fetch/logdiffs", response_model=str)
-async def fetch_log_diffs(data: SvnLogDiffsRequestModel):
+def fetch_log_diffs(data: SvnLogDiffsRequestModel):
     assert data.path
     assert data.n
     return add_fetch_svn_log_diffs_job(data.path, data.n, data.m, data.job)
@@ -114,7 +124,7 @@ async def fetch_log_diffs(data: SvnLogDiffsRequestModel):
 
 
 @app.post("/svn/fetch/tree", response_model=str)
-async def fetch_tree(data: SvnFetchTreeRequestModel):
+def fetch_tree(data: SvnFetchTreeRequestModel):
     assert data.path
     return add_fetch_svn_tree_job(data.path, data.job)
 
@@ -123,7 +133,7 @@ async def fetch_tree(data: SvnFetchTreeRequestModel):
 
 
 @app.post("/svn/fetch/info", response_model=str)
-async def fetch_info(data: SvnFetchInfoRequestModel):
+def fetch_info(data: SvnFetchInfoRequestModel):
     assert data.path
     return add_fetch_svn_info_job(data.path, data.job)
 
