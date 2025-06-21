@@ -2,7 +2,7 @@ import { Button } from "antd";
 import SvnTreeNodeIcon from "./SvnTreeNodeIcon";
 import type { TreeDataNode } from "./SvnTreeModal";
 import type { ReadonlySignal } from "@preact/signals-react";
-import Info from "../assets/BookAnswers.svg?react";
+import Info from "../assets/Sync.svg?react";
 import {
   useComputed,
   useSignal,
@@ -13,14 +13,15 @@ import { useCallback, useContext } from "preact/hooks";
 import { SvnInfoContext } from "../context/svnInfoContext";
 import { filter } from "rxjs";
 import SvnLogTitle from "../logs/SvnLogTitle";
+import { StatusContext } from "../context/statusContext";
 
 export default (props: {
   node: TreeDataNode;
   openned: boolean;
   busy: ReadonlySignal<boolean>;
-  fetch: (node: TreeDataNode) => Promise<string | null | undefined>;
 }) => {
   useSignals();
+  const statusContext = useContext(StatusContext);
   const svnInfoContext = useContext(SvnInfoContext);
   const fetching = useSignal(false);
   const fetched = useSignal(false);
@@ -48,6 +49,7 @@ export default (props: {
           if (!!e.finished) {
             fetching.value = false;
             fetched.value = true;
+            svnInfoContext.ready();
           }
         }
       });
@@ -55,9 +57,31 @@ export default (props: {
   const fetch = useCallback(() => {
     if (!fetched.value && !fetching.value) {
       fetching.value = true;
-      props.fetch(props.node).then((id) => (fetchId.value = !!id ? id : ""));
+      statusContext.busy();
+      svnInfoContext.provide(props.node.key as string).then((id) => {
+        fetchId.value = !!id ? id : "";
+      });
     }
   }, []);
+  useSignalEffect(() => {
+    console.log({
+      key: props.node.key,
+      a: svnInfoContext.reachMaxFetchInfoTaskCount.value,
+      b: fetched.value,
+      c: fetching.value,
+    });
+    if (
+      !svnInfoContext.reachMaxFetchInfoTaskCount.value &&
+      !fetched.value &&
+      !fetching.value
+    ) {
+      fetching.value = true;
+      statusContext.busy();
+      svnInfoContext.provide(props.node.key as string).then((id) => {
+        fetchId.value = !!id ? id : "";
+      });
+    }
+  });
   return (
     <div className="title">
       <div className="name">

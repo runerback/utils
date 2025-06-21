@@ -77,9 +77,6 @@ export default function (props: {
   });
 
   const fetchSettingsId = useSignal("");
-  useSignalEffect(() =>
-    console.log({ fetchSettingsId: fetchSettingsId.value })
-  );
   const settingsContext = useContext(SvnSettingsContext);
   const canFetch = useSignal(false);
   const fetching = useSignal(false);

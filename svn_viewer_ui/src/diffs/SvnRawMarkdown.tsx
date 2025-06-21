@@ -53,7 +53,6 @@ export default function (props: {
   });
   useSignalEffect(() => {
     if (!editor.value) {
-      console.log("no editor!!!");
       return;
     }
     editor.value.updateOptions({ theme: theme.value });

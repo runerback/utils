@@ -18,7 +18,6 @@ import { SvnTreeContext } from "../context/svnTreeContext";
 import { filter } from "rxjs";
 import SvnTreeNode from "./SvnTreeNode";
 import { StatusContext } from "../context/statusContext";
-import { SvnInfoContext } from "../context/svnInfoContext";
 
 const treeNodesLookup: Record<string, SvnTreeNode[]> = {};
 export type TreeDataNode = FieldDataNode<{
@@ -126,11 +125,6 @@ export default (props: {
       }
     }
   }, []);
-  const svnInfoContext = useContext(SvnInfoContext);
-  const fetchInfo = useCallback((path: string) => {
-    statusContext.busy();
-    return svnInfoContext.provide(path);
-  }, []);
 
   const close = useCallback(() => {
     props.onClose();
@@ -175,7 +169,6 @@ export default (props: {
             busy={statusContext.busy$}
             node={node}
             openned={expandedKeys.value.includes(node.key as string)}
-            fetch={(node) => fetchInfo(node.key as string)}
           />
         )}
       />
