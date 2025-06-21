@@ -1,3 +1,4 @@
+from logging import Logger
 from workers.task import Task, TaskData
 from messages import send_message
 from svn import svn_file_remote
@@ -21,7 +22,7 @@ class fetch_svn_file_remote_task(Task[fetch_svn_file_remote_task_data]):
 
     # end def
 
-    def _execute(self):
+    def _execute(self, logger: Logger):
         send_message(self.id, {"processing": True, "job": self.data.type})
         try:
             error, content = svn_file_remote(self.data.path)
@@ -41,7 +42,12 @@ class fetch_svn_file_remote_task(Task[fetch_svn_file_remote_task_data]):
                 )
             # end if
         except Exception as exp:
-            send_message(self.id, {"error": str(exp), "job": self.data.type})
+            logger.error(exp)
+            error = str(exp)
+            if not error:
+                error = "failed"
+            # end if
+            send_message(self.id, {"error": error, "job": self.data.type})
         # end try
 
     # end def

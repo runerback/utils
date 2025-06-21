@@ -4,7 +4,9 @@ import subprocess
 from typing import Any, List, Tuple
 
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
-assert _svn_executable and os.path.exists(_svn_executable)
+assert _svn_executable and os.path.exists(
+    _svn_executable
+), "svn executable not find or configured"
 
 _settings = {
     "svn_root": "",
@@ -16,7 +18,7 @@ _settings = {
 
 def validateUrl(source: str | None):
     svn_root = _settings["svn_root"]
-    assert svn_root
+    assert svn_root, "svn root is required"
     if not source or len(source) == 0:
         return None
     # end if
@@ -39,7 +41,7 @@ def svn_fetch_settings(svn_root: str):
         encoding="utf-8",
         shell=True,
     )
-    assert not repo.stderr
+    assert not repo.stderr, str(repo.stderr)
     if repo.stdout:
         _settings["svn_repo"] = repo.stdout.strip("\n")
     # end if
@@ -50,7 +52,7 @@ def svn_fetch_settings(svn_root: str):
         encoding="utf-8",
         shell=True,
     )
-    assert not rev.stderr
+    assert not rev.stderr, str(rev.stderr)
     if rev.stdout:
         _settings["svn_rev"] = repo.stdout.strip("\n")
     # end if
@@ -61,7 +63,7 @@ def svn_fetch_settings(svn_root: str):
         encoding="utf-8",
         shell=True,
     )
-    assert not props.stderr
+    assert not props.stderr, str(props.stderr)
     if props.stdout:
         _settings["svn_props"] = props.stdout
     print(f"[settings] {_settings}")
@@ -77,7 +79,7 @@ def svn_fetch_settings(svn_root: str):
 
 def svn_fetch_status() -> Tuple[Any | None, str | None]:
     svn_root = _settings["svn_root"]
-    assert svn_root
+    assert svn_root, "svn root is required"
     print(f'[svn_fetch_status] "{svn_root}"')
     status = subprocess.run(
         [_svn_executable, "status", svn_root],
@@ -94,7 +96,7 @@ def svn_fetch_status() -> Tuple[Any | None, str | None]:
 
 def svn_fetch_diff(path: str) -> Tuple[Any | None, str | None]:
     url = validateUrl(path)
-    assert url
+    assert url, "invalid path"
     print(f'[fetch_svn_diff] "{url}"')
     diff = subprocess.run(
         [_svn_executable, "diff", url],
@@ -128,7 +130,7 @@ class svn_fetch_file_status_result:
 
 def svn_fetch_file_status(path: str) -> svn_fetch_file_status_result:
     url = validateUrl(path)
-    assert url
+    assert url, "invalid path"
     print(f'[svn_fetch_file_status] "{url}"')
     if not os.path.isfile(url):
         return svn_fetch_file_status_result(error="this is D.I.R, how copy? over!")
@@ -162,7 +164,7 @@ def svn_unversioned(path: str) -> Tuple[Any | None, str | None]:
     if not status.status or status.status != "?":
         return "not ✌️unversioned✌️", None
     # end if
-    assert status.url
+    assert status.url, "invalid path"
     print(f'[svn_fetch_file_unversioned] "{status.url}"')
     with open(status.url, mode="r") as file:
         return None, file.read()
@@ -173,9 +175,9 @@ def svn_unversioned(path: str) -> Tuple[Any | None, str | None]:
 
 
 def svn_file_remote(path: str) -> Tuple[Any | None, str | None]:
-    assert path
+    assert path, "path is required"
     repo = _settings["svn_repo"]
-    assert repo
+    assert repo, "repo not configured"
     url = "/".join([repo, path.replace("\\", "/").strip("/")])
     print(f'[svn_fetch_file_remote] "{url}"')
     cat = subprocess.run(
@@ -193,7 +195,7 @@ def svn_file_remote(path: str) -> Tuple[Any | None, str | None]:
 
 def svn_fetch_logs(path: str) -> Tuple[Any | None, str | None]:
     url = validateUrl(path)
-    assert url
+    assert url, "invalid path"
     print(f'[fetch_svn_logs] "{url}"')
     logs = subprocess.run(
         [_svn_executable, "log", url],
@@ -212,9 +214,9 @@ def svn_fetch_log_diffs(
     path: str, n: int, m: int | None
 ) -> Tuple[Any | None, str | None]:
     url = validateUrl(path)
-    assert url
-    assert n and n >= 0
-    assert not m or m > 0
+    assert url, "invalid path"
+    assert n and n >= 0, "invalid revision range start"
+    assert not m or m > 0, "invalid revistion range end"
     range = f"{n}:{m}" if m > 0 else str(n)
     print(f'[fetch_svn_log_diffs] "{url}" with [{range}]')
     logs = subprocess.run(
@@ -279,7 +281,7 @@ class svn_fetch_file_tree_result:
 
 def svn_fetch_file_tree(path: str) -> svn_fetch_file_tree_result:
     url = validateUrl(path)
-    assert url
+    assert url, "invalid path"
     print(f'[svn_fetch_file_tree] "{url}"')
     if not os.path.isdir(url):
         return svn_fetch_file_tree_result(error="man need D.I.R")
@@ -315,7 +317,7 @@ def svn_fetch_file_tree(path: str) -> svn_fetch_file_tree_result:
 
 def svn_fetch_info(path: str) -> Tuple[Any | None, str | None]:
     url = validateUrl(path)
-    assert url
+    assert url, "invalid path"
     print(f'[fetch_svn_info] "{url}" with [{range}]')
     info = subprocess.run(
         [_svn_executable, "info", url],

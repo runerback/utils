@@ -52,7 +52,7 @@ def get_scheduler_state():
 
 @app.post("/svn/fetch/settings", response_model=str)
 def fetch_settings(data: SettingsRequestModel):
-    assert data.path
+    assert data.path, "path is required"
     return create_fetch_svn_settings_task(data.path, data.job)
 
 
@@ -69,7 +69,7 @@ def fetch_status(data: SvnStatusRequestModel):
 
 @app.post("/svn/fetch/diff", response_model=str)
 def fetch_diff(data: SvnDiffRequestModel):
-    assert data.path
+    assert data.path, "path is required"
     return create_fetch_svn_diff_task(data.path, data.job)
 
 
@@ -78,7 +78,7 @@ def fetch_diff(data: SvnDiffRequestModel):
 
 @app.post("/svn/fetch/unversioned", response_model=str)
 def fetch_unversioned(data: SvnUnversionedRequestModel):
-    assert data.path
+    assert data.path, "path is required"
     return create_fetch_svn_unversioned_task(data.path, data.job)
 
 
@@ -87,7 +87,7 @@ def fetch_unversioned(data: SvnUnversionedRequestModel):
 
 @app.post("/svn/fetch/remote/file", response_model=str)
 def fetch_file_remote(data: SvnFileRemoteRequestModel):
-    assert data.path
+    assert data.path, "path is required"
     return create_fetch_svn_file_remote_task(data.path, data.job)
 
 
@@ -96,7 +96,7 @@ def fetch_file_remote(data: SvnFileRemoteRequestModel):
 
 @app.post("/svn/fetch/status/file", response_model=str)
 def fetch_file_status(data: SvnFileStatusRequestModel):
-    assert data.path
+    assert data.path, "path is required"
     return create_fetch_svn_file_status_task(data.path, data.job)
 
 
@@ -105,7 +105,7 @@ def fetch_file_status(data: SvnFileStatusRequestModel):
 
 @app.post("/svn/fetch/logs", response_model=str)
 def fetch_logs(data: SvnLogsRequestModel):
-    assert data.path
+    assert data.path, "path is required"
     return create_fetch_svn_logs_task(data.path, data.job)
 
 
@@ -114,8 +114,8 @@ def fetch_logs(data: SvnLogsRequestModel):
 
 @app.post("/svn/fetch/logdiffs", response_model=str)
 def fetch_log_diffs(data: SvnLogDiffsRequestModel):
-    assert data.path
-    assert data.n
+    assert data.path, "path is required"
+    assert data.n, "n is required"
     return create_fetch_svn_log_diffs_task(data.path, data.n, data.m, data.job)
 
 
@@ -124,7 +124,7 @@ def fetch_log_diffs(data: SvnLogDiffsRequestModel):
 
 @app.post("/svn/fetch/tree", response_model=str)
 def fetch_tree(data: SvnFetchTreeRequestModel):
-    assert data.path
+    assert data.path, "path is required"
     return create_fetch_svn_tree_task(data.path, data.job)
 
 
@@ -133,14 +133,14 @@ def fetch_tree(data: SvnFetchTreeRequestModel):
 
 @app.post("/svn/fetch/info", response_model=str)
 def fetch_info(data: SvnFetchInfoRequestModel):
-    assert data.path
+    assert data.path, "path is required"
     return create_fetch_svn_info_task(data.path, data.job)
 
 
 # end def
 if __name__ == "__main__":
     port = os.environ.get("PORT")
-    assert port
+    assert port, "port not configured"
     app.add_middleware(LoggingMiddleware, dispatch=None, logger=logger)
     app.add_middleware(
         CORSMiddleware,

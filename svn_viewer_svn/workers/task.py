@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from logging import Logger
 
 
 class TaskData(ABC):
@@ -34,13 +35,13 @@ class Task[TData: TaskData]:
 
     # end def
 
-    def execute(self):
+    def execute(self, logger: Logger):
         if self.running or self.finished:
             return None
         # end if
         self.running = True
         try:
-            self._execute()
+            self._execute(logger)
             self.completed = True
             return True
         except Exception as e:
@@ -54,7 +55,7 @@ class Task[TData: TaskData]:
     # end def
 
     @abstractmethod
-    def _execute(self):
+    def _execute(self, logger: Logger):
         pass
 
     # end def

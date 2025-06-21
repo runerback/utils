@@ -4,7 +4,7 @@ import network from "./context/network";
 import { useSignals } from "@preact/signals-react/runtime";
 import { useCallback, useContext } from "preact/hooks";
 import Settings from "./settings";
-import Diffs from "./diffs";
+import Diffs from "./diffs/SvnDiffs";
 import SvnDiffProvider, { SvnDiffContext } from "./context/svnDiffContext";
 import SvnLogDiffsProvider, {
   SvnLogDiffsContext,

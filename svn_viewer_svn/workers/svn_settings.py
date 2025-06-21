@@ -1,3 +1,4 @@
+from logging import Logger
 from svn import svn_fetch_settings
 from workers.task import Task, TaskData
 from messages import send_message
@@ -21,7 +22,7 @@ class fetch_svn_settings_task(Task[fetch_svn_settings_task_data]):
 
     # end def
 
-    def _execute(self):
+    def _execute(self, logger: Logger):
         send_message(self.id, {"processing": True, "job": self.data.type})
         try:
             settings = svn_fetch_settings(self.data.path)
@@ -31,7 +32,12 @@ class fetch_svn_settings_task(Task[fetch_svn_settings_task_data]):
                 preprocess=True,
             )
         except Exception as exp:
-            send_message(self.id, {"error": str(exp), "job": self.data.type})
+            logger.error(exp)
+            error = str(exp)
+            if not error:
+                error = "failed"
+            # end if
+            send_message(self.id, {"error": error, "job": self.data.type})
         # end try
 
     # end def

@@ -86,7 +86,22 @@ export function SvnDiffCard(props: {
     fetching.value = true;
   }, []);
   const canShowLog = useComputed(() => {
-    return props.status.state !== "?" && props.status.state !== "A";
+    switch (props.status.state) {
+      case "?":
+      case "A":
+      case "D":
+        return false;
+      default:
+        return true;
+    }
+  });
+  const canViewFile = useComputed(() => {
+    switch (props.status.state) {
+      case "D":
+        return false;
+      default:
+        return true;
+    }
   });
   return (
     <div className="diffcard">
@@ -116,6 +131,22 @@ export function SvnDiffCard(props: {
                       }}
                     />
                   )}
+                  {canViewFile.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        <OpenFolder
+                          className={busy.value ? "icon spin" : "icon"}
+                        />
+                      }
+                      title="Open Containing Folder"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        network.open_in_dir(props.status.source);
+                      }}
+                    />
+                  )}
                   <Button
                     loading={busy.value}
                     icon={
@@ -126,20 +157,6 @@ export function SvnDiffCard(props: {
                       e.preventDefault();
                       e.stopPropagation();
                       fetch();
-                    }}
-                  />
-                  <Button
-                    loading={busy.value}
-                    icon={
-                      <OpenFolder
-                        className={busy.value ? "icon spin" : "icon"}
-                      />
-                    }
-                    title="Open Containing Folder"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      network.open_in_dir(props.status.source);
                     }}
                   />
                 </Space>

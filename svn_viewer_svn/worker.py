@@ -42,8 +42,8 @@ class Scheduler:
     running_job_ids: list[str] = []
 
     def __init__(self, parallel: int = 2, interval: int = 1):
-        assert parallel > 0
-        assert interval > 0
+        assert parallel > 0, "parallel should be positive"
+        assert interval > 0, "interval should be positive"
         self.interval = interval
         self.parallel = parallel
         self._nextloop()
@@ -76,7 +76,7 @@ class Scheduler:
             ]:
                 self.running_job_ids.append(pendingJobId)
                 _logger.info(f"executing job {pendingJobId}")
-                self.jobs[pendingJobId].execute()
+                self.jobs[pendingJobId].execute(_logger)
                 self.running_job_ids.remove(pendingJobId)
                 job = self.jobs.pop(pendingJobId)
                 _logger.info(f"finish execute job {pendingJobId}: {job}")

@@ -1,3 +1,4 @@
+from logging import Logger
 from messages import send_message
 from svn import svn_fetch_log_diffs
 from workers.task import Task, TaskData
@@ -23,7 +24,7 @@ class fetch_svn_log_diffs_task(Task[fetch_svn_log_diffs_task_data]):
 
     # end def
 
-    def _execute(self):
+    def _execute(self, logger: Logger):
         send_message(self.id, {"processing": True, "job": self.data.type})
         try:
             error, message = svn_fetch_log_diffs(
@@ -46,7 +47,12 @@ class fetch_svn_log_diffs_task(Task[fetch_svn_log_diffs_task_data]):
                 )
             # end if
         except Exception as exp:
-            send_message(self.id, {"error": str(exp), "job": self.data.type})
+            logger.error(exp)
+            error = str(exp)
+            if not error:
+                error = "failed"
+            # end if
+            send_message(self.id, {"error": error, "job": self.data.type})
         # end try
 
     # end def

@@ -4,7 +4,7 @@ from datetime import datetime
 from svntypes import jtoken
 
 _messages_api = os.environ["services__messages__http__0"]
-assert _messages_api
+assert _messages_api, "message api not configured"
 
 
 def send_message(id: str, content: jtoken, preprocess=False):
