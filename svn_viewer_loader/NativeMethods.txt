@@ -1,0 +1,3 @@
+GetConsoleWindow
+ShowWindow
+GenerateConsoleCtrlEvent
