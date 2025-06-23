@@ -1,9 +1,11 @@
 import type { ReadonlySignal } from "@preact/signals-react";
 import { useComputed, useSignals } from "@preact/signals-react/runtime";
 import { useMemo } from "preact/hooks";
-import SvnDiffMarkdown from "./SvnDiffMarkdown";
-import SvnRawMarkdown from "./SvnRawMarkdown";
 import "./SvnDiffCardContent.css";
+import { lazy, Suspense } from "preact/compat";
+
+const SvnDiffMarkdown = lazy(() => import("./SvnDiffMarkdown"));
+const SvnRawMarkdown = lazy(() => import("./SvnRawMarkdown"));
 
 export default (props: {
   status: SvnStatusItem;
@@ -101,27 +103,33 @@ export default (props: {
         </div>
       </div>
       {!!diffContent.value && (
-        <SvnDiffMarkdown
-          content={diffContent.value}
-          maxLine={maxLine}
-          {...props}
-        />
+        <Suspense fallback={<div>loading</div>}>
+          <SvnDiffMarkdown
+            content={diffContent.value}
+            maxLine={maxLine}
+            {...props}
+          />
+        </Suspense>
       )}
       {!!unversionedContent.value && unversionedContent.value.length > 0 && (
-        <SvnRawMarkdown
-          lines$={unversionedContent}
-          language={language}
-          {...props}
-        />
+        <Suspense fallback={<div>loading</div>}>
+          <SvnRawMarkdown
+            lines$={unversionedContent}
+            language={language}
+            {...props}
+          />
+        </Suspense>
       )}
       {!!missingContent &&
         !!missingContent.value &&
         missingContent.value.length > 0 && (
-          <SvnRawMarkdown
-            lines$={missingContent}
-            language={language}
-            {...props}
-          />
+          <Suspense fallback={<div>loading</div>}>
+            <SvnRawMarkdown
+              lines$={missingContent}
+              language={language}
+              {...props}
+            />
+          </Suspense>
         )}
     </div>
   );

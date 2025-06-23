@@ -13,9 +13,11 @@ import type { ReadonlySignal } from "@preact/signals-react";
 import network from "../context/network";
 import SvnDiffCardLabel from "./SvnDiffCardLabel";
 import SvnDiffCardContent from "./SvnDiffCardContent";
-import History from "../assets/History.svg?react";
 import Refresh from "../assets/Refresh.svg?react";
 import OpenFolder from "../assets/OpenFolderHorizontal.svg?react";
+import { lazy, Suspense } from "preact/compat";
+
+const History = lazy(() => import("../assets/History.svg?react"));
 
 export function SvnDiffCard(props: {
   fkey?: Key;
@@ -119,9 +121,11 @@ export function SvnDiffCard(props: {
                     <Button
                       loading={busy.value}
                       icon={
-                        <History
-                          className={busy.value ? "icon spin" : "icon"}
-                        />
+                        <Suspense fallback={<img className="icon" />}>
+                          <History
+                            className={busy.value ? "icon spin" : "icon"}
+                          />
+                        </Suspense>
                       }
                       title="Show Logs"
                       onClick={(e) => {

@@ -4,27 +4,29 @@ import network from "./context/network";
 import { useSignals } from "@preact/signals-react/runtime";
 import { useCallback, useContext } from "preact/hooks";
 import Settings from "./settings";
-import Diffs from "./diffs/SvnDiffs";
 import SvnDiffProvider, { SvnDiffContext } from "./context/svnDiffContext";
 import SvnLogDiffsProvider, {
   SvnLogDiffsContext,
 } from "./context/svnLogDiffsContext";
 import Layout, { Header, Content } from "./layout";
-import SvnLogsModal from "./logs/SvnLogsModal";
 import SvnTreeContextProvider, {
   SvnTreeContext,
 } from "./context/svnTreeContext";
 import SvnInfoContextProvider, {
   SvnInfoContext,
 } from "./context/svnInfoContext";
-import SvnTreeModal from "./tree/SvnTreeModal";
 import { StatusContext } from "./context/statusContext";
 import type { NotificationInstance } from "antd/es/notification/interface";
+import { lazy, Suspense } from "preact/compat";
 
 const svnContext = SvnDiffProvider();
 const svnLogDiffsContext = SvnLogDiffsProvider();
 const svnTreeContext = SvnTreeContextProvider();
 const svnInfoContext = SvnInfoContextProvider();
+
+const Diffs = lazy(() => import("./diffs/SvnDiffs"));
+const SvnLogsModal = lazy(() => import("./logs/SvnLogsModal"));
+const SvnTreeModal = lazy(() => import("./tree/SvnTreeModal"));
 
 export default (props: {
   notify: (
@@ -58,21 +60,27 @@ export default (props: {
       </Header>
       <SvnDiffContext.Provider value={svnContext}>
         <Content>
-          <Diffs fetchLogs={onFetchLogs} />
+          <Suspense fallback={<div>loading</div>}>
+            <Diffs fetchLogs={onFetchLogs} />
+          </Suspense>
         </Content>
         <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
-          <SvnLogsModal
-            open={showSvnDiffLogs}
-            onClose={() => (showSvnDiffLogs.value = false)}
-            status={svnLogStatus}
-          />
+          <Suspense fallback={<div>loading</div>}>
+            <SvnLogsModal
+              open={showSvnDiffLogs}
+              onClose={() => (showSvnDiffLogs.value = false)}
+              status={svnLogStatus}
+            />
+          </Suspense>
         </SvnLogDiffsContext.Provider>
         <SvnTreeContext.Provider value={svnTreeContext}>
           <SvnInfoContext.Provider value={svnInfoContext}>
-            <SvnTreeModal
-              open={showSvnTree}
-              onClose={() => (showSvnTree.value = false)}
-            />
+            <Suspense fallback={<div>loading</div>}>
+              <SvnTreeModal
+                open={showSvnTree}
+                onClose={() => (showSvnTree.value = false)}
+              />
+            </Suspense>
           </SvnInfoContext.Provider>
         </SvnTreeContext.Provider>
       </SvnDiffContext.Provider>

@@ -8,11 +8,13 @@ import {
 } from "@preact/signals-react/runtime";
 import { useCallback, useContext } from "preact/hooks";
 import { SvnDiffContext } from "../context/svnDiffContext";
-import History from "../assets/History.svg?react";
 import Close from "../assets/ChromeClose.svg?react";
 import { filter } from "rxjs";
 import { SvnSettingsContext } from "../context/settingsContext";
 import { StatusContext } from "../context/statusContext";
+import { lazy, Suspense } from "preact/compat";
+
+const History = lazy(() => import("../assets/History.svg?react"));
 
 export default (props: {
   status: ReadonlySignal<SvnStatusItem | undefined>;
@@ -67,7 +69,9 @@ export default (props: {
     <Modal
       title={
         <div>
-          <History className="icon" />
+          <Suspense fallback={<img className="icon" />}>
+            <History className="icon" />
+          </Suspense>
           &nbsp;svn logs
         </div>
       }

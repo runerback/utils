@@ -1,8 +1,12 @@
 import { useSignalEffect, type ReadonlySignal } from "@preact/signals-react";
 import { useComputed, useSignals } from "@preact/signals-react/runtime";
-import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
+import { editor } from "monaco-editor/esm/vs/editor/editor.api";
 import type { Key } from "preact";
 import { useRef, useMemo } from "preact/hooks";
+
+const create = editor.create;
+const createModel = editor.createModel;
+const setModelLanguage = editor.setModelLanguage;
 
 const LineHeight = 20;
 const MaxHeight = 500;
@@ -16,7 +20,7 @@ export default function (props: {
   useSignals();
   const container = useRef<HTMLDivElement>(null!);
   const model = useMemo(() => {
-    return monaco.editor.createModel("");
+    return createModel("");
   }, []);
   const theme = useComputed(() => {
     const currentSettings = props.settings.value;
@@ -27,7 +31,7 @@ export default function (props: {
   });
   const editor = useComputed(() => {
     if (!!container.current) {
-      return monaco.editor.create(container.current, {
+      return create(container.current, {
         model,
         theme: theme.peek(),
         automaticLayout: true,
@@ -42,7 +46,7 @@ export default function (props: {
   });
   useSignalEffect(() => {
     const lines = props.lines$.value;
-    monaco.editor.setModelLanguage(model, props.language ?? "");
+    setModelLanguage(model, props.language ?? "");
     model.setValue(lines.join("\n"));
     if (!!container.current) {
       container.current.style.setProperty(

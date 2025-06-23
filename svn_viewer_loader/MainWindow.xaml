@@ -30,14 +30,14 @@
     </Window.Resources>
     <TabControl TabIndex="0">
         <TabItem Header="UI" TabIndex="0">
-            <wv2:WebView2 
-                Source="{Binding UiAddress, Mode=OneWay, Converter={StaticResource uriConverter}}"
-                CreationProperties="{Binding Mode=OneWay}"  />
+            <wv2:WebView2
+                Source="{Binding UIAddress, Mode=OneWay, Converter={StaticResource uriConverter}}"
+                CreationProperties="{Binding WebviewProps, Mode=OneWay}" />
         </TabItem>
         <TabItem Header="Services" TabIndex="1">
-            <wv2:WebView2 
+            <wv2:WebView2
                 Source="{Binding ServiceAddress, Mode=OneWay, Converter={StaticResource uriConverter}}"
-                CreationProperties="{Binding Mode=OneWay}" />
+                CreationProperties="{Binding WebviewProps, Mode=OneWay}" />
         </TabItem>
     </TabControl>
 </Window>

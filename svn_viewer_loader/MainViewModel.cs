@@ -13,13 +13,13 @@ public sealed class MainViewModel
         CoreWebView2CreationProperties? webviewProps = default)
     {
         Title = "Svn Viewer - wv2:" + CoreWebView2Environment.GetAvailableBrowserVersionString();
-        UiAddress = uiAddress;
+        UIAddress = uiAddress;
         ServiceAddress = serviceAddress;
         WebviewProps = webviewProps ?? new();
     }
 
     public string Title { get; }
-    public string? UiAddress { get; }
+    public string? UIAddress { get; }
     public string? ServiceAddress { get; }
     public CoreWebView2CreationProperties WebviewProps { get; }
 }

@@ -10,13 +10,33 @@ export default defineConfig({
     svgr(),
     monacoEditorPlugin({
       languageWorkers: ["json", "html", "typescript"],
-      globalAPI: true,
-      // 打包地址
+      globalAPI: false,
       customDistPath: () => resolve(__dirname, "../dist/monaco-editor/"),
-      // 路由前缀
       publicPath: "monaco-editor",
     }),
   ],
+  build: {
+    chunkSizeWarningLimit: 2250,
+    rollupOptions: {
+      output: {
+        chunkFileNames: "js/[name]-[hash].js",
+        entryFileNames: "js/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash].[ext]",
+        manualChunks: {
+          "react-vendor": ["preact", "react", "react-dom"],
+          "utils-vendor": ["@microsoft/signalr"],
+          "ui-vendor": ["antd"],
+          "editor-vendor": ["monaco-editor"],
+          "markdown-vendor": ["lowlight", "react-markdown", "remark-gfm"],
+        },
+      },
+      treeshake: {
+        moduleSideEffects: false,
+        propertyReadSideEffects: false,
+        tryCatchDeoptimization: false,
+      },
+    },
+  },
   optimizeDeps: {
     include: [
       `monaco-editor/esm/vs/language/json/json.worker`,
@@ -24,6 +44,9 @@ export default defineConfig({
       `monaco-editor/esm/vs/language/html/html.worker`,
       `monaco-editor/esm/vs/language/typescript/ts.worker`,
       `monaco-editor/esm/vs/editor/editor.worker`,
+      "preact",
+      "react",
+      "react-dom",
     ],
   },
   server: {
