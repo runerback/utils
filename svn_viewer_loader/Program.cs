@@ -11,7 +11,27 @@ partial class Program
 {
     static int Main(string[] args)
     {
-        Process host = default!;
+        Process? host = default!;
+        void Cleanup()
+        {
+            try
+            {
+                if (host != null)
+                {
+                    try
+                    {
+                        try { PInvoke.GenerateConsoleCtrlEvent(0, (uint)host.Id); } catch { }
+                        host.Kill();
+                    }
+                    finally
+                    {
+                        host = null;
+                        Console.WriteLine("host process exited");
+                    }
+                }
+            }
+            catch { }
+        }
         var hostProj =
 #if BUILT_INSIDE_VS
             Path.GetFullPath("../../../../svn_viewer_host/svn_viewer_host.csproj")
@@ -21,6 +41,11 @@ partial class Program
             ;
         try
         {
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+                Cleanup();
+            };
+            IntPtr hWnd = PInvoke.GetConsoleWindow();
             using var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (_, _) => cts.Cancel();
             var cancellationToken = cts.Token;
@@ -30,6 +55,7 @@ partial class Program
             var hostFailedToStart = false;
             using (var hostHandle = new AutoResetEvent(false))
             {
+                cancellationToken.Register(() => hostHandle.Set());
                 host = new Process
                 {
                     StartInfo = new ProcessStartInfo
@@ -79,13 +105,14 @@ partial class Program
                     return -1;
                 }
                 host.CancelOutputRead();
+                Console.WriteLine("host detached");
             }
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(serviceAddress) && string.IsNullOrWhiteSpace(uiAddress))
             {
-                Console.WriteLine("Something wrong with host");
+                Console.WriteLine("Something went wrong with host process");
                 return 0;
             }
-            IntPtr hWnd = PInvoke.GetConsoleWindow();
             if (hWnd == IntPtr.Zero)
             {
                 Console.WriteLine("Console window not found");
@@ -93,14 +120,23 @@ partial class Program
             else
             {
                 PInvoke.ShowWindow((HWND)hWnd, Windows.Win32.UI.WindowsAndMessaging.SHOW_WINDOW_CMD.SW_HIDE);
+                Console.WriteLine("Console window hidden");
             }
-            var sta = new Thread(() => new Application().Run(new MainWindow
+            cancellationToken.ThrowIfCancellationRequested();
+            var sta = new Thread(() =>
             {
-                DataContext = new MainViewModel(uiAddress: uiAddress, serviceAddress: serviceAddress),
-            }));
+                var app = new Application();
+                app.Exit += (_, _) => Cleanup();
+                app.Run(new MainWindow
+                {
+                    DataContext = new MainViewModel(uiAddress: uiAddress, serviceAddress: serviceAddress),
+                });
+            });
             sta.TrySetApartmentState(ApartmentState.STA);
             sta.Start();
+            Console.WriteLine("wpf thread started");
             sta.Join();
+            Console.WriteLine("wpf thread exited");
             return 0;
         }
         catch (Exception exp)
@@ -110,15 +146,7 @@ partial class Program
         }
         finally
         {
-            try
-            {
-                if (host != null)
-                {
-                    PInvoke.GenerateConsoleCtrlEvent(0, (uint)host.Id);
-                    host.Kill();
-                }
-            }
-            catch { }
+            Cleanup();
         }
     }
 
