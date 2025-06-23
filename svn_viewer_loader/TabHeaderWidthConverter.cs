@@ -28,7 +28,7 @@ public sealed class TabHeaderWidthConverter : DependencyObject, IValueConverter
             var tabCount = TabsCount;
             if (tabCount > 0)
             {
-                return Math.Max(1, Math.Floor((fullwidth / tabCount)) - tabCount);
+                return Math.Max(1, Math.Floor((fullwidth / tabCount)) - tabCount * 2);
             }
         }
         return 1d;

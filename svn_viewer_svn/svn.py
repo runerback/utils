@@ -54,7 +54,7 @@ def svn_fetch_settings(svn_root: str):
     )
     assert not rev.stderr, str(rev.stderr)
     if rev.stdout:
-        _settings["svn_rev"] = repo.stdout.strip("\n")
+        _settings["svn_rev"] = rev.stdout.strip("\n")
     # end if
     props = subprocess.run(
         [_svn_executable, "proplist", "-v", svn_root],

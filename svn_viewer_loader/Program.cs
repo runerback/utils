@@ -126,6 +126,11 @@ partial class Program
             var sta = new Thread(() =>
             {
                 var app = new Application();
+                app.LoadCompleted += (_, _) =>
+                {
+                    app.MainWindow.BringIntoView();
+                    app.MainWindow.Focus();
+                };
                 app.Exit += (_, _) => Cleanup();
                 app.Run(new MainWindow
                 {

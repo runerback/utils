@@ -22,6 +22,7 @@ export default (): ISvnDiffContext => ({
       case "?":
         return network.fetch_unversioned(status.source);
       case "!":
+      case "D":
         return network.fetch_file_remote(status.source);
       default:
         return network.fetch_diff(status.source);
