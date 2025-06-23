@@ -6,7 +6,8 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:local="clr-namespace:svn.viewer.loader"
         mc:Ignorable="d" d:Width="300" d:Height="300"
-        WindowState="Maximized" WindowStyle="ToolWindow" 
+        WindowState="Maximized" WindowStyle="ToolWindow"
+        Icon="/assets/SVNLogo.ico"
         Title="{Binding Title, Mode=OneWay}">
     <Window.DataContext>
         <local:MainViewModel />

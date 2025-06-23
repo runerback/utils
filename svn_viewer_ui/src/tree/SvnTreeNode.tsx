@@ -55,7 +55,8 @@ export default (props: {
       });
   });
   const fetch = useCallback(() => {
-    if (!fetched.value && !fetching.value) {
+    if (!fetching.value) {
+      fetched.value = false;
       fetching.value = true;
       statusContext.busy();
       svnInfoContext.provide(props.node.key as string).then((id) => {
@@ -95,7 +96,7 @@ export default (props: {
           </div>
         )}
         <Button
-          loading={props.busy.value}
+          loading={fetching.value}
           icon={<Info className="icon" />}
           title="Info"
           onClick={(e) => {

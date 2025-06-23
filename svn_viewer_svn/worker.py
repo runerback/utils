@@ -81,7 +81,9 @@ class Scheduler:
                 job = self.jobs.pop(pendingJobId)
                 _logger.info(f"finish execute job {pendingJobId}: {job}")
                 _logger.info(f"{len(self.running_job_ids)} jobs remained")
-                break
+                if self.running_jobs_count > self.parallel:
+                    break
+                # end if
             # end for
         finally:
             self._nextloop()
