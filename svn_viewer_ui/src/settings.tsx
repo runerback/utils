@@ -9,18 +9,56 @@ import {
 import "./settings.css";
 import { useCallback, useContext } from "preact/hooks";
 import "./app.css";
-import Refresh from "./assets/Refresh.svg?react";
-import DOM from "./assets/DOM.svg?react";
 import {
   SvnSettingsContext,
   createRequest,
   onSettingsFetched,
+  setCurrent,
 } from "./context/settingsContext";
 import network from "./context/network";
 import { StatusContext } from "./context/statusContext";
 import type { NotificationInstance } from "antd/es/notification/interface";
 import { MessageContext } from "./context/messageContext";
 import { filter, map } from "rxjs";
+import { lazy, Suspense } from "preact/compat";
+
+const Refresh = lazy(() => import("./assets/Refresh.svg?react"));
+const DOM = lazy(() => import("./assets/DOM.svg?react"));
+
+const SettingsHeader = (props: { settings: Settings }) => {
+  const openRepo = useCallback((url: string) => {
+    network.open_repo_browser().then((res) => {
+      if (!res || !res.succeed) {
+        window.open(url);
+      }
+    });
+  }, []);
+  return (
+    <>
+      <b>{props.settings.svn_root}</b>
+      {!!props.settings.svn_repo && (
+        <span>
+          &nbsp;&nbsp;&nbsp;(
+          <a
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openRepo(props.settings.svn_repo!);
+            }}
+          >
+            {props.settings.svn_repo}
+          </a>
+          {!!props.settings.svn_rev && (
+            <span>
+              :<b>{props.settings.svn_rev}</b>
+            </span>
+          )}
+          )
+        </span>
+      )}
+    </>
+  );
+};
 
 export default function (props: {
   notify: (
@@ -133,20 +171,14 @@ export default function (props: {
       fetchStatus();
     });
   });
+  useSignalEffect(() => {
+    setCurrent(currentSettings.value);
+  });
   const title = useComputed(() => {
     if (serverStatus.value) {
       return `Welcome ${serverStatus.value}`;
     }
     return "Welcom, but server is 😵";
-  });
-  const label = useComputed(() => {
-    if (actived.value) {
-      return title.value;
-    }
-    if (!!currentSettings.value) {
-      return currentSettings.value.svn_root;
-    }
-    return title.value;
   });
   return (
     <div className="settings">
@@ -162,9 +194,17 @@ export default function (props: {
               label: (
                 <div className="header">
                   {actived.value ? (
-                    <span>{label.value}</span>
+                    <span>
+                      <b>{title.value}</b>
+                    </span>
+                  ) : !currentSettings.value ? (
+                    <div className="collapsed">
+                      <b>{title.value}</b>
+                    </div>
                   ) : (
-                    <div className="collapsed">{label.value}</div>
+                    <div className="collapsed">
+                      <SettingsHeader settings={currentSettings.value} />
+                    </div>
                   )}
                 </div>
               ),
@@ -174,11 +214,13 @@ export default function (props: {
                   <Button
                     loading={statusContext.busy$.value}
                     icon={
-                      <Refresh
-                        className={
-                          statusContext.busy$.value ? "icon spin" : "icon"
-                        }
-                      />
+                      <Suspense fallback={<img className="icon" />}>
+                        <Refresh
+                          className={
+                            statusContext.busy$.value ? "icon spin" : "icon"
+                          }
+                        />
+                      </Suspense>
                     }
                     title="Check Status"
                     onClick={(e) => {
@@ -188,7 +230,11 @@ export default function (props: {
                     }}
                   />,
                   <Button
-                    icon={<DOM className={"icon"} />}
+                    icon={
+                      <Suspense fallback={<img className="icon" />}>
+                        <DOM className={"icon"} />
+                      </Suspense>
+                    }
                     title="Check Tree"
                     onClick={(e) => {
                       e.preventDefault();
@@ -219,6 +265,7 @@ export default function (props: {
                       readOnly
                       disabled={statusContext.busy$.value}
                       enterButton="..."
+                      onClick={pickRootDir}
                       onSearch={pickRootDir}
                     />
                   </Form.Item>

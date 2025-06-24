@@ -1,3 +1,4 @@
+import json
 from logging import Logger
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -16,8 +17,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host
         method = request.method
 
+        _body = await request.body()
+        _json = json.loads(_body) if any(_body) else ""
         self.logger.info(
-            f"Request: {method} {request.url.path}{request.url.query} {{{await request.json()}}} from {client_ip}"
+            f"Request: {method} {request.url.path}{request.url.query} {{{_json}}} from {client_ip}"
         )
 
         # Process the request

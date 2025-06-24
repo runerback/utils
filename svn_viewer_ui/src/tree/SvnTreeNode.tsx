@@ -1,8 +1,7 @@
-import { Button } from "antd";
+import { Button, Space } from "antd";
 import SvnTreeNodeIcon from "./SvnTreeNodeIcon";
 import type { TreeDataNode } from "./SvnTreeModal";
 import type { ReadonlySignal } from "@preact/signals-react";
-import Info from "../assets/Sync.svg?react";
 import {
   useComputed,
   useSignal,
@@ -14,11 +13,17 @@ import { SvnInfoContext } from "../context/svnInfoContext";
 import { filter } from "rxjs";
 import SvnLogTitle from "../logs/SvnLogTitle";
 import { StatusContext } from "../context/statusContext";
+import { lazy, Suspense } from "preact/compat";
+import SvnStateIcon from "../components/common/SvnStateIcon";
+
+const Info = lazy(() => import("../assets/Sync.svg?react"));
+const History = lazy(() => import("../assets/History.svg?react"));
 
 export default (props: {
   node: TreeDataNode;
   openned: boolean;
   busy: ReadonlySignal<boolean>;
+  fetchLogs: (status: SvnStatusItem) => void;
 }) => {
   useSignals();
   const statusContext = useContext(StatusContext);
@@ -27,7 +32,7 @@ export default (props: {
   const fetched = useSignal(false);
   const fetchId = useSignal("");
   const info = useSignal<SvnTreeNodeInfo>();
-  const log = useComputed<SvnLog | undefined>(() => {
+  const log = useComputed<(SvnLog & { status?: string }) | undefined>(() => {
     const currentInfo = info.value;
     if (!currentInfo || !currentInfo.lastChangedRev) {
       return undefined;
@@ -36,7 +41,18 @@ export default (props: {
       revision: currentInfo.lastChangedRev,
       author: currentInfo.lastChangedAuthor,
       timestamp: currentInfo.lastChangedTime,
+      status: currentInfo.status,
     };
+  });
+  const canFetchLogs = useComputed(() => {
+    if (
+      props.node.data.kind === "FILE" &&
+      !!log.value?.revision &&
+      parseInt(log.value.revision) > 0
+    ) {
+      return true;
+    }
+    return false;
   });
   useSignalEffect(() => {
     svnInfoContext.stream$
@@ -56,21 +72,16 @@ export default (props: {
   });
   const fetch = useCallback(() => {
     if (!fetching.value) {
-      fetched.value = false;
       fetching.value = true;
       statusContext.busy();
-      svnInfoContext.provide(props.node.key as string).then((id) => {
-        fetchId.value = !!id ? id : "";
-      });
+      svnInfoContext
+        .provide(props.node.key as string, props.node.data.kind === "FILE")
+        .then((id) => {
+          fetchId.value = !!id ? id : "";
+        });
     }
   }, []);
   useSignalEffect(() => {
-    console.log({
-      key: props.node.key,
-      a: svnInfoContext.reachMaxFetchInfoTaskCount.value,
-      b: fetched.value,
-      c: fetching.value,
-    });
     if (
       !svnInfoContext.reachMaxFetchInfoTaskCount.value &&
       !fetched.value &&
@@ -78,9 +89,11 @@ export default (props: {
     ) {
       fetching.value = true;
       statusContext.busy();
-      svnInfoContext.provide(props.node.key as string).then((id) => {
-        fetchId.value = !!id ? id : "";
-      });
+      svnInfoContext
+        .provide(props.node.key as string, props.node.data.kind === "FILE")
+        .then((id) => {
+          fetchId.value = !!id ? id : "";
+        });
     }
   });
   return (
@@ -92,19 +105,43 @@ export default (props: {
       <div className="operations">
         {!!log.value && (
           <div className="info">
-            <SvnLogTitle log={log.value} />
+            <Space>
+              {!!log.value.status && <SvnStateIcon state={log.value.status} />}
+              <SvnLogTitle log={log.value} />
+            </Space>
           </div>
         )}
-        <Button
-          loading={fetching.value}
-          icon={<Info className="icon" />}
-          title="Info"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            fetch();
-          }}
-        />
+        <Space>
+          <Button
+            loading={fetching.value}
+            icon={
+              <Suspense fallback={<img className="icon" />}>
+                <Info className="icon" />
+              </Suspense>
+            }
+            title="Info"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              fetch();
+            }}
+          />
+          <Button
+            loading={canFetchLogs.value && fetching.value}
+            disabled={!canFetchLogs.value}
+            icon={
+              <Suspense fallback={<img className="icon" />}>
+                <History className="icon" />
+              </Suspense>
+            }
+            title="Show Logs"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // props.fetchLogs(props.status);
+            }}
+          />
+        </Space>
       </div>
     </div>
   );

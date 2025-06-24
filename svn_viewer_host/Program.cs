@@ -3,39 +3,18 @@
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, _) => cts.Cancel();
 
-string? svn_executable = default;
+var executables = new Executables();
+await executables.Fetch();
 try
 {
-    var finder = Process.Start(new ProcessStartInfo("powershell", "-c (Get-Command svn).Source")
-    {
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-    });
-    if (finder == null)
-    {
-        Console.WriteLine("could not launch powershell process");
-        return;
-    }
-    finder.BeginOutputReadLine();
-    finder.OutputDataReceived += (_, e) =>
-    {
-        if (svn_executable == null && !string.IsNullOrWhiteSpace(e.Data))
-        {
-            var path = e.Data.Trim();
-            if (File.Exists(path))
-            {
-                svn_executable = path.Replace('\\', '/');
-            }
-        }
-    };
-    await finder.WaitForExitAsync(cts.Token);
+    await executables.Fetch();
 }
 catch (Exception exp)
 {
     Console.WriteLine(exp);
     return;
 }
-if (string.IsNullOrWhiteSpace(svn_executable))
+if (string.IsNullOrWhiteSpace(executables.Svn))
 {
     Console.WriteLine("svn executable not found");
     return;
@@ -54,11 +33,15 @@ var server_port = thridPartyPorts[1];
 #pragma warning disable ASPIREHOSTINGPYTHON001
 var svn = builder.AddPythonApp("svn", "../svn_viewer_svn", "main.py")
     .WithReference(messages).WaitFor(messages)
-    .WithEnvironment("SVN_EXECUTABLE", svn_executable)
+    .WithEnvironment("SVN_EXECUTABLE", executables.Svn.Replace('\\', '/'))
     .WithEnvironment("PYTHONIOENCODING", "utf-8")
     .WithOtlpExporter()
     .WithEnvironment("PORT", svn_port.ToString())
     .WithExternalHttpEndpoints();
+if (!string.IsNullOrWhiteSpace(executables.TortoiseSvn))
+{
+    svn.WithEnvironment("TORTOISE_SVN_EXECUTABLE", executables.TortoiseSvn.Replace('\\', '/'));
+}
 #pragma warning restore ASPIREHOSTINGPYTHON001
 
 var ui_helper = builder.AddProject<Projects.svn_viewer_ui_helper>("uihelper");

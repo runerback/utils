@@ -81,6 +81,23 @@ app.MapPost("/opendir", async ([FromQuery, Required] string path, CancellationTo
     return Results.NoContent();
 });
 
+
+app.MapPost("/win/exec", ([FromBody, Required] WinExecRequestModel request, CancellationToken cancellationToken) =>
+{
+    if (!string.IsNullOrWhiteSpace(request.Executable) && OperatingSystem.IsWindows())
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(request.Executable)
+            {
+                Arguments = request.Args?.Length > 0 ? string.Join(' ', request.Args) : "",
+                UseShellExecute = true,
+            });
+        }
+        catch { }
+    }
+});
+
 try
 {
     await app.RunAsync(cts.Token);

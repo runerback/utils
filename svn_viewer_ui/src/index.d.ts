@@ -19,12 +19,18 @@ declare type INetwork = {
   test_server: () => Promise<string | undefined>;
   get_settings: () => Promise<Settings | undefined>;
   update_settings: (settings: SettingsRequest) => Promise<string | undefined>;
+  open_repo_browser: () => Promise<
+    | {
+        succeed?: boolean;
+      }
+    | undefined
+  >;
   fetch_status: () => CreateJobResult;
   fetch_diff: (source: string) => CreateJobResult;
   fetch_unversioned: (source: string) => CreateJobResult;
   fetch_file_remote: (source: string) => CreateJobResult;
   fetch_logs: (source: string) => CreateJobResult;
-  fetch_info: (source: string) => CreateJobResult;
+  fetch_info: (source: string, status?: boolean) => CreateJobResult;
   fetch_log_diffs: (
     source?: string,
     params?: FetchLogDiffsRange
@@ -163,6 +169,7 @@ declare type SvnTreeNodeInfo = {
   readonly lastChangedAuthor?: string;
   readonly lastChangedRev?: string;
   readonly lastChangedTime?: string;
+  readonly status?: string;
 };
 
 declare type SvnInfoStream = {

@@ -5,6 +5,7 @@ import Replaced from "../../assets/Replaced.svg?react";
 import Conflicted from "../../assets/Conflicted.svg?react";
 import Unversioned from "../../assets/Unversioned.svg?react";
 import Missing from "../../assets/Missing.svg?react";
+import Normal from "../../assets/Normal.svg?react";
 
 export default (props: { state: string; className?: string }) => {
   switch (props.state) {
@@ -22,6 +23,8 @@ export default (props: { state: string; className?: string }) => {
       return <Unversioned className={props.className ?? "icon p5"} />;
     case "!":
       return <Missing className={props.className ?? "icon p5"} />;
+    case "N":
+      return <Normal className={props.className ?? "icon p5"} />;
     default:
       return props.state;
   }

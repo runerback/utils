@@ -172,13 +172,13 @@ const fetch_tree = async (source?: string, job?: Job) => {
   return await res.text();
 };
 
-const fetch_info = async (source: string, job?: Job) => {
+const fetch_info = async (source: string, status?: boolean, job?: Job) => {
   const res = await fetch(`/api/server/info?path=${encodeURI(source)}`, {
     headers: {
       "Content-Type": "application/json",
     },
     method: "POST",
-    body: JSON.stringify({ job }),
+    body: JSON.stringify({ status, job }),
   });
   return await res.text();
 };
@@ -200,6 +200,16 @@ const open_in_dir = async (path?: string) => {
   await fetch(`/api/server/opendir?path=${encodeURI(path)}`, {
     method: "POST",
   });
+};
+
+const open_repo_browser = async () => {
+  const res = await fetch("/api/server/repo/browser", {
+    method: "POST",
+  });
+  if (res.status !== 200) {
+    return { error: res.statusText };
+  }
+  return (await res.json()) as { succeed?: boolean };
 };
 
 const errors$ = new Subject<any>();
@@ -237,6 +247,7 @@ export default {
       (settings) => update_settings(settings!, "FETCH_SETTINGS"),
       settings
     ),
+  open_repo_browser: () => request(open_repo_browser),
   fetch_status: () => request(() => fetch_status("FETCH_STATUS")),
   fetch_diff: (source: string) =>
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
@@ -246,8 +257,12 @@ export default {
     request((source) => fetch_file_remote(source, "FETCH_FILE_REMOTE"), source),
   fetch_logs: (source: string) =>
     request((source) => fetch_logs(source!, "FETCH_LOGS"), source),
-  fetch_info: (source: string) =>
-    request((source) => fetch_info(source!, "FETCH_INFO"), source),
+  fetch_info: (source: string, status?: boolean) =>
+    request2(
+      (source, status) => fetch_info(source!, status, "FETCH_INFO"),
+      source,
+      status
+    ),
   fetch_log_diffs: (source?: string, params?: FetchLogDiffsRange) =>
     request2(
       (source, params) => fetch_log_diffs(source, "FETCH_LOG_DIFFS", params),

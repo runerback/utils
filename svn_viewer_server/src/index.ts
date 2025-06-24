@@ -61,6 +61,7 @@ app.get("/settings", (_, res) => {
 });
 
 app.post("/settings", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };
   settings.fetched = undefined;
@@ -92,6 +93,7 @@ app.post("/settings", async (req, res) => {
 });
 
 app.post("/status", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const params = req.body as { job?: string };
   const result = await fetch(`${svnUri}/fetch/status`, {
     headers: {
@@ -119,6 +121,7 @@ app.post("/status", async (req, res) => {
 });
 
 app.post("/status/file", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };
   const result = await fetch(`${svnUri}/fetch/status/file`, {
@@ -148,6 +151,7 @@ app.post("/status/file", async (req, res) => {
 });
 
 app.post("/remote/file", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };
   const result = await fetch(`${svnUri}/fetch/remote/file`, {
@@ -177,6 +181,7 @@ app.post("/remote/file", async (req, res) => {
 });
 
 app.post("/diff", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };
   const result = await fetch(`${svnUri}/fetch/diff`, {
@@ -206,6 +211,7 @@ app.post("/diff", async (req, res) => {
 });
 
 app.post("/unversioned", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };
   const result = await fetch(`${svnUri}/fetch/unversioned`, {
@@ -235,6 +241,7 @@ app.post("/unversioned", async (req, res) => {
 });
 
 app.post("/logs", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };
   const result = await fetch(`${svnUri}/fetch/logs`, {
@@ -264,6 +271,7 @@ app.post("/logs", async (req, res) => {
 });
 
 app.post("/logdiff", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string; n?: number; m?: number };
   const result = await fetch(`${svnUri}/fetch/logdiffs`, {
@@ -295,6 +303,7 @@ app.post("/logdiff", async (req, res) => {
 });
 
 app.post("/tree", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { job?: string };
   const result = await fetch(`${svnUri}/fetch/tree`, {
@@ -324,8 +333,9 @@ app.post("/tree", async (req, res) => {
 });
 
 app.post("/info", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
-  const params = req.body as { job?: string };
+  const params = req.body as { status?: boolean; job?: string };
   const result = await fetch(`${svnUri}/fetch/info`, {
     headers: {
       "Content-Type": "application/json",
@@ -334,6 +344,7 @@ app.post("/info", async (req, res) => {
     method: "POST",
     body: JSON.stringify({
       path,
+      status: params.status,
       job: params.job,
     }),
   });
@@ -350,6 +361,54 @@ app.post("/info", async (req, res) => {
     return;
   }
   res.send(await result.json()).end();
+});
+
+app.post("/repo/browser", async (req, res) => {
+  console.log({ url: req.url });
+  const result = await fetch(`${svnUri}/repo/browser`, {
+    method: "POST",
+  });
+  if (result.status !== 200) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
+  }
+  const args = ((await result.json()) as { args?: string[] })?.args;
+  if (!args || args.length < 1) {
+    res.json({}).end();
+    return;
+  }
+  const helperRes = await fetch(`${uiHelperUri}/win/exec`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      executable: args[0],
+      args: args.slice(1),
+    }),
+  });
+  if (helperRes.status !== 200) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: helperRes.status,
+          statusText: helperRes.statusText,
+        },
+      })
+      .end();
+    return;
+  }
+  res.json({ succeed: true }).end();
 });
 
 const validateUrl = (source?: string | null) => {

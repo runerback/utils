@@ -54,6 +54,7 @@ const buildTree = (root: string): TreeDataNode[] => {
 export default (props: {
   open: ReadonlySignal<boolean>;
   onClose: () => void;
+  fetchLogs: (status: SvnStatusItem) => void;
 }) => {
   useSignals();
   const statusContext = useContext(StatusContext);
@@ -169,6 +170,7 @@ export default (props: {
             busy={statusContext.busy$}
             node={node}
             openned={expandedKeys.value.includes(node.key as string)}
+            fetchLogs={props.fetchLogs}
           />
         )}
       />

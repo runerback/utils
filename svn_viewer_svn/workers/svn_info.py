@@ -5,9 +5,10 @@ from workers.task import Task, TaskData
 
 
 class fetch_svn_info_task_data(TaskData):
-    def __init__(self, path: str, type: str | None = None):
+    def __init__(self, path: str, status: bool | None = None, type: str | None = None):
         super().__init__(kind="fetch_svn_info")
         self.path = path
+        self.status = status
         self.type = type
 
     # end def
@@ -25,7 +26,9 @@ class fetch_svn_info_task(Task[fetch_svn_info_task_data]):
     def _execute(self, logger: Logger):
         send_message(self.id, {"processing": True, "job": self.data.type})
         try:
-            error, message = svn_fetch_info(self.data.path)
+            error, message = svn_fetch_info(
+                self.data.path, fetch_status=self.data.status, logger=logger
+            )
             if error:
                 send_message(self.id, {"error": error, "job": self.data.type})
                 return

@@ -1,4 +1,5 @@
 import json
+from logging import Logger
 import os
 import subprocess
 from typing import Any, List, Tuple
@@ -7,6 +8,13 @@ _svn_executable = os.environ.get("SVN_EXECUTABLE")
 assert _svn_executable and os.path.exists(
     _svn_executable
 ), "svn executable not find or configured"
+
+_tortoise_svn_executable = os.environ.get("TORTOISE_SVN_EXECUTABLE")
+_tortoise_svn_executable = (
+    _tortoise_svn_executable
+    if _tortoise_svn_executable and os.path.exists(_tortoise_svn_executable)
+    else ""
+)
 
 _settings = {
     "svn_root": "",
@@ -150,7 +158,11 @@ def svn_fetch_file_status(path: str) -> svn_fetch_file_status_result:
         return svn_fetch_file_status_result()
     # end if
 
-    return svn_fetch_file_status_result(status=status.stdout[0], url=url)
+    lines = status.stdout.splitlines()  # skip `changelist` line
+    _status = lines[len(lines) - 1][0]
+    return svn_fetch_file_status_result(
+        status=_status if _status and _status != " " else "", url=url
+    )
 
 
 # end def
@@ -315,10 +327,12 @@ def svn_fetch_file_tree(path: str) -> svn_fetch_file_tree_result:
 # end def
 
 
-def svn_fetch_info(path: str) -> Tuple[Any | None, str | None]:
+def svn_fetch_info(
+    path: str, fetch_status: bool | None = None, logger: Logger | None = None
+) -> Tuple[Any | None, str | None]:
     url = validateUrl(path)
     assert url, "invalid path"
-    print(f'[fetch_svn_info] "{url}" with [{range}]')
+    logger and logger.info(f'[fetch_svn_info] "{url}" with [status: {fetch_status}]')
     info = subprocess.run(
         [_svn_executable, "info", url],
         capture_output=True,
@@ -326,7 +340,36 @@ def svn_fetch_info(path: str) -> Tuple[Any | None, str | None]:
         encoding="utf-8",
         shell=True,
     )
-    return info.stderr, info.stdout
+    if info.stderr:
+        return info.stderr, None
+    # end if
+    result = info.stdout
+    if fetch_status and result:
+        if os.path.isfile(url):
+            status = svn_fetch_file_status(path)
+            if status.error:
+                logger and logger.info(f" -> fetch status failed: {status.error}")
+            else:
+                logger and logger.info(f" -> fetch status succceed: {status.status}")
+                result += "\nstatus: " + (status.status if status.status else "N")
+            # end if
+        # end if
+    # end if
+    return None, result
+
+
+# end def
+
+
+def svn_repo_browser() -> List[str] | None:
+    repo = _settings["svn_repo"]
+    if not repo:
+        return None
+    # end if
+    if not _tortoise_svn_executable:
+        return None
+    # end if
+    return [_tortoise_svn_executable, "/command:repobrowser", f'/path:"{repo}"']
 
 
 # end def

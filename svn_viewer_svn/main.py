@@ -17,9 +17,11 @@ from models import (
     SvnFileStatusRequestModel,
     SvnLogDiffsRequestModel,
     SvnLogsRequestModel,
+    SvnOperationResponseModel,
     SvnStatusRequestModel,
     SvnUnversionedRequestModel,
 )
+from svn import svn_repo_browser
 from worker import (
     create_fetch_svn_diff_task,
     create_fetch_svn_file_remote_task,
@@ -134,10 +136,20 @@ def fetch_tree(data: SvnFetchTreeRequestModel):
 @app.post("/svn/fetch/info", response_model=str)
 def fetch_info(data: SvnFetchInfoRequestModel):
     assert data.path, "path is required"
-    return create_fetch_svn_info_task(data.path, data.job)
+    return create_fetch_svn_info_task(data.path, data.status, data.job)
 
 
 # end def
+
+
+@app.post("/svn/repo/browser", response_model=SvnOperationResponseModel)
+def open_repo_browser():
+    args = svn_repo_browser()
+    return SvnOperationResponseModel(args=args)
+
+
+# end def
+
 if __name__ == "__main__":
     port = os.environ.get("PORT")
     assert port, "port not configured"

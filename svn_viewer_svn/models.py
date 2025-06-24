@@ -1,3 +1,4 @@
+from typing import List
 from pydantic import BaseModel
 
 
@@ -82,6 +83,14 @@ class SvnFetchTreeRequestModel(SvnRequestModel):
 
 class SvnFetchInfoRequestModel(SvnRequestModel):
     path: str
+    status: bool | None = None
+
+
+# end class
+
+
+class SvnOperationResponseModel(BaseModel):
+    args: List[str] | None
 
 
 # end class

@@ -7,7 +7,10 @@ export interface ISvnInfoContext {
   readonly stream$: Observable<SvnInfoStream>;
   readonly fetchingInfoTaskCount: ReadonlySignal<number>;
   readonly reachMaxFetchInfoTaskCount: ReadonlySignal<boolean>;
-  provide: (root: string) => Promise<string | null | undefined>;
+  provide: (
+    root: string,
+    status?: boolean
+  ) => Promise<string | null | undefined>;
   ready: () => void;
 }
 
@@ -29,9 +32,9 @@ export default (): ISvnInfoContext => ({
   stream$,
   fetchingInfoTaskCount,
   reachMaxFetchInfoTaskCount,
-  provide: (root) => {
+  provide: (root, status) => {
     fetchingInfoTaskCount.value = fetchingInfoTaskCount.value + 1;
-    return network.fetch_info(root);
+    return network.fetch_info(root, status);
   },
   ready: () => {
     fetchingInfoTaskCount.value = Math.max(0, fetchingInfoTaskCount.value - 1);

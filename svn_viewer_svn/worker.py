@@ -206,9 +206,13 @@ def create_fetch_svn_file_remote_task(path: str, type: str | None = None):
 # end def
 
 
-def create_fetch_svn_info_task(path: str, type: str | None = None):
+def create_fetch_svn_info_task(
+    path: str, status: bool | None = None, type: str | None = None
+):
     return _scheduler.add(
-        lambda jid: fetch_svn_info_task(jid, fetch_svn_info_task_data(path, type))
+        lambda jid: fetch_svn_info_task(
+            jid, fetch_svn_info_task_data(path, status, type)
+        )
     )
 
 

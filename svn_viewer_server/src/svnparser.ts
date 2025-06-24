@@ -248,6 +248,10 @@ const parse_info = (raw: string): SvnTreeNodeInfo | undefined => {
         result.lastChangedTime = value.replace(/\s+\(.+\)/g, "");
         anyMatched = true;
         break;
+      case "status":
+        result.status = value;
+        anyMatched = true;
+        break;
       default:
         break;
     }

@@ -3,6 +3,7 @@ import { useComputed, useSignals } from "@preact/signals-react/runtime";
 import { useMemo } from "preact/hooks";
 import "./SvnDiffCardContent.css";
 import { lazy, Suspense } from "preact/compat";
+import { Skeleton } from "antd";
 
 const SvnDiffMarkdown = lazy(() => import("./SvnDiffMarkdown"));
 const SvnRawMarkdown = lazy(() => import("./SvnRawMarkdown"));
@@ -103,7 +104,7 @@ export default (props: {
         </div>
       </div>
       {!!diffContent.value && (
-        <Suspense fallback={<div>loading</div>}>
+        <Suspense fallback={<Skeleton loading />}>
           <SvnDiffMarkdown
             content={diffContent.value}
             maxLine={maxLine}

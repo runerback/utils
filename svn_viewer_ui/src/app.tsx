@@ -79,6 +79,7 @@ export default (props: {
               <SvnTreeModal
                 open={showSvnTree}
                 onClose={() => (showSvnTree.value = false)}
+                fetchLogs={onFetchLogs}
               />
             </Suspense>
           </SvnInfoContext.Provider>

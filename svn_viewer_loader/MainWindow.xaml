@@ -17,6 +17,7 @@
         <local:TabHeaderWidthConverter TabsCount="2" x:Key="tabHeaderWidthConverter" />
         <Style TargetType="{x:Type TabItem}">
             <Setter Property="Height" Value="36" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Width">
                 <Setter.Value>
                     <Binding 

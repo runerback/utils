@@ -49,13 +49,14 @@ partial class Program
             using var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (_, _) => cts.Cancel();
             var cancellationToken = cts.Token;
+            cancellationToken.Register(() => { try { Cleanup(); } catch { } });
             // load host
             string? uiAddress = default;
             string? serviceAddress = default;
             var hostFailedToStart = false;
             using (var hostHandle = new AutoResetEvent(false))
             {
-                cancellationToken.Register(() => hostHandle.Set());
+                cancellationToken.Register(() => { try { hostHandle.Set(); } catch { } });
                 host = new Process
                 {
                     StartInfo = new ProcessStartInfo

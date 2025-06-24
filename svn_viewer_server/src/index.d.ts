@@ -86,4 +86,5 @@ declare type SvnTreeNodeInfo = {
   lastChangedAuthor?: string;
   lastChangedRev?: string;
   lastChangedTime?: string;
+  status?: string;
 };

@@ -10,7 +10,6 @@ import { useCallback, useContext } from "preact/hooks";
 import { SvnDiffContext } from "../context/svnDiffContext";
 import Close from "../assets/ChromeClose.svg?react";
 import { filter } from "rxjs";
-import { SvnSettingsContext } from "../context/settingsContext";
 import { StatusContext } from "../context/statusContext";
 import { lazy, Suspense } from "preact/compat";
 
@@ -23,13 +22,6 @@ export default (props: {
 }) => {
   useSignals();
   const statusContext = useContext(StatusContext);
-  const settingsContext = useContext(SvnSettingsContext);
-  const settings = useSignal<Settings>();
-  useSignalEffect(() => {
-    settingsContext.stream$.subscribe((value) => {
-      settings.value = value;
-    });
-  });
   const svnLogs = useSignal(Array<SvnLogs>());
   const svnContext = useContext(SvnDiffContext);
   useSignalEffect(() => {
@@ -87,7 +79,6 @@ export default (props: {
         status={props.status}
         logs={svnLogs}
         busy={statusContext.busy$}
-        settings={settings}
       />
     </Modal>
   );

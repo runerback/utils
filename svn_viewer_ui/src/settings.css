@@ -6,11 +6,6 @@
 .settings .header {
   text-align: center;
   width: 100%;
-  font-weight: bold;
-
-  span {
-    width: 100%;
-  }
 }
 
 .settings .header .collapsed {
