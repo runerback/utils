@@ -32,7 +32,8 @@ partial class Program
             }
             catch { }
         }
-        var hostProj =
+        var hostProj = Debugger.IsAttached
+            ? Path.GetFullPath("../../../../svn_viewer_host/svn_viewer_host.csproj") :
 #if BUILT_INSIDE_VS
             Path.GetFullPath("../../../../svn_viewer_host/svn_viewer_host.csproj")
 #else
@@ -52,7 +53,7 @@ partial class Program
             cancellationToken.Register(() => { try { Cleanup(); } catch { } });
             // load host
             string? uiAddress = default;
-            string? serviceAddress = default;
+            string? hostAddress = default;
             var hostFailedToStart = false;
             using (var hostHandle = new AutoResetEvent(false))
             {
@@ -84,11 +85,11 @@ partial class Program
                             hostHandle.Set();
                             return;
                         }
-                        if (string.IsNullOrWhiteSpace(serviceAddress) &&
-                            ServiceAddrPattern().Match(message) is { Success: true } serviceAddrMatch &&
-                            serviceAddrMatch.Groups["addr"] is { Success: true } serviceAddrGroup)
+                        if (string.IsNullOrWhiteSpace(hostAddress) &&
+                            HostAddrPattern().Match(message) is { Success: true } hostAddrMatch &&
+                            hostAddrMatch.Groups["addr"] is { Success: true } hostAddrGroup)
                         {
-                            serviceAddress = serviceAddrGroup.Value;
+                            hostAddress = hostAddrGroup.Value;
                         }
                         if (string.IsNullOrWhiteSpace(uiAddress) &&
                             UIAddrPattern().Match(message) is { Success: true } uiAddrMatch &&
@@ -109,7 +110,7 @@ partial class Program
                 Console.WriteLine("host detached");
             }
             cancellationToken.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(serviceAddress) && string.IsNullOrWhiteSpace(uiAddress))
+            if (string.IsNullOrWhiteSpace(hostAddress) && string.IsNullOrWhiteSpace(uiAddress))
             {
                 Console.WriteLine("Something went wrong with host process");
                 return 0;
@@ -132,11 +133,21 @@ partial class Program
                     app.MainWindow.BringIntoView();
                     app.MainWindow.Focus();
                 };
-                app.Exit += (_, _) => Cleanup();
-                app.Run(new MainWindow
+                app.Exit += (_, _) =>
                 {
-                    DataContext = new MainViewModel(uiAddress: uiAddress, serviceAddress: serviceAddress),
-                });
+                    Cleanup();
+                };
+                try
+                {
+                    app.Run(new MainWindow
+                    {
+                        DataContext = new MainViewModel(uiAddress: uiAddress, hostAddress: hostAddress),
+                    });
+                }
+                catch (Exception exp)
+                {
+                    Console.WriteLine(exp);
+                }
             });
             sta.TrySetApartmentState(ApartmentState.STA);
             sta.Start();
@@ -157,7 +168,7 @@ partial class Program
     }
 
     [GeneratedRegex(@".*Login\s+to\s+the\s+dashboard\s+at\s+(?<addr>http.+login\?t\=\w+)", RegexOptions.Compiled)]
-    private static partial Regex ServiceAddrPattern();
+    private static partial Regex HostAddrPattern();
     [GeneratedRegex(@".*The\s+UI\s+address\s+is\:\s+(?<addr>http.+)", RegexOptions.Compiled)]
     private static partial Regex UIAddrPattern();
 }

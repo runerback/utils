@@ -1,0 +1,190 @@
+﻿<UserControl x:Class="svn.viewer.loader.LoadingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:svn.viewer.loader"
+             mc:Ignorable="d" Background="Transparent"
+             d:DesignHeight="600" d:DesignWidth="600">
+    <UserControl.DataContext>
+        <local:LoadingViewModel />
+    </UserControl.DataContext>
+    <Path Stroke="#506ABA" StrokeThickness="{Binding StrokeThickness,Mode=OneWay}" Fill="#FF2A04" Width="Auto">
+        <Path.Data>
+            <PathGeometry>
+                <PathGeometry.Figures>
+                    <PathFigureCollection>
+                        <PathFigure StartPoint="{Binding InitPoint,Mode=OneWay}" x:Name="arc_start">
+                            <PathFigure.Segments>
+                                <PathSegmentCollection>
+                                    <ArcSegment
+                                        x:Name="arc_end"
+                                        Point="{Binding InitPoint,Mode=OneWay}"
+                                        Size="{Binding ArcSize,Mode=OneWay}"
+                                        IsLargeArc="False" SweepDirection="Clockwise"
+                                        />
+                                </PathSegmentCollection>
+                            </PathFigure.Segments>
+                        </PathFigure>
+                    </PathFigureCollection>
+                </PathGeometry.Figures>
+            </PathGeometry>
+        </Path.Data>
+        <Path.Triggers>
+            <EventTrigger RoutedEvent="Path.Loaded">
+                <BeginStoryboard>
+                    <Storyboard>
+                        <PointAnimationUsingKeyFrames
+                            Storyboard.TargetName="arc_start"
+                            Storyboard.TargetProperty="StartPoint"
+                            Duration="0:0:0.85"
+                            RepeatBehavior="Forever">
+                            <LinearPointKeyFrame Value="{Binding Frame_00,Mode=OneWay}" KeyTime="00.00%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_01,Mode=OneWay}" KeyTime="01.49%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_02,Mode=OneWay}" KeyTime="02.98%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_03,Mode=OneWay}" KeyTime="04.47%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_04,Mode=OneWay}" KeyTime="05.96%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_05,Mode=OneWay}" KeyTime="07.45%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_06,Mode=OneWay}" KeyTime="08.94%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_07,Mode=OneWay}" KeyTime="10.43%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_08,Mode=OneWay}" KeyTime="11.92%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_09,Mode=OneWay}" KeyTime="13.41%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_10,Mode=OneWay}" KeyTime="14.90%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_11,Mode=OneWay}" KeyTime="16.39%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_12,Mode=OneWay}" KeyTime="17.88%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_13,Mode=OneWay}" KeyTime="19.37%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_14,Mode=OneWay}" KeyTime="20.86%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_15,Mode=OneWay}" KeyTime="22.35%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_16,Mode=OneWay}" KeyTime="23.84%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_17,Mode=OneWay}" KeyTime="25.33%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_18,Mode=OneWay}" KeyTime="26.82%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_19,Mode=OneWay}" KeyTime="28.31%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_20,Mode=OneWay}" KeyTime="29.80%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_21,Mode=OneWay}" KeyTime="31.29%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_22,Mode=OneWay}" KeyTime="32.78%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_23,Mode=OneWay}" KeyTime="34.27%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_24,Mode=OneWay}" KeyTime="35.76%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_25,Mode=OneWay}" KeyTime="37.25%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_26,Mode=OneWay}" KeyTime="38.74%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_27,Mode=OneWay}" KeyTime="40.23%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_28,Mode=OneWay}" KeyTime="41.72%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_29,Mode=OneWay}" KeyTime="43.21%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_30,Mode=OneWay}" KeyTime="44.70%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_31,Mode=OneWay}" KeyTime="46.19%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_32,Mode=OneWay}" KeyTime="47.68%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_33,Mode=OneWay}" KeyTime="49.17%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_34,Mode=OneWay}" KeyTime="50.66%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_35,Mode=OneWay}" KeyTime="52.15%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_36,Mode=OneWay}" KeyTime="53.64%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_37,Mode=OneWay}" KeyTime="55.13%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_38,Mode=OneWay}" KeyTime="56.62%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_39,Mode=OneWay}" KeyTime="58.11%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_40,Mode=OneWay}" KeyTime="59.60%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_41,Mode=OneWay}" KeyTime="61.09%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_42,Mode=OneWay}" KeyTime="62.58%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_43,Mode=OneWay}" KeyTime="64.07%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_44,Mode=OneWay}" KeyTime="65.56%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_45,Mode=OneWay}" KeyTime="67.05%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_46,Mode=OneWay}" KeyTime="68.54%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_47,Mode=OneWay}" KeyTime="70.03%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_48,Mode=OneWay}" KeyTime="71.52%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_49,Mode=OneWay}" KeyTime="73.01%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_50,Mode=OneWay}" KeyTime="74.50%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_51,Mode=OneWay}" KeyTime="75.99%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_52,Mode=OneWay}" KeyTime="77.48%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_53,Mode=OneWay}" KeyTime="78.97%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_54,Mode=OneWay}" KeyTime="80.46%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_55,Mode=OneWay}" KeyTime="81.95%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_56,Mode=OneWay}" KeyTime="83.44%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_57,Mode=OneWay}" KeyTime="84.93%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_58,Mode=OneWay}" KeyTime="86.42%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_59,Mode=OneWay}" KeyTime="87.91%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_60,Mode=OneWay}" KeyTime="89.40%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_61,Mode=OneWay}" KeyTime="90.89%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_62,Mode=OneWay}" KeyTime="92.38%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_63,Mode=OneWay}" KeyTime="93.87%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_64,Mode=OneWay}" KeyTime="95.36%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_65,Mode=OneWay}" KeyTime="96.85%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_66,Mode=OneWay}" KeyTime="98.34%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_67,Mode=OneWay}" KeyTime="99.83%" />
+                        </PointAnimationUsingKeyFrames>
+                        <PointAnimationUsingKeyFrames
+                            Storyboard.TargetName="arc_end"
+                            Storyboard.TargetProperty="Point"
+                            Duration="0:0:0.88"
+                            RepeatBehavior="Forever">
+                            <LinearPointKeyFrame Value="{Binding Frame_17,Mode=OneWay}" KeyTime="00.00%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_18,Mode=OneWay}" KeyTime="01.49%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_19,Mode=OneWay}" KeyTime="02.98%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_20,Mode=OneWay}" KeyTime="04.47%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_21,Mode=OneWay}" KeyTime="05.96%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_22,Mode=OneWay}" KeyTime="07.45%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_23,Mode=OneWay}" KeyTime="08.94%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_24,Mode=OneWay}" KeyTime="10.43%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_25,Mode=OneWay}" KeyTime="11.92%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_26,Mode=OneWay}" KeyTime="13.41%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_27,Mode=OneWay}" KeyTime="14.90%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_28,Mode=OneWay}" KeyTime="16.39%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_29,Mode=OneWay}" KeyTime="17.88%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_30,Mode=OneWay}" KeyTime="19.37%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_31,Mode=OneWay}" KeyTime="20.86%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_32,Mode=OneWay}" KeyTime="22.35%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_33,Mode=OneWay}" KeyTime="23.84%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_34,Mode=OneWay}" KeyTime="25.33%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_35,Mode=OneWay}" KeyTime="26.82%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_36,Mode=OneWay}" KeyTime="28.31%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_37,Mode=OneWay}" KeyTime="29.80%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_38,Mode=OneWay}" KeyTime="31.29%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_39,Mode=OneWay}" KeyTime="32.78%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_40,Mode=OneWay}" KeyTime="34.27%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_41,Mode=OneWay}" KeyTime="35.76%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_42,Mode=OneWay}" KeyTime="37.25%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_43,Mode=OneWay}" KeyTime="38.74%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_44,Mode=OneWay}" KeyTime="40.23%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_45,Mode=OneWay}" KeyTime="41.72%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_46,Mode=OneWay}" KeyTime="43.21%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_47,Mode=OneWay}" KeyTime="44.70%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_48,Mode=OneWay}" KeyTime="46.19%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_49,Mode=OneWay}" KeyTime="47.68%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_50,Mode=OneWay}" KeyTime="49.17%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_51,Mode=OneWay}" KeyTime="50.66%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_52,Mode=OneWay}" KeyTime="52.15%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_53,Mode=OneWay}" KeyTime="53.64%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_54,Mode=OneWay}" KeyTime="55.13%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_55,Mode=OneWay}" KeyTime="56.62%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_56,Mode=OneWay}" KeyTime="58.11%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_57,Mode=OneWay}" KeyTime="59.60%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_58,Mode=OneWay}" KeyTime="61.09%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_59,Mode=OneWay}" KeyTime="62.58%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_60,Mode=OneWay}" KeyTime="64.07%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_61,Mode=OneWay}" KeyTime="65.56%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_62,Mode=OneWay}" KeyTime="67.05%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_63,Mode=OneWay}" KeyTime="68.54%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_64,Mode=OneWay}" KeyTime="70.03%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_65,Mode=OneWay}" KeyTime="71.52%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_66,Mode=OneWay}" KeyTime="73.01%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_67,Mode=OneWay}" KeyTime="74.50%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_00,Mode=OneWay}" KeyTime="75.99%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_01,Mode=OneWay}" KeyTime="77.48%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_02,Mode=OneWay}" KeyTime="78.97%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_03,Mode=OneWay}" KeyTime="80.46%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_04,Mode=OneWay}" KeyTime="81.95%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_05,Mode=OneWay}" KeyTime="83.44%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_06,Mode=OneWay}" KeyTime="84.93%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_07,Mode=OneWay}" KeyTime="86.42%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_08,Mode=OneWay}" KeyTime="87.91%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_09,Mode=OneWay}" KeyTime="89.40%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_10,Mode=OneWay}" KeyTime="90.89%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_11,Mode=OneWay}" KeyTime="92.38%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_12,Mode=OneWay}" KeyTime="93.87%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_13,Mode=OneWay}" KeyTime="95.36%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_14,Mode=OneWay}" KeyTime="96.85%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_15,Mode=OneWay}" KeyTime="98.34%" />
+                            <LinearPointKeyFrame Value="{Binding Frame_16,Mode=OneWay}" KeyTime="99.83%" />
+                        </PointAnimationUsingKeyFrames>
+                    </Storyboard>
+                </BeginStoryboard>
+            </EventTrigger>
+        </Path.Triggers>
+    </Path>
+</UserControl>
