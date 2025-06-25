@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Microsoft.Extensions.Configuration;
 
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, _) => cts.Cancel();
@@ -41,6 +42,16 @@ var svn = builder.AddPythonApp("svn", "../svn_viewer_svn", "main.py")
 if (!string.IsNullOrWhiteSpace(executables.TortoiseSvn))
 {
     svn.WithEnvironment("TORTOISE_SVN_EXECUTABLE", executables.TortoiseSvn.Replace('\\', '/'));
+}
+var scheduler_parallel = builder.Configuration.GetValue<int>("SCHEDULER_PARALLEL");
+if (scheduler_parallel > 0)
+{
+    svn.WithEnvironment("SCHEDULER_PARALLEL", scheduler_parallel.ToString());
+}
+var scheduler_interval = builder.Configuration.GetValue<double>("SCHEDULER_INTERVAL");
+if (scheduler_interval > 0)
+{
+    svn.WithEnvironment("SCHEDULER_INTERVAL", scheduler_interval.ToString());
 }
 #pragma warning restore ASPIREHOSTINGPYTHON001
 

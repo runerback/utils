@@ -113,7 +113,7 @@ export default (props: {
         </Suspense>
       )}
       {!!unversionedContent.value && unversionedContent.value.length > 0 && (
-        <Suspense fallback={<div>loading</div>}>
+        <Suspense fallback={<Skeleton loading />}>
           <SvnRawMarkdown
             lines$={unversionedContent}
             language={language}
@@ -124,7 +124,7 @@ export default (props: {
       {!!missingContent &&
         !!missingContent.value &&
         missingContent.value.length > 0 && (
-          <Suspense fallback={<div>loading</div>}>
+          <Suspense fallback={<Skeleton loading />}>
             <SvnRawMarkdown
               lines$={missingContent}
               language={language}

@@ -48,7 +48,8 @@ export default (props: {
     if (
       props.node.data.kind === "FILE" &&
       !!log.value?.revision &&
-      parseInt(log.value.revision) > 0
+      parseInt(log.value.revision) > 0 &&
+      !!log.value.status
     ) {
       return true;
     }
@@ -138,7 +139,10 @@ export default (props: {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              // props.fetchLogs(props.status);
+              props.fetchLogs({
+                state: log.value?.status!,
+                source: props.node.key as string,
+              });
             }}
           />
         </Space>

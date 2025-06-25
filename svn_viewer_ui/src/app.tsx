@@ -18,6 +18,7 @@ import SvnInfoContextProvider, {
 import { StatusContext } from "./context/statusContext";
 import type { NotificationInstance } from "antd/es/notification/interface";
 import { lazy, Suspense } from "preact/compat";
+import { Skeleton } from "antd";
 
 const svnContext = SvnDiffProvider();
 const svnLogDiffsContext = SvnLogDiffsProvider();
@@ -60,12 +61,12 @@ export default (props: {
       </Header>
       <SvnDiffContext.Provider value={svnContext}>
         <Content>
-          <Suspense fallback={<div>loading</div>}>
+          <Suspense fallback={<Skeleton loading />}>
             <Diffs fetchLogs={onFetchLogs} />
           </Suspense>
         </Content>
         <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
-          <Suspense fallback={<div>loading</div>}>
+          <Suspense fallback={<Skeleton loading />}>
             <SvnLogsModal
               open={showSvnDiffLogs}
               onClose={() => (showSvnDiffLogs.value = false)}
@@ -75,7 +76,7 @@ export default (props: {
         </SvnLogDiffsContext.Provider>
         <SvnTreeContext.Provider value={svnTreeContext}>
           <SvnInfoContext.Provider value={svnInfoContext}>
-            <Suspense fallback={<div>loading</div>}>
+            <Suspense fallback={<Skeleton loading />}>
               <SvnTreeModal
                 open={showSvnTree}
                 onClose={() => (showSvnTree.value = false)}

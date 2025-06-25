@@ -1,4 +1,5 @@
 import logging
+import os
 from threading import Timer
 from uuid import uuid4
 from workers.svn_diff import fetch_svn_diff_task, fetch_svn_diff_task_data
@@ -27,7 +28,6 @@ from workers.svn_settings import (
 )
 from workers.task import Task
 from typing import Callable
-
 from workers.svn_unversioned import (
     fetch_svn_unversioned_task,
     fetch_svn_unversioned_task_data,
@@ -41,7 +41,7 @@ class Scheduler:
     jobs: dict[str, Task] = {}
     running_job_ids: list[str] = []
 
-    def __init__(self, parallel: int = 2, interval: int = 1):
+    def __init__(self, parallel: int = 2, interval: float = 1):
         assert parallel > 0, "parallel should be positive"
         assert interval > 0, "interval should be positive"
         self.interval = interval
@@ -101,7 +101,16 @@ class Scheduler:
 # end class
 
 
-_scheduler = Scheduler()
+_parallel = os.environ.get("SCHEDULER_PARALLEL")
+_parallel = int(_parallel) if _parallel else 0
+_parallel = _parallel if _parallel > 0 else 2
+
+_interval = os.environ.get("SCHEDULER_INTERVAL")
+_interval = float(_interval) if _interval else 0
+_interval = _interval if _interval > 0 else 1
+
+
+_scheduler = Scheduler(parallel=_parallel, interval=_interval)
 
 
 def get_running_jobs_count() -> int:
