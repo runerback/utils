@@ -15,6 +15,9 @@ import SvnTreeContextProvider, {
 import SvnInfoContextProvider, {
   SvnInfoContext,
 } from "./context/svnInfoContext";
+import SvnRevLogsContextProvider, {
+  SvnRevLogsContext,
+} from "./context/svnRevLogContext";
 import { StatusContext } from "./context/statusContext";
 import type { NotificationInstance } from "antd/es/notification/interface";
 import { lazy, Suspense } from "preact/compat";
@@ -24,10 +27,12 @@ const svnContext = SvnDiffProvider();
 const svnLogDiffsContext = SvnLogDiffsProvider();
 const svnTreeContext = SvnTreeContextProvider();
 const svnInfoContext = SvnInfoContextProvider();
+const svnRevLogsContext = SvnRevLogsContextProvider();
 
 const Diffs = lazy(() => import("./diffs/SvnDiffs"));
-const SvnLogsModal = lazy(() => import("./logs/SvnLogsModal"));
+const SvnDiffLogsModal = lazy(() => import("./logs/SvnDiffLogsModal"));
 const SvnTreeModal = lazy(() => import("./tree/SvnTreeModal"));
+const SvnRevLogsModal = lazy(() => import("./logs/SvnRevLogsModal"));
 
 export default (props: {
   notify: (
@@ -49,6 +54,17 @@ export default (props: {
       });
     }
   }, []);
+
+  const svnRevLogDir = useSignal("");
+  const showSvnRevLogs = useSignal(false);
+  const onFetchRevLogs = useCallback((dir: string) => {
+    network.fetch_logs(dir).then(() => {
+      svnRevLogDir.value = dir;
+      showSvnRevLogs.value = true;
+      statusContext.busy();
+    });
+  }, []);
+
   const showSvnTree = useSignal(false);
 
   return (
@@ -67,7 +83,7 @@ export default (props: {
         </Content>
         <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
           <Suspense fallback={<Skeleton loading />}>
-            <SvnLogsModal
+            <SvnDiffLogsModal
               open={showSvnDiffLogs}
               onClose={() => (showSvnDiffLogs.value = false)}
               status={svnLogStatus}
@@ -81,10 +97,20 @@ export default (props: {
                 open={showSvnTree}
                 onClose={() => (showSvnTree.value = false)}
                 fetchLogs={onFetchLogs}
+                fetchRevLogs={onFetchRevLogs}
               />
             </Suspense>
           </SvnInfoContext.Provider>
         </SvnTreeContext.Provider>
+        <SvnRevLogsContext.Provider value={svnRevLogsContext}>
+          <Suspense fallback={<Skeleton loading />}>
+            <SvnRevLogsModal
+              dir={svnRevLogDir.value}
+              open={showSvnRevLogs}
+              onClose={() => (showSvnRevLogs.value = false)}
+            />
+          </Suspense>
+        </SvnRevLogsContext.Provider>
       </SvnDiffContext.Provider>
     </Layout>
   );

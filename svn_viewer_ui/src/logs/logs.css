@@ -1,6 +1,7 @@
 .svnlogs {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   width: 100%;
   min-height: 10vh;
   background-color: white;
@@ -29,5 +30,24 @@
 
   button {
     margin-bottom: 16px;
+  }
+}
+
+.svnrevlogscard {
+  flex: 100%;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.svnrevlogcard {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 6px;
+  background-color: white;
+
+  .ant-spin-nested-loading {
+    width: 100%;
   }
 }

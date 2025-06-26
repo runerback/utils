@@ -14,6 +14,7 @@
     "@microsoft/signalr": "^8.0.7",
     "express": "^5.1.0",
     "moment": "^2.30.1",
+    "node-cache": "^5.1.2",
     "svn_viewer_server": "file:"
   },
   "devDependencies": {

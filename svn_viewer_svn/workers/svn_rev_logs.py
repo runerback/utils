@@ -1,11 +1,13 @@
-from workers.task import Task, TaskData
 from messages import send_message
-from svn import svn_fetch_status
+from svn import svn_fetch_revision_logs
+from workers.task import Task, TaskData
 
 
-class fetch_svn_status_task_data(TaskData):
-    def __init__(self, type: str | None = None):
-        super().__init__(kind="fetch_svn_status")
+class fetch_svn_revision_logs_task_data(TaskData):
+    def __init__(self, path: str, rev: int, type: str | None = None):
+        super().__init__(kind="fetch_svn_revision_logs")
+        self.path = path
+        self.rev = rev
         self.type = type
 
     # end def
@@ -14,7 +16,7 @@ class fetch_svn_status_task_data(TaskData):
 # end class
 
 
-class fetch_svn_status_task(Task[fetch_svn_status_task_data]):
+class fetch_svn_revision_logs_task(Task[fetch_svn_revision_logs_task_data]):
     def __init__(self, id, data):
         super().__init__(id, data)
 
@@ -23,7 +25,9 @@ class fetch_svn_status_task(Task[fetch_svn_status_task_data]):
     def _execute(self, logger):
         send_message(self.id, {"processing": True, "job": self.data.type})
         try:
-            error, message = svn_fetch_status()
+            error, message = svn_fetch_revision_logs(
+                self.data.path, self.data.rev, logger=logger
+            )
             if error:
                 send_message(self.id, {"error": error, "job": self.data.type})
                 return
@@ -44,7 +48,7 @@ class fetch_svn_status_task(Task[fetch_svn_status_task_data]):
             logger.error(exp)
             error = str(exp)
             if not error:
-                error = "failed"
+                error = "Unknown error"
             # end if
             send_message(self.id, {"error": error, "job": self.data.type})
         # end try

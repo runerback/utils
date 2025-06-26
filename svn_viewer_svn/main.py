@@ -12,6 +12,7 @@ from models import (
     SettingsRequestModel,
     SvnDiffRequestModel,
     SvnFetchInfoRequestModel,
+    SvnFetchRevisionLogsRequestModel,
     SvnFetchTreeRequestModel,
     SvnFileRemoteRequestModel,
     SvnFileStatusRequestModel,
@@ -33,6 +34,7 @@ from worker import (
     create_fetch_svn_status_task,
     create_fetch_svn_tree_task,
     create_fetch_svn_unversioned_task,
+    create_fetch_svn_revision_logs_task,
     get_running_jobs_count,
 )
 
@@ -137,6 +139,16 @@ def fetch_tree(data: SvnFetchTreeRequestModel):
 def fetch_info(data: SvnFetchInfoRequestModel):
     assert data.path, "path is required"
     return create_fetch_svn_info_task(data.path, data.status, data.job)
+
+
+# end def
+
+
+@app.post("/svn/fetch/rev/logs", response_model=str)
+def fetch_revision_logs(data: SvnFetchRevisionLogsRequestModel):
+    assert data.path, "path is required"
+    assert data.rev and data.rev > 0, "rev is required and should be positive"
+    return create_fetch_svn_revision_logs_task(data.path, data.rev, data.job)
 
 
 # end def

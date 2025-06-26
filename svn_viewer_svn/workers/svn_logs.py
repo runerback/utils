@@ -1,4 +1,3 @@
-from logging import Logger
 from messages import send_message
 from svn import svn_fetch_logs
 from workers.task import Task, TaskData
@@ -22,7 +21,7 @@ class fetch_svn_logs_task(Task[fetch_svn_logs_task_data]):
 
     # end def
 
-    def _execute(self, logger: Logger):
+    def _execute(self, logger):
         send_message(self.id, {"processing": True, "job": self.data.type})
         try:
             error, message = svn_fetch_logs(self.data.path)

@@ -12,6 +12,7 @@ import { publishSvnDiffStream } from "../context/svnDiffContext";
 import { publishSvnInfoStream } from "../context/svnInfoContext";
 import { publishSvnLogDiffsStream } from "../context/svnLogDiffsContext";
 import { publishSvnTreeStream } from "../context/svnTreeContext";
+import { publishSvnRevLogsStream } from "../context/svnRevLogContext";
 
 export default (props: {
   notify: (
@@ -75,6 +76,13 @@ export default (props: {
               break;
             case "FETCH_INFO":
               publishSvnInfoStream({
+                id,
+                job: content.job,
+                finished: true,
+              });
+              break;
+            case "FETCH_REVISION_LOGS":
+              publishSvnRevLogsStream({
                 id,
                 job: content.job,
                 finished: true,
@@ -154,6 +162,13 @@ export default (props: {
                 id,
                 job: content.job,
                 info: content.data as SvnTreeNodeInfo,
+              });
+              break;
+            case "FETCH_REVISION_LOGS":
+              publishSvnRevLogsStream({
+                id,
+                job: content.job,
+                items: content.data as SvnRevStatusItem[],
               });
               break;
             default:

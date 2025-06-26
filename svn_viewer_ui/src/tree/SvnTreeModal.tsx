@@ -18,6 +18,7 @@ import { SvnTreeContext } from "../context/svnTreeContext";
 import { filter } from "rxjs";
 import SvnTreeNode from "./SvnTreeNode";
 import { StatusContext } from "../context/statusContext";
+import modalContext from "../context/modalContext";
 
 const treeNodesLookup: Record<string, SvnTreeNode[]> = {};
 export type TreeDataNode = FieldDataNode<{
@@ -55,6 +56,7 @@ export default (props: {
   open: ReadonlySignal<boolean>;
   onClose: () => void;
   fetchLogs: (status: SvnStatusItem) => void;
+  fetchRevLogs: (dir: string) => void;
 }) => {
   useSignals();
   const statusContext = useContext(StatusContext);
@@ -92,13 +94,15 @@ export default (props: {
     svnTreeContext.stream$
       .pipe(filter((it) => !!it && !!it.id && it.job === "FETCH_TREE"))
       .subscribe((e) => {
-        if (e.id === fetchId.value) {
-          if (!!e.nodes && e.nodes.length > 0) {
-            treeNodesLookup[loadingRoot.value] = e.nodes;
-            treeNodes.value = buildTree("/");
-          }
-          if (!!e.finished) {
-            fetching.value = false;
+        if (props.open.value) {
+          if (e.id === fetchId.value) {
+            if (!!e.nodes && e.nodes.length > 0) {
+              treeNodesLookup[loadingRoot.value] = e.nodes;
+              treeNodes.value = buildTree("/");
+            }
+            if (!!e.finished) {
+              fetching.value = false;
+            }
           }
         }
       });
@@ -142,12 +146,14 @@ export default (props: {
       }
       width="80vw"
       height="80vh"
+      zIndex={modalContext.SvnTreeModal.priority}
       closable
       closeIcon={<Close className="icon" />}
       onCancel={close}
       open={props.open.value}
       cancelButtonProps={{ style: { display: "none" } }}
       okButtonProps={{ style: { display: "none" } }}
+      footer={null}
     >
       {treeNodes.value.length === 0 && <Skeleton loading />}
       <Tree
@@ -171,6 +177,7 @@ export default (props: {
             node={node}
             openned={expandedKeys.value.includes(node.key as string)}
             fetchLogs={props.fetchLogs}
+            fetchRevLogs={props.fetchRevLogs}
           />
         )}
       />

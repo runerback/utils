@@ -72,6 +72,11 @@ var ui = builder.AddNpmApp("ui", "../svn_viewer_ui", scriptName: "dev")
     .WithEnvironment("SERVER_PORT", server_port.ToString())
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
+var client_task_parallel = builder.Configuration.GetValue<int>("CLIENT_TASK_PARALLEL");
+if (client_task_parallel > 0)
+{
+    ui.WithEnvironment("CLIENT_TASK_PARALLEL", client_task_parallel.ToString());
+}
 
 var app = builder.Build();
 

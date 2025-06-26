@@ -1,4 +1,3 @@
-from logging import Logger
 from messages import send_message
 from svn import svn_fetch_file_tree
 from workers.task import Task, TaskData
@@ -22,7 +21,7 @@ class fetch_svn_file_tree_task(Task[fetch_svn_file_tree_task_data]):
 
     # end def
 
-    def _execute(self, logger: Logger):
+    def _execute(self, logger):
         send_message(self.id, {"processing": True, "job": self.data.type})
         try:
             result = svn_fetch_file_tree(self.data.path)

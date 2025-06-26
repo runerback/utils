@@ -361,6 +361,27 @@ def svn_fetch_info(
 # end def
 
 
+def svn_fetch_revision_logs(
+    path: str, rev: int, logger: Logger | None = None
+) -> Tuple[Any | None, str | None]:
+    assert path, "path is required"
+    assert rev and rev > 0, "rev is required and should be positive"
+    url = validateUrl(path)
+    assert url, "invalid path"
+    logger and logger.info(f'[fetch_svn_revsion_logs] "{url}" with [rev: {rev}]')
+    logs = subprocess.run(
+        [_svn_executable, "log", url, "-r", str(rev), "-v"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    return logs.stderr, logs.stdout
+
+
+# end def
+
+
 def svn_repo_browser() -> List[str] | None:
     repo = _settings["svn_repo"]
     if not repo:

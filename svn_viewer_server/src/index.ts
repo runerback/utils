@@ -11,6 +11,7 @@ import {
   uiHelperUri,
 } from "./settings.js";
 import onMessage from "./messages.js";
+import cache from "./cache.js";
 
 const connection = new signalr.HubConnectionBuilder()
   .withUrl(`${messageHubUri}/messages`)
@@ -336,7 +337,47 @@ app.post("/info", async (req, res) => {
   console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
   const params = req.body as { status?: boolean; job?: string };
+  const body = JSON.stringify({
+    path,
+    status: params.status,
+    job: params.job,
+  });
+  const cached = cache.fetch_info.get(body);
+  if (!!cached && !!cached.id) {
+    // TODO: send message from here
+  }
   const result = await fetch(`${svnUri}/fetch/info`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body,
+  });
+  if (result.status !== 200) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
+  }
+  const id = await result.json();
+  if (!cached && !!id) {
+    cache.fetch_info.pending(body, id);
+  }
+  res.send(id).end();
+});
+
+app.post("/rev/logs", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
+  const path = req.query?.["path"] as string;
+  const params = req.body as { rev?: number; job?: string };
+  const result = await fetch(`${svnUri}/fetch/rev/logs`, {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -344,7 +385,7 @@ app.post("/info", async (req, res) => {
     method: "POST",
     body: JSON.stringify({
       path,
-      status: params.status,
+      rev: params.rev,
       job: params.job,
     }),
   });

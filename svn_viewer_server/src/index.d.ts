@@ -18,7 +18,8 @@ declare type Job =
   | "FETCH_LOGS"
   | "FETCH_LOG_DIFFS"
   | "FETCH_TREE"
-  | "FETCH_INFO";
+  | "FETCH_INFO"
+  | "FETCH_REVISION_LOGS";
 
 declare type MessageContent = {
   readonly job?: Job;
@@ -33,7 +34,7 @@ declare type SvnChangelistName = "<NO-CHANGE-LIST>" | string;
 
 declare type SvnStatusItem = {
   readonly state: string;
-  readonly source: string;
+  source: string;
 };
 
 declare type SvnStatus = {
@@ -87,4 +88,9 @@ declare type SvnTreeNodeInfo = {
   lastChangedRev?: string;
   lastChangedTime?: string;
   status?: string;
+};
+
+declare type SvnRevStatusItem = SvnStatusItem & {
+  from?: string;
+  rev?: number;
 };

@@ -21,6 +21,10 @@ from workers.svn_log_diffs import (
     fetch_svn_log_diffs_task_data,
 )
 from workers.svn_logs import fetch_svn_logs_task, fetch_svn_logs_task_data
+from workers.svn_rev_logs import (
+    fetch_svn_revision_logs_task,
+    fetch_svn_revision_logs_task_data,
+)
 from workers.svn_status import fetch_svn_status_task, fetch_svn_status_task_data
 from workers.svn_settings import (
     fetch_svn_settings_task,
@@ -122,9 +126,7 @@ def get_running_jobs_count() -> int:
 
 def create_fetch_svn_settings_task(path: str, type: str | None = None):
     return _scheduler.add(
-        lambda jid: fetch_svn_settings_task(
-            jid, fetch_svn_settings_task_data(path, type)
-        )
+        lambda id: fetch_svn_settings_task(id, fetch_svn_settings_task_data(path, type))
     )
 
 
@@ -133,7 +135,7 @@ def create_fetch_svn_settings_task(path: str, type: str | None = None):
 
 def create_fetch_svn_status_task(type: str | None = None):
     return _scheduler.add(
-        lambda jid: fetch_svn_status_task(jid, fetch_svn_status_task_data(type))
+        lambda id: fetch_svn_status_task(id, fetch_svn_status_task_data(type))
     )
 
 
@@ -142,7 +144,7 @@ def create_fetch_svn_status_task(type: str | None = None):
 
 def create_fetch_svn_diff_task(path: str, type: str | None = None):
     return _scheduler.add(
-        lambda jid: fetch_svn_diff_task(jid, fetch_svn_diff_task_data(path, type))
+        lambda id: fetch_svn_diff_task(id, fetch_svn_diff_task_data(path, type))
     )
 
 
@@ -151,8 +153,8 @@ def create_fetch_svn_diff_task(path: str, type: str | None = None):
 
 def create_fetch_svn_unversioned_task(path: str, type: str | None = None):
     return _scheduler.add(
-        lambda jid: fetch_svn_unversioned_task(
-            jid, fetch_svn_unversioned_task_data(path, type)
+        lambda id: fetch_svn_unversioned_task(
+            id, fetch_svn_unversioned_task_data(path, type)
         )
     )
 
@@ -162,7 +164,7 @@ def create_fetch_svn_unversioned_task(path: str, type: str | None = None):
 
 def create_fetch_svn_logs_task(path: str, type: str | None = None):
     return _scheduler.add(
-        lambda jid: fetch_svn_logs_task(jid, fetch_svn_logs_task_data(path, type))
+        lambda id: fetch_svn_logs_task(id, fetch_svn_logs_task_data(path, type))
     )
 
 
@@ -173,8 +175,8 @@ def create_fetch_svn_log_diffs_task(
     path: str, n: int, m: int | None, type: str | None = None
 ):
     return _scheduler.add(
-        lambda jid: fetch_svn_log_diffs_task(
-            jid, fetch_svn_log_diffs_task_data(path, n, m, type)
+        lambda id: fetch_svn_log_diffs_task(
+            id, fetch_svn_log_diffs_task_data(path, n, m, type)
         )
     )
 
@@ -184,8 +186,8 @@ def create_fetch_svn_log_diffs_task(
 
 def create_fetch_svn_file_status_task(path: str, type: str | None = None):
     return _scheduler.add(
-        lambda jid: fetch_svn_file_status_task(
-            jid, fetch_svn_file_status_task_data(path, type)
+        lambda id: fetch_svn_file_status_task(
+            id, fetch_svn_file_status_task_data(path, type)
         )
     )
 
@@ -195,8 +197,8 @@ def create_fetch_svn_file_status_task(path: str, type: str | None = None):
 
 def create_fetch_svn_tree_task(path: str, type: str | None = None):
     return _scheduler.add(
-        lambda jid: fetch_svn_file_tree_task(
-            jid, fetch_svn_file_tree_task_data(path, type)
+        lambda id: fetch_svn_file_tree_task(
+            id, fetch_svn_file_tree_task_data(path, type)
         )
     )
 
@@ -206,8 +208,8 @@ def create_fetch_svn_tree_task(path: str, type: str | None = None):
 
 def create_fetch_svn_file_remote_task(path: str, type: str | None = None):
     return _scheduler.add(
-        lambda jid: fetch_svn_file_remote_task(
-            jid, fetch_svn_file_remote_task_data(path, type)
+        lambda id: fetch_svn_file_remote_task(
+            id, fetch_svn_file_remote_task_data(path, type)
         )
     )
 
@@ -219,8 +221,17 @@ def create_fetch_svn_info_task(
     path: str, status: bool | None = None, type: str | None = None
 ):
     return _scheduler.add(
-        lambda jid: fetch_svn_info_task(
-            jid, fetch_svn_info_task_data(path, status, type)
+        lambda id: fetch_svn_info_task(id, fetch_svn_info_task_data(path, status, type))
+    )
+
+
+# end def
+
+
+def create_fetch_svn_revision_logs_task(path: str, rev: int, type: str | None = None):
+    return _scheduler.add(
+        lambda id: fetch_svn_revision_logs_task(
+            id, fetch_svn_revision_logs_task_data(path, rev, type)
         )
     )
 

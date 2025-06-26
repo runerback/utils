@@ -37,6 +37,7 @@ declare type INetwork = {
   ) => CreateJobResult;
   fetch_file_status: (source: string) => CreateJobResult;
   fetch_tree: (source?: string) => CreateJobResult;
+  fetch_rev_logs: (source: string, rev: number) => Promise<string | undefined>;
   pick_dir: (init?: string) => Promise<string | undefined>;
   open_in_dir: (path?: string) => Promise<void | undefined>;
 };
@@ -51,7 +52,8 @@ declare type Job =
   | "FETCH_FILE_STATUS"
   | "FETCH_FILE_REMOTE"
   | "FETCH_TREE"
-  | "FETCH_INFO";
+  | "FETCH_INFO"
+  | "FETCH_REVISION_LOGS";
 
 declare type Message = {
   readonly id: string;
@@ -178,3 +180,20 @@ declare type SvnInfoStream = {
   readonly info?: SvnTreeNodeInfo;
   readonly finished?: boolean;
 };
+
+declare type SvnRevStatusItem = SvnStatusItem & {
+  readonly from?: string;
+  readonly rev?: number;
+  readonly highlight?: boolean;
+};
+
+declare type SvnRevLogsStream = {
+  readonly id: string;
+  readonly job?: Job;
+  readonly items?: SvnRevStatusItem[];
+  readonly finished?: boolean;
+};
+
+declare interface Window {
+  CLIENT_TASK_PARALLEL?: number | null;
+}

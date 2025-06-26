@@ -1,0 +1,36 @@
+.changes {
+  display: flex;
+  flex-direction: row;
+}
+
+.changes .state {
+  display: inline;
+  font-size: 1.2em;
+  margin-bottom: -0.8em;
+}
+
+.changes .state .tooltip {
+  visibility: hidden;
+  position: absolute;
+  margin-top: -2em;
+  margin-left: -1em;
+  padding: 0.2em 0.8em;
+  background-color: dimgray;
+  color: whitesmoke;
+  border-radius: 1.5em;
+  z-index: 1;
+}
+
+.changes .state:hover .tooltip {
+  visibility: visible;
+}
+
+.changes .source {
+  flex: 90%;
+  align-content: flex-end;
+}
+
+.changes .source .matched {
+  font-weight: bold;
+  color: #ff2a04;
+}

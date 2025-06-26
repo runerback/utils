@@ -24,6 +24,7 @@ export default (props: {
   openned: boolean;
   busy: ReadonlySignal<boolean>;
   fetchLogs: (status: SvnStatusItem) => void;
+  fetchRevLogs: (dir: string) => void;
 }) => {
   useSignals();
   const statusContext = useContext(StatusContext);
@@ -45,13 +46,12 @@ export default (props: {
     };
   });
   const canFetchLogs = useComputed(() => {
-    if (
-      props.node.data.kind === "FILE" &&
-      !!log.value?.revision &&
-      parseInt(log.value.revision) > 0 &&
-      !!log.value.status
-    ) {
-      return true;
+    if (!!log.value?.revision && parseInt(log.value.revision) > 0) {
+      if (props.node.data.kind === "FILE" && !!log.value.status) {
+        return true;
+      } else if (props.node.data.kind === "DIR") {
+        return true;
+      }
     }
     return false;
   });
@@ -71,7 +71,7 @@ export default (props: {
         }
       });
   });
-  const fetch = useCallback(() => {
+  const fetchSubTree = useCallback(() => {
     if (!fetching.value) {
       fetching.value = true;
       statusContext.busy();
@@ -80,6 +80,21 @@ export default (props: {
         .then((id) => {
           fetchId.value = !!id ? id : "";
         });
+    }
+  }, []);
+  const fetchLogs = useCallback(() => {
+    const source = props.node.key as string;
+    if (!source) {
+      console.warn("source is required");
+      return;
+    }
+    if (props.node.data.kind === "FILE") {
+      props.fetchLogs({
+        state: log.value?.status!,
+        source: props.node.key as string,
+      });
+    } else if (props.node.data.kind === "DIR") {
+      props.fetchRevLogs(props.node.key as string);
     }
   }, []);
   useSignalEffect(() => {
@@ -124,7 +139,7 @@ export default (props: {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              fetch();
+              fetchSubTree();
             }}
           />
           <Button
@@ -139,10 +154,7 @@ export default (props: {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              props.fetchLogs({
-                state: log.value?.status!,
-                source: props.node.key as string,
-              });
+              fetchLogs();
             }}
           />
         </Space>

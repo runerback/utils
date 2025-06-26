@@ -183,6 +183,17 @@ const fetch_info = async (source: string, status?: boolean, job?: Job) => {
   return await res.text();
 };
 
+const fetch_rev_logs = async (source: string, rev: number, job?: Job) => {
+  const res = await fetch(`/api/server/rev/logs?path=${encodeURI(source)}`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ rev, job }),
+  });
+  return await res.text();
+};
+
 const pick_dir = async (init?: string) => {
   const res = await fetch(
     "/api/uihelper/pickdir" + (!!init ? `?path=${encodeURI(init)}` : ""),
@@ -273,6 +284,12 @@ export default {
     request((source) => fetch_file_status(source, "FETCH_FILE_STATUS"), source),
   fetch_tree: (source?: string) =>
     request((source) => fetch_tree(source, "FETCH_TREE"), source),
+  fetch_rev_logs: (source: string, rev: number) =>
+    request2(
+      (source, rev) => fetch_rev_logs(source!, rev!, "FETCH_REVISION_LOGS"),
+      source,
+      rev
+    ),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
   open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
 } as INetwork;

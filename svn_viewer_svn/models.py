@@ -89,6 +89,14 @@ class SvnFetchInfoRequestModel(SvnRequestModel):
 # end class
 
 
+class SvnFetchRevisionLogsRequestModel(SvnRequestModel):
+    path: str
+    rev: int
+
+
+# end class
+
+
 class SvnOperationResponseModel(BaseModel):
     args: List[str] | None
 

@@ -1,8 +1,9 @@
 import moment from "moment";
 import { messageHubUri, settings } from "./settings.js";
 import svnparser from "./svnparser.js";
+import cache from "./cache.js";
 
-const sendMessage = (id: string, content: any) => {
+export const sendMessage = (id: string, content: any) => {
   fetch(`${messageHubUri}/message?id=${id}`, {
     headers: {
       "Content-Type": "application/json",
@@ -81,6 +82,16 @@ const preprocess_info = (id: string, data: string, job: Job) => {
   if (!!parsed) {
     console.log({ parsed });
     sendMessage(id, { data: parsed, job });
+    cache.fetch_info.set(id, parsed);
+  }
+  global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
+};
+
+const preprocess_rev_logs = (id: string, data: string, job: Job) => {
+  const parsed = svnparser.parse_rev_logs(data);
+  if (!!parsed) {
+    console.log({ parsed });
+    sendMessage(id, { data: parsed, job });
   }
   global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
@@ -129,6 +140,13 @@ export default (message: Message) => {
             break;
           case "FETCH_INFO":
             preprocess_info(message.id, content.data as string, content.job);
+            break;
+          case "FETCH_REVISION_LOGS":
+            preprocess_rev_logs(
+              message.id,
+              content.data as string,
+              content.job
+            );
             break;
           default:
             break;

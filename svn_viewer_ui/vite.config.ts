@@ -70,4 +70,8 @@ export default defineConfig({
       },
     },
   },
+  define: {
+    CLIENT_TASK_PARALLEL:
+      parseInt(process.env["CLIENT_TASK_PARALLEL"] ?? "2") ?? 2,
+  },
 });

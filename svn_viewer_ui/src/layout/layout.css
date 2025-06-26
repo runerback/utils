@@ -15,3 +15,7 @@
   text-align: left;
   scrollbar-width: thin;
 }
+
+.ant-modal-wrap {
+  scrollbar-width: thin;
+}

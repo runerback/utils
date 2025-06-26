@@ -11,7 +11,7 @@ const changeListPriority = (name: string) => {
   }
 };
 
-const parseStatus = (rawStatus: string, settings: Settings): SvnStatus[] => {
+const parse_status = (rawStatus: string, settings: Settings): SvnStatus[] => {
   if (!rawStatus) {
     return [];
   }
@@ -150,7 +150,7 @@ const buildchunk1 = (chunk: Chunk0, settings: Settings): Chunk1 => {
   return chunk1;
 };
 
-const parseLogs = (rawLogs: string) => {
+const parse_logs = (rawLogs: string) => {
   const lines = rawLogs.split(/\r|\n/gs).filter(Boolean);
   const logs = Array<SvnLog>();
   let infoLine = false;
@@ -259,13 +259,58 @@ const parse_info = (raw: string): SvnTreeNodeInfo | undefined => {
   return anyMatched ? result : undefined;
 };
 
+const parse_rev_logs = (raw: string): SvnRevStatusItem[] => {
+  if (!raw) {
+    return [];
+  }
+  const lines = raw.split(/\r|\n/gs).filter(Boolean);
+  if (!lines) {
+    return [];
+  }
+  const result = Array<SvnRevStatusItem>();
+  let receivingPaths = false;
+  for (let i = 0, j = lines.length; i < j; i++) {
+    const line = lines[i];
+    if (receivingPaths) {
+      if (!line) {
+        receivingPaths = false;
+        break;
+      }
+      const match = /\s*(?<status>[A-Z])\s+(?<source>.+)/g.exec(line);
+      if (!!match && !!match.groups) {
+        const item: SvnRevStatusItem = {
+          state: match.groups["status"],
+          source: match.groups["source"],
+        };
+        const froms = item.source.split(" ");
+        if (!!froms && froms.length === 3 && froms[1] === "(from") {
+          const fromParts = froms[2].split(":");
+          if (!!fromParts && fromParts.length === 2) {
+            item.source = froms[0];
+            item.from = fromParts[0];
+            item.rev = parseInt(fromParts[1].slice(0, -1)) ?? undefined;
+          }
+        }
+        result.push(item);
+      }
+    } else {
+      if (line === "Changed paths:") {
+        receivingPaths = true;
+        continue;
+      }
+    }
+  }
+  return result;
+};
+
 export default {
-  parse_status: parseStatus,
+  parse_status,
   parse_diff: (rawdiff: string, settings: Settings) => {
     const chunks0 = parsechunks0(rawdiff);
     return chunks0.map((chunk0) => buildchunk1(chunk0, settings));
   },
-  parse_logs: parseLogs,
-  parse_props: parse_props,
-  parse_info: parse_info,
+  parse_logs,
+  parse_props,
+  parse_info,
+  parse_rev_logs,
 };
