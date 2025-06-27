@@ -7,10 +7,11 @@ export interface ISvnInfoContext {
   readonly stream$: Observable<SvnInfoStream>;
   readonly fetchingInfoTaskCount: ReadonlySignal<number>;
   readonly reachMaxFetchInfoTaskCount: ReadonlySignal<boolean>;
-  provide: (
-    root: string,
-    status?: boolean
-  ) => Promise<NetworkResponse<SvnTreeNodeInfo> | null | undefined>;
+  provide: (args: {
+    root: string;
+    status?: boolean;
+    flush?: boolean;
+  }) => Promise<NetworkResponse<SvnTreeNodeInfo> | null | undefined>;
   ready: () => void;
 }
 
@@ -37,9 +38,10 @@ export default (): ISvnInfoContext => ({
   stream$,
   fetchingInfoTaskCount,
   reachMaxFetchInfoTaskCount,
-  provide: (root, status) => {
+  provide: (args) => {
+    console.log("[SvnInfoContext]", args);
     fetchingInfoTaskCount.value = fetchingInfoTaskCount.value + 1;
-    return network.fetch_info(root, status);
+    return network.fetch_info(args.root, args.status, args.flush);
   },
   ready: () => {
     fetchingInfoTaskCount.value = Math.max(0, fetchingInfoTaskCount.value - 1);

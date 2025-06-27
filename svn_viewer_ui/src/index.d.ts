@@ -32,7 +32,8 @@ declare type INetwork = {
   fetch_logs: (source: string) => CreateTaskResult;
   fetch_info: (
     source: string,
-    status?: boolean
+    status?: boolean,
+    flush?: boolean
   ) => Promise<NetworkResponse<SvnTreeNodeInfo> | null | undefined>;
   fetch_log_diffs: (
     source?: string,

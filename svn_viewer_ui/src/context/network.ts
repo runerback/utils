@@ -172,13 +172,18 @@ const fetch_tree = async (source?: string, job?: Job) => {
   return await res.text();
 };
 
-const fetch_info = async (source: string, status?: boolean, job?: Job) => {
+const fetch_info = async (
+  source: string,
+  status?: boolean,
+  flush?: boolean,
+  job?: Job
+) => {
   const res = await fetch(`/api/server/info?path=${encodeURI(source)}`, {
     headers: {
       "Content-Type": "application/json",
     },
     method: "POST",
-    body: JSON.stringify({ status, job }),
+    body: JSON.stringify({ status, job, flush }),
   });
   return (await res.json()) as NetworkResponse<SvnTreeNodeInfo>;
 };
@@ -248,6 +253,24 @@ const request2 = async <TReq1 = never, TReq2 = never, TRes = never>(
   }
 };
 
+const request3 = async <
+  TReq1 = never,
+  TReq2 = never,
+  TReq3 = never,
+  TRes = never
+>(
+  call: (req1?: TReq1, req2?: TReq2, req3?: TReq3) => Promise<TRes | undefined>,
+  req1?: TReq1,
+  req2?: TReq2,
+  req3?: TReq3
+) => {
+  try {
+    return await call(req1, req2, req3);
+  } catch (error) {
+    errors$.next(error);
+  }
+};
+
 export default {
   messages$,
   errors$,
@@ -268,11 +291,13 @@ export default {
     request((source) => fetch_file_remote(source, "FETCH_FILE_REMOTE"), source),
   fetch_logs: (source: string) =>
     request((source) => fetch_logs(source!, "FETCH_LOGS"), source),
-  fetch_info: (source: string, status?: boolean) =>
-    request2(
-      (source, status) => fetch_info(source!, status, "FETCH_INFO"),
+  fetch_info: (source: string, status?: boolean, flush?: boolean) =>
+    request3(
+      (source, status, flush) =>
+        fetch_info(source!, status, flush, "FETCH_INFO"),
       source,
-      status
+      status,
+      flush
     ),
   fetch_log_diffs: (source?: string, params?: FetchLogDiffsRange) =>
     request2(

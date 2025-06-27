@@ -336,17 +336,26 @@ app.post("/tree", async (req, res) => {
 app.post("/info", async (req, res) => {
   console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
-  const params = req.body as { status?: boolean; job?: string };
+  const params = req.body as {
+    status?: boolean;
+    job?: string;
+    flush?: boolean;
+  };
   const body = JSON.stringify({
     path,
     status: params.status,
     job: params.job,
   });
   const cached = cache.fetch_info.get(body);
-  if (!!cached && !!cached.id) {
-    console.log("loaded from cache: ", cached);
-    res.send({ payload: cached.payload }).end();
-    return;
+  if (!!cached && !!cached.payload) {
+    if (!!params.flush) {
+      cache.fetch_info.reset(body);
+      console.log("cache reset");
+    } else {
+      console.log("loaded from cache: ", cached);
+      res.send({ payload: cached.payload }).end();
+      return;
+    }
   }
   const result = await fetch(`${svnUri}/fetch/info`, {
     headers: {
@@ -369,7 +378,7 @@ app.post("/info", async (req, res) => {
     return;
   }
   const id = await result.json();
-  if (!cached && !!id) {
+  if ((!cached || !!params.flush) && !!id) {
     cache.fetch_info.pending(body, id);
   }
   res.send({ id }).end();

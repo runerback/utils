@@ -14,6 +14,7 @@ import { filter } from "rxjs";
 import SvnLogTitle from "../logs/SvnLogTitle";
 import { StatusContext } from "../context/statusContext";
 import { lazy, Suspense } from "preact/compat";
+import { KeyboardContext } from "../context/keyboardContext";
 import SvnStateIcon from "../components/common/SvnStateIcon";
 
 const Info = lazy(() => import("../assets/Sync.svg?react"));
@@ -91,15 +92,21 @@ export default (props: {
         }
       });
   });
+  const keyboardContext = useContext(KeyboardContext);
   const fetchSubTree = useCallback(() => {
     if (!fetching.value) {
       fetching.value = true;
-      statusContext.busy();
+      console.log("ctrl pressing: ", keyboardContext.ctrl$.value);
       svnInfoContext
-        .provide(props.node.key as string, props.node.data.kind === "FILE")
+        .provide({
+          root: props.node.key as string,
+          status: props.node.data.kind === "FILE",
+          flush: keyboardContext.ctrl$.value,
+        })
         .then((result) => {
           if (!!result) {
             if (!!result.id) {
+              statusContext.busy();
               fetchId.value = result.id;
             } else if (!!result.payload) {
               batch(() => {
@@ -107,7 +114,6 @@ export default (props: {
                 fetched.value = true;
                 fetching.value = false;
               });
-              svnInfoContext.ready();
             }
           }
         });

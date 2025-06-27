@@ -19,21 +19,31 @@ const tasks = {
       resultCache.set(request, { id, payload, job }, RESULT_CACHE_TTL);
     }
   },
-  get: <TPayload>(body: string) => {
-    return resultCache.get(body) as { id: string; payload: TPayload; job: Job };
+  get: <TPayload>(request: string) => {
+    return resultCache.get(request) as {
+      id: string;
+      payload: TPayload;
+      job: Job;
+    };
+  },
+  clear: (request: string) => {
+    resultCache.del(request);
   },
 };
 
 export default {
   fetch_info: {
-    pending: (body: string, id: string) => {
-      tasks.pending(body, id);
+    pending: (request: string, id: string) => {
+      tasks.pending(request, id);
     },
     set: (id: string, payload: SvnTreeNodeInfo, job: Job) => {
       tasks.set(id, payload, job);
     },
-    get: (body: string) => {
-      return tasks.get<SvnTreeNodeInfo>(body);
+    get: (request: string) => {
+      return tasks.get<SvnTreeNodeInfo>(request);
+    },
+    reset: (request: string) => {
+      tasks.clear(request);
     },
   },
 };
