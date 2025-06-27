@@ -2,7 +2,7 @@ import MessageContextProvider, {
   MessageContext,
 } from "../context/messageContext";
 import type { NotificationInstance } from "antd/es/notification/interface";
-import App from "../app";
+import Keyboard from "./keyboard";
 import { useContext, useMemo } from "preact/hooks";
 import { useSignalEffect } from "@preact/signals-react";
 import { filter } from "rxjs";
@@ -179,7 +179,7 @@ export default (props: {
   });
   return (
     <MessageContext.Provider value={messageContext}>
-      <App {...props} />
+      <Keyboard {...props} />
     </MessageContext.Provider>
   );
 };
