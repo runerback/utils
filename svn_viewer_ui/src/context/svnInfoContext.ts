@@ -10,7 +10,7 @@ export interface ISvnInfoContext {
   provide: (
     root: string,
     status?: boolean
-  ) => Promise<string | null | undefined>;
+  ) => Promise<NetworkResponse<SvnTreeNodeInfo> | null | undefined>;
   ready: () => void;
 }
 

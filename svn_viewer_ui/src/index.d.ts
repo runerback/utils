@@ -11,7 +11,7 @@ declare type SettingsRequestStream = SettingsRequest & {
   needToSync?: boolean;
 };
 
-declare type CreateJobResult = Promise<string | undefined>;
+declare type CreateTaskResult = Promise<string | undefined>;
 
 declare type INetwork = {
   readonly messages$: Observable<Message>;
@@ -25,21 +25,29 @@ declare type INetwork = {
       }
     | undefined
   >;
-  fetch_status: () => CreateJobResult;
-  fetch_diff: (source: string) => CreateJobResult;
-  fetch_unversioned: (source: string) => CreateJobResult;
-  fetch_file_remote: (source: string) => CreateJobResult;
-  fetch_logs: (source: string) => CreateJobResult;
-  fetch_info: (source: string, status?: boolean) => CreateJobResult;
+  fetch_status: () => CreateTaskResult;
+  fetch_diff: (source: string) => CreateTaskResult;
+  fetch_unversioned: (source: string) => CreateTaskResult;
+  fetch_file_remote: (source: string) => CreateTaskResult;
+  fetch_logs: (source: string) => CreateTaskResult;
+  fetch_info: (
+    source: string,
+    status?: boolean
+  ) => Promise<NetworkResponse<SvnTreeNodeInfo> | null | undefined>;
   fetch_log_diffs: (
     source?: string,
     params?: FetchLogDiffsRange
-  ) => CreateJobResult;
-  fetch_file_status: (source: string) => CreateJobResult;
-  fetch_tree: (source?: string) => CreateJobResult;
+  ) => CreateTaskResult;
+  fetch_file_status: (source: string) => CreateTaskResult;
+  fetch_tree: (source?: string) => CreateTaskResult;
   fetch_rev_logs: (source: string, rev: number) => Promise<string | undefined>;
   pick_dir: (init?: string) => Promise<string | undefined>;
   open_in_dir: (path?: string) => Promise<void | undefined>;
+};
+
+declare type NetworkResponse<TPayload> = {
+  readonly id?: string;
+  readonly payload?: TPayload;
 };
 
 declare type Job =

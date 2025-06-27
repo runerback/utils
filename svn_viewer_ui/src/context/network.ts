@@ -180,7 +180,7 @@ const fetch_info = async (source: string, status?: boolean, job?: Job) => {
     method: "POST",
     body: JSON.stringify({ status, job }),
   });
-  return await res.text();
+  return (await res.json()) as NetworkResponse<SvnTreeNodeInfo>;
 };
 
 const fetch_rev_logs = async (source: string, rev: number, job?: Job) => {

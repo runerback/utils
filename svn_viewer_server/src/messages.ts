@@ -82,9 +82,12 @@ const preprocess_info = (id: string, data: string, job: Job) => {
   if (!!parsed) {
     console.log({ parsed });
     sendMessage(id, { data: parsed, job });
-    cache.fetch_info.set(id, parsed);
+    cache.fetch_info.set(id, parsed, job);
   }
-  global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
+  global.setTimeout(() => {
+    console.log("[preprocess_info]", "at this moment, the id is: ", id);
+    sendMessage(id, { completed: true, job });
+  }, 30);
 };
 
 const preprocess_rev_logs = (id: string, data: string, job: Job) => {

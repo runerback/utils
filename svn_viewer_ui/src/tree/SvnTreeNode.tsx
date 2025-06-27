@@ -1,7 +1,7 @@
 import { Button, Space } from "antd";
 import SvnTreeNodeIcon from "./SvnTreeNodeIcon";
 import type { TreeDataNode } from "./SvnTreeModal";
-import type { ReadonlySignal } from "@preact/signals-react";
+import { batch, type ReadonlySignal } from "@preact/signals-react";
 import {
   useComputed,
   useSignal,
@@ -30,8 +30,26 @@ export default (props: {
   const statusContext = useContext(StatusContext);
   const svnInfoContext = useContext(SvnInfoContext);
   const fetching = useSignal(false);
+  useSignalEffect(() => {
+    console.log({
+      key: props.node.key,
+      fetching: fetching.value,
+    });
+  });
   const fetched = useSignal(false);
+  useSignalEffect(() => {
+    console.log({
+      key: props.node.key,
+      fetched: fetched.value,
+    });
+  });
   const fetchId = useSignal("");
+  useSignalEffect(() => {
+    console.log({
+      key: props.node.key,
+      fetchId: fetchId.value,
+    });
+  });
   const info = useSignal<SvnTreeNodeInfo>();
   const log = useComputed<(SvnLog & { status?: string }) | undefined>(() => {
     const currentInfo = info.value;
@@ -64,8 +82,10 @@ export default (props: {
             info.value = { ...e.info };
           }
           if (!!e.finished) {
-            fetching.value = false;
-            fetched.value = true;
+            batch(() => {
+              fetched.value = true;
+              fetching.value = false;
+            });
             svnInfoContext.ready();
           }
         }
@@ -77,8 +97,19 @@ export default (props: {
       statusContext.busy();
       svnInfoContext
         .provide(props.node.key as string, props.node.data.kind === "FILE")
-        .then((id) => {
-          fetchId.value = !!id ? id : "";
+        .then((result) => {
+          if (!!result) {
+            if (!!result.id) {
+              fetchId.value = result.id;
+            } else if (!!result.payload) {
+              batch(() => {
+                info.value = { ...result.payload };
+                fetched.value = true;
+                fetching.value = false;
+              });
+              svnInfoContext.ready();
+            }
+          }
         });
     }
   }, []);
@@ -103,13 +134,7 @@ export default (props: {
       !fetched.value &&
       !fetching.value
     ) {
-      fetching.value = true;
-      statusContext.busy();
-      svnInfoContext
-        .provide(props.node.key as string, props.node.data.kind === "FILE")
-        .then((id) => {
-          fetchId.value = !!id ? id : "";
-        });
+      fetchSubTree();
     }
   });
   return (

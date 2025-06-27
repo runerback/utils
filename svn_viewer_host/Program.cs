@@ -64,6 +64,17 @@ var server = builder.AddNpmApp("server", "../svn_viewer_server")
     .WithEnvironment("SVN_PORT", svn_port.ToString())
     .WithEnvironment("PORT", server_port.ToString());
 
+var server_cache_pending = builder.Configuration.GetValue<int>("SERVER_CACHE_PENDING");
+if (server_cache_pending > 0)
+{
+    server.WithEnvironment("SERVER_CACHE_PENDING", server_cache_pending.ToString());
+}
+var server_cache_payload = builder.Configuration.GetValue<int>("SERVER_CACHE_PAYLOAD");
+if (server_cache_payload > 0)
+{
+    server.WithEnvironment("SERVER_CACHE_PAYLOAD", server_cache_payload.ToString());
+}
+
 var ui = builder.AddNpmApp("ui", "../svn_viewer_ui", scriptName: "dev")
     .WithReference(messages).WaitFor(messages)
     .WithReference(ui_helper).WaitFor(ui_helper)

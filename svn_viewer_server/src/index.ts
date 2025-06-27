@@ -10,7 +10,7 @@ import {
   svnUri,
   uiHelperUri,
 } from "./settings.js";
-import onMessage from "./messages.js";
+import onMessage, { sendMessage } from "./messages.js";
 import cache from "./cache.js";
 
 const connection = new signalr.HubConnectionBuilder()
@@ -344,7 +344,9 @@ app.post("/info", async (req, res) => {
   });
   const cached = cache.fetch_info.get(body);
   if (!!cached && !!cached.id) {
-    // TODO: send message from here
+    console.log("loaded from cache: ", cached);
+    res.send({ payload: cached.payload }).end();
+    return;
   }
   const result = await fetch(`${svnUri}/fetch/info`, {
     headers: {
@@ -370,7 +372,7 @@ app.post("/info", async (req, res) => {
   if (!cached && !!id) {
     cache.fetch_info.pending(body, id);
   }
-  res.send(id).end();
+  res.send({ id }).end();
 });
 
 app.post("/rev/logs", async (req, res) => {
