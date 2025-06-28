@@ -95,16 +95,27 @@ app.post("/settings", async (req, res) => {
 
 app.post("/status", async (req, res) => {
   console.log({ url: req.url, body: req.body });
-  const params = req.body as { job?: string };
+  const params = req.body as { job?: string; flush?: boolean };
+  const body = JSON.stringify({
+    job: params.job,
+  });
+  const cached = cache.fetch_status.get(body);
+  if (!!cached && !!cached.payload) {
+    if (!!params.flush) {
+      cache.fetch_status.reset(body);
+    } else {
+      console.log("[💾cache] loaded", cached);
+      res.send({ payload: cached.payload, id: cached.id }).end();
+      return;
+    }
+  }
   const result = await fetch(`${svnUri}/fetch/status`, {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
     method: "POST",
-    body: JSON.stringify({
-      job: params.job,
-    }),
+    body,
   });
   if (result.status !== 200) {
     res
@@ -118,7 +129,11 @@ app.post("/status", async (req, res) => {
       .end();
     return;
   }
-  res.send(await result.json()).end();
+  const id = await result.json();
+  if ((!cached || !!params.flush) && !!id) {
+    cache.fetch_status.pending(body, id);
+  }
+  res.send({ id }).end();
 });
 
 app.post("/status/file", async (req, res) => {
@@ -350,10 +365,9 @@ app.post("/info", async (req, res) => {
   if (!!cached && !!cached.payload) {
     if (!!params.flush) {
       cache.fetch_info.reset(body);
-      console.log("cache reset");
     } else {
-      console.log("loaded from cache: ", cached);
-      res.send({ payload: cached.payload }).end();
+      console.log("[💾cache] loaded", cached);
+      res.send({ payload: cached.payload, id: cached.id }).end();
       return;
     }
   }

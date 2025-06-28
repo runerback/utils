@@ -65,15 +65,15 @@ const update_settings = async (settings: SettingsRequest, job?: Job) => {
   return await res.text();
 };
 
-const fetch_status = async (job?: Job) => {
+const fetch_status = async (flush?: boolean, job?: Job) => {
   const res = await fetch("/api/server/status", {
     headers: {
       "Content-Type": "application/json",
     },
     method: "POST",
-    body: JSON.stringify({ job }),
+    body: JSON.stringify({ job, flush }),
   });
-  return await res.text();
+  return (await res.json()) as NetworkResponse<SvnStatus[]>;
 };
 
 const fetch_diff = async (source?: string, job?: Job) => {
@@ -282,7 +282,8 @@ export default {
       settings
     ),
   open_repo_browser: () => request(open_repo_browser),
-  fetch_status: () => request(() => fetch_status("FETCH_STATUS")),
+  fetch_status: (flush?: boolean) =>
+    request((flush) => fetch_status(flush, "FETCH_STATUS"), flush),
   fetch_diff: (source: string) =>
     request((source) => fetch_diff(source, "FETCH_DIFFS"), source),
   fetch_unversioned: (source: string) =>

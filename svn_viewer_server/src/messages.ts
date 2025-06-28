@@ -19,6 +19,7 @@ export const sendMessage = (id: string, content: any) => {
 const preprocess_status = (id: string, data: string, job: Job) => {
   const parsed = svnparser.parse_status(data, settings);
   sendMessage(id, { data: parsed, job });
+  cache.fetch_status.set(id, parsed, job);
   global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
 

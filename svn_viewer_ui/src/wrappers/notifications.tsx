@@ -1,7 +1,8 @@
 import type { NotificationInstance } from "antd/es/notification/interface";
 import { notification } from "antd";
-import { useCallback } from "preact/hooks";
+import { useCallback, useMemo } from "preact/hooks";
 import Status from "./status";
+import NotifyContextProvider, { NotifyContext } from "../context/notifyContext";
 
 export default () => {
   const [api, notificationContextHolder] = notification.useNotification({
@@ -31,11 +32,11 @@ export default () => {
     },
     []
   );
-
+  const notifyContext = useMemo(() => NotifyContextProvider(notify), [notify]);
   return (
-    <>
+    <NotifyContext.Provider value={notifyContext}>
       {notificationContextHolder}
-      <Status notify={notify} />
-    </>
+      <Status />
+    </NotifyContext.Provider>
   );
 };

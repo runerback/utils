@@ -1,4 +1,3 @@
-import type { NotificationInstance } from "antd/es/notification/interface";
 import App from "../app";
 import KeyboardContextProvider, {
   KeyboardContext,
@@ -6,12 +5,7 @@ import KeyboardContextProvider, {
 import { useCallback, useEffect, useMemo } from "preact/hooks";
 import { useSignalEffect } from "@preact/signals-react";
 
-export default (props: {
-  notify: (
-    message: string,
-    type: keyof Omit<NotificationInstance, "open" | "destroy">
-  ) => void;
-}) => {
+export default () => {
   const keyboardContext = useMemo(() => KeyboardContextProvider(), []);
   useSignalEffect(() => {
     console.log("ctrl pressing: ", keyboardContext.ctrl$.value);
@@ -36,7 +30,7 @@ export default (props: {
   });
   return (
     <KeyboardContext.Provider value={keyboardContext}>
-      <App {...props} />
+      <App />
     </KeyboardContext.Provider>
   );
 };

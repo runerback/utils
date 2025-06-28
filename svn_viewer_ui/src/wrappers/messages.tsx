@@ -1,7 +1,6 @@
 import MessageContextProvider, {
   MessageContext,
 } from "../context/messageContext";
-import type { NotificationInstance } from "antd/es/notification/interface";
 import Keyboard from "./keyboard";
 import { useContext, useMemo } from "preact/hooks";
 import { useSignalEffect } from "@preact/signals-react";
@@ -13,17 +12,15 @@ import { publishSvnInfoStream } from "../context/svnInfoContext";
 import { publishSvnLogDiffsStream } from "../context/svnLogDiffsContext";
 import { publishSvnTreeStream } from "../context/svnTreeContext";
 import { publishSvnRevLogsStream } from "../context/svnRevLogContext";
+import { NotifyContext } from "../context/notifyContext";
+import { publishSvnStatusStream } from "../context/svnStatusContext";
 
-export default (props: {
-  notify: (
-    message: string,
-    type: keyof Omit<NotificationInstance, "open" | "destroy">
-  ) => void;
-}) => {
+export default () => {
   const statusContext = useContext(StatusContext);
+  const notifyContext = useContext(NotifyContext);
   useSignalEffect(() => {
     network.errors$.subscribe((e: any) => {
-      props.notify(`${e}`, "error");
+      notifyContext.notify(`${e}`, "error");
       statusContext.idle();
     });
   });
@@ -35,11 +32,21 @@ export default (props: {
         const content = e.content!;
         if (!!content.processing) {
           statusContext.busy();
-          props.notify(`${content.job ?? "Something"} started`, "success");
+          notifyContext.notify(
+            `${content.job ?? "Something"} started`,
+            "success"
+          );
+          if (content.job === "FETCH_STATUS") {
+            publishSvnStatusStream({
+              id: e.id,
+              job: content.job,
+              processing: true,
+            });
+          }
         } else if (!!content.error) {
           console.warn(content.error);
           statusContext.idle();
-          props.notify(
+          notifyContext.notify(
             `${content.job ?? "Something"} failed: ${
               content.error ?? "Unknown Error"
             }`,
@@ -47,9 +54,19 @@ export default (props: {
           );
         } else if (!!content.completed) {
           statusContext.idle();
-          props.notify(`${content.job ?? "Something"} finished`, "success");
+          notifyContext.notify(
+            `${content.job ?? "Something"} finished`,
+            "success"
+          );
           const id = e.id;
           switch (content.job) {
+            case "FETCH_STATUS":
+              publishSvnStatusStream({
+                id: e.id,
+                job: content.job,
+                finished: true,
+              });
+              break;
             case "FETCH_DIFFS":
             case "FETCH_UNVERSIONED":
             case "FETCH_FILE_REMOTE":
@@ -94,6 +111,13 @@ export default (props: {
         } else if (!!content.data) {
           const id = e.id;
           switch (content.job) {
+            case "FETCH_STATUS":
+              publishSvnStatusStream({
+                id: e.id,
+                job: content.job,
+                status: content.data as SvnStatus[],
+              });
+              break;
             case "FETCH_DIFFS":
               publishSvnDiffStream({
                 id,
@@ -179,7 +203,7 @@ export default (props: {
   });
   return (
     <MessageContext.Provider value={messageContext}>
-      <Keyboard {...props} />
+      <Keyboard />
     </MessageContext.Provider>
   );
 };

@@ -12,11 +12,15 @@ const RESULT_CACHE_TTL =
 const tasks = {
   pending: (request: string, id: string) => {
     requestCache.set(id, request, PENDING_CACHE_TTL);
+    console.log("[💾cache] pending", id, request);
   },
   set: (id: string, payload: Object, job: Job) => {
     const request = requestCache.get(id) as string;
     if (!!request) {
       resultCache.set(request, { id, payload, job }, RESULT_CACHE_TTL);
+      console.log("[💾cache] set", id, request);
+    } else {
+      console.log("[💾cache] set: request not found", id);
     }
   },
   get: <TPayload>(request: string) => {
@@ -28,6 +32,7 @@ const tasks = {
   },
   clear: (request: string) => {
     resultCache.del(request);
+    console.log("[💾cache] reset", request);
   },
 };
 
@@ -41,6 +46,20 @@ export default {
     },
     get: (request: string) => {
       return tasks.get<SvnTreeNodeInfo>(request);
+    },
+    reset: (request: string) => {
+      tasks.clear(request);
+    },
+  },
+  fetch_status: {
+    pending: (request: string, id: string) => {
+      tasks.pending(request, id);
+    },
+    set: (id: string, payload: SvnStatus[], job: Job) => {
+      tasks.set(id, payload, job);
+    },
+    get: (request: string) => {
+      return tasks.get<SvnStatus[]>(request);
     },
     reset: (request: string) => {
       tasks.clear(request);

@@ -1,19 +1,13 @@
 import SignalPromiseContextProvider, {
   SignalPromiseContext,
 } from "../context/signalPromiseContext";
-import type { NotificationInstance } from "antd/es/notification/interface";
 import Settings from "./settings";
 
-export default (props: {
-  notify: (
-    message: string,
-    type: keyof Omit<NotificationInstance, "open" | "destroy">
-  ) => void;
-}) => {
+export default () => {
   const signalPromiseContext = SignalPromiseContextProvider();
   return (
     <SignalPromiseContext.Provider value={signalPromiseContext}>
-      <Settings {...props} />
+      <Settings />
     </SignalPromiseContext.Provider>
   );
 };

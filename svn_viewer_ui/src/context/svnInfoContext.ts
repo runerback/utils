@@ -2,6 +2,7 @@ import { createContext } from "preact";
 import { Subject, type Observable } from "rxjs";
 import network from "./network";
 import { computed, signal, type ReadonlySignal } from "@preact/signals-react";
+import moment from "moment";
 
 export interface ISvnInfoContext {
   readonly stream$: Observable<SvnInfoStream>;
@@ -11,7 +12,7 @@ export interface ISvnInfoContext {
     root: string;
     status?: boolean;
     flush?: boolean;
-  }) => Promise<NetworkResponse<SvnTreeNodeInfo> | null | undefined>;
+  }) => Promise<string | null | undefined>;
   ready: () => void;
 }
 
@@ -38,10 +39,26 @@ export default (): ISvnInfoContext => ({
   stream$,
   fetchingInfoTaskCount,
   reachMaxFetchInfoTaskCount,
-  provide: (args) => {
+  provide: async (args) => {
     console.log("[SvnInfoContext]", args);
     fetchingInfoTaskCount.value = fetchingInfoTaskCount.value + 1;
-    return network.fetch_info(args.root, args.status, args.flush);
+    const result = await network.fetch_info(args.root, args.status, args.flush);
+    if (!!result) {
+      if (!!result.payload) {
+        const id = moment().valueOf().toString();
+        setTimeout(() => {
+          publishSvnInfoStream({
+            id,
+            job: "FETCH_INFO",
+            info: result.payload,
+            finished: true,
+          });
+        }, 0);
+        return id;
+      } else if (!!result.id) {
+        return result.id;
+      }
+    }
   },
   ready: () => {
     fetchingInfoTaskCount.value = Math.max(0, fetchingInfoTaskCount.value - 1);

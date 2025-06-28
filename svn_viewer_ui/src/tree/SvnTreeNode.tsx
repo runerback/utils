@@ -16,6 +16,7 @@ import { StatusContext } from "../context/statusContext";
 import { lazy, Suspense } from "preact/compat";
 import { KeyboardContext } from "../context/keyboardContext";
 import SvnStateIcon from "../components/common/SvnStateIcon";
+import { NotifyContext } from "../context/notifyContext";
 
 const Info = lazy(() => import("../assets/Sync.svg?react"));
 const History = lazy(() => import("../assets/History.svg?react"));
@@ -30,6 +31,7 @@ export default (props: {
   useSignals();
   const statusContext = useContext(StatusContext);
   const svnInfoContext = useContext(SvnInfoContext);
+  const notifyContext = useContext(NotifyContext);
   const fetching = useSignal(false);
   useSignalEffect(() => {
     console.log({
@@ -96,25 +98,18 @@ export default (props: {
   const fetchSubTree = useCallback(() => {
     if (!fetching.value) {
       fetching.value = true;
-      console.log("ctrl pressing: ", keyboardContext.ctrl$.value);
       svnInfoContext
         .provide({
           root: props.node.key as string,
           status: props.node.data.kind === "FILE",
           flush: keyboardContext.ctrl$.value,
         })
-        .then((result) => {
-          if (!!result) {
-            if (!!result.id) {
-              statusContext.busy();
-              fetchId.value = result.id;
-            } else if (!!result.payload) {
-              batch(() => {
-                info.value = { ...result.payload };
-                fetched.value = true;
-                fetching.value = false;
-              });
-            }
+        .then((id) => {
+          if (!!id) {
+            statusContext.busy();
+            fetchId.value = id;
+          } else {
+            notifyContext.notify("Nothing Happened", "warning");
           }
         });
     }

@@ -25,7 +25,9 @@ declare type INetwork = {
       }
     | undefined
   >;
-  fetch_status: () => CreateTaskResult;
+  fetch_status: (
+    flush?: boolean
+  ) => Promise<NetworkResponse<SvnStatus[]> | null | undefined>;
   fetch_diff: (source: string) => CreateTaskResult;
   fetch_unversioned: (source: string) => CreateTaskResult;
   fetch_file_remote: (source: string) => CreateTaskResult;
@@ -83,6 +85,12 @@ declare type MessageStream = {
   readonly content?: MessageContent;
 };
 
+declare type SvnStream = {
+  readonly id: string;
+  readonly job?: Job;
+  readonly finished?: boolean;
+};
+
 declare type SvnChangelistName = "NO-CHANGE-LIST" | string;
 
 declare type SvnStatusItem = {
@@ -94,6 +102,11 @@ declare type SvnStatus = {
   readonly changelist: SvnChangelistName;
   readonly changes: SvnStatusItem[];
 };
+
+declare type SvnStatusStream = {
+  readonly processing?: boolean;
+  readonly status?: SvnStatus[];
+} & SvnStream;
 
 declare type Chunk0 = {
   readonly index: string;
@@ -141,14 +154,11 @@ declare type SvnLogs = {
 };
 
 declare type SvnDiffStream = {
-  readonly id: string;
-  readonly job?: Job;
   readonly chunks?: Chunk1[];
   readonly logs?: SvnLogs[];
   readonly unversioned?: string[];
   readonly missing?: string[];
-  readonly finished?: boolean;
-};
+} & SvnStream;
 
 declare type FetchLogDiffsRange = {
   n?: number;
@@ -156,11 +166,9 @@ declare type FetchLogDiffsRange = {
 };
 
 declare type SvnLogDiffsStream = {
-  readonly id: string;
-  readonly job?: Job;
   readonly chunks?: Chunk1[];
-  readonly finished?: boolean;
-} & FetchLogDiffsRange;
+} & FetchLogDiffsRange &
+  SvnStream;
 
 declare type SvnTreeNode = {
   readonly kind: "FILE" | "DIR";
@@ -169,11 +177,8 @@ declare type SvnTreeNode = {
 };
 
 declare type SvnTreeStream = {
-  readonly id: string;
-  readonly job?: Job;
   readonly nodes?: SvnTreeNode[];
-  readonly finished?: boolean;
-};
+} & SvnStream;
 
 declare type SvnTreeNodeInfo = {
   readonly revision?: string;
@@ -184,11 +189,8 @@ declare type SvnTreeNodeInfo = {
 };
 
 declare type SvnInfoStream = {
-  readonly id: string;
-  readonly job?: Job;
   readonly info?: SvnTreeNodeInfo;
-  readonly finished?: boolean;
-};
+} & SvnStream;
 
 declare type SvnRevStatusItem = SvnStatusItem & {
   readonly from?: string;
@@ -197,11 +199,8 @@ declare type SvnRevStatusItem = SvnStatusItem & {
 };
 
 declare type SvnRevLogsStream = {
-  readonly id: string;
-  readonly job?: Job;
   readonly items?: SvnRevStatusItem[];
-  readonly finished?: boolean;
-};
+} & SvnStream;
 
 declare interface Window {
   CLIENT_TASK_PARALLEL?: number | null;

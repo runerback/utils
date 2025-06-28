@@ -2,7 +2,7 @@ import { useSignal } from "@preact/signals-react";
 import "./app.css";
 import network from "./context/network";
 import { useSignals } from "@preact/signals-react/runtime";
-import { useCallback, useContext } from "preact/hooks";
+import { useCallback, useContext, useMemo } from "preact/hooks";
 import Settings from "./settings";
 import SvnDiffProvider, { SvnDiffContext } from "./context/svnDiffContext";
 import SvnLogDiffsProvider, {
@@ -19,28 +19,26 @@ import SvnRevLogsContextProvider, {
   SvnRevLogsContext,
 } from "./context/svnRevLogContext";
 import { StatusContext } from "./context/statusContext";
-import type { NotificationInstance } from "antd/es/notification/interface";
 import { lazy, Suspense } from "preact/compat";
 import { Skeleton } from "antd";
+import SvnStatusContextProvider, {
+  SvnStatusContext,
+} from "./context/svnStatusContext";
+import Diffs from "./diffs/SvnDiffs";
 
-const svnContext = SvnDiffProvider();
-const svnLogDiffsContext = SvnLogDiffsProvider();
-const svnTreeContext = SvnTreeContextProvider();
-const svnInfoContext = SvnInfoContextProvider();
-const svnRevLogsContext = SvnRevLogsContextProvider();
-
-const Diffs = lazy(() => import("./diffs/SvnDiffs"));
 const SvnDiffLogsModal = lazy(() => import("./logs/SvnDiffLogsModal"));
 const SvnTreeModal = lazy(() => import("./tree/SvnTreeModal"));
 const SvnRevLogsModal = lazy(() => import("./logs/SvnRevLogsModal"));
 
-export default (props: {
-  notify: (
-    message: string,
-    type: keyof Omit<NotificationInstance, "open" | "destroy">
-  ) => void;
-}) => {
+export default () => {
   useSignals();
+  const svnContext = useMemo(() => SvnDiffProvider(), []);
+  const svnLogDiffsContext = useMemo(() => SvnLogDiffsProvider(), []);
+  const svnTreeContext = useMemo(() => SvnTreeContextProvider(), []);
+  const svnInfoContext = useMemo(() => SvnInfoContextProvider(), []);
+  const svnRevLogsContext = useMemo(() => SvnRevLogsContextProvider(), []);
+  const svnStatusContext = useMemo(() => SvnStatusContextProvider(), []);
+
   const statusContext = useContext(StatusContext);
 
   const svnLogStatus = useSignal<SvnStatusItem>();
@@ -70,16 +68,13 @@ export default (props: {
   return (
     <Layout>
       <Header>
-        <Settings
-          notify={props.notify}
-          onFetchTree={() => (showSvnTree.value = true)}
-        />
+        <Settings onFetchTree={() => (showSvnTree.value = true)} />
       </Header>
       <SvnDiffContext.Provider value={svnContext}>
         <Content>
-          <Suspense fallback={<Skeleton loading />}>
+          <SvnStatusContext.Provider value={svnStatusContext}>
             <Diffs fetchLogs={onFetchLogs} />
-          </Suspense>
+          </SvnStatusContext.Provider>
         </Content>
         <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
           <Suspense fallback={<Skeleton loading />}>

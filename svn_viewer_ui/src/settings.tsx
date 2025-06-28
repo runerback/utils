@@ -17,10 +17,12 @@ import {
 } from "./context/settingsContext";
 import network from "./context/network";
 import { StatusContext } from "./context/statusContext";
-import type { NotificationInstance } from "antd/es/notification/interface";
 import { MessageContext } from "./context/messageContext";
 import { filter, map } from "rxjs";
 import { lazy, Suspense } from "preact/compat";
+import { NotifyContext } from "./context/notifyContext";
+import { provideSvnStatus } from "./context/svnStatusContext";
+import { KeyboardContext } from "./context/keyboardContext";
 
 const Refresh = lazy(() => import("./assets/Refresh.svg?react"));
 const DOM = lazy(() => import("./assets/DOM.svg?react"));
@@ -60,13 +62,7 @@ const SettingsHeader = (props: { settings: Settings }) => {
   );
 };
 
-export default function (props: {
-  notify: (
-    message: string,
-    type: keyof Omit<NotificationInstance, "open" | "destroy">
-  ) => void;
-  onFetchTree: () => void;
-}) {
+export default function (props: { onFetchTree: () => void }) {
   useSignals();
   const statusContext = useContext(StatusContext);
   const serverStatus = useSignal("");
@@ -129,6 +125,7 @@ export default function (props: {
   useSignalEffect(() => {
     validate();
   });
+  const notifyContext = useContext(NotifyContext);
   const fetchSettings = useCallback(() => {
     svnSettingsForm
       .validateFields()
@@ -139,14 +136,14 @@ export default function (props: {
         createRequest(values);
       })
       .catch((error) => {
-        props.notify(error.toString(), "error");
+        notifyContext.notify(error.toString(), "error");
         canFetch.value = false;
       });
   }, []);
+  const keyboardContext = useContext(KeyboardContext);
   const actived = useSignal(true);
   const fetchStatus = useCallback(() => {
-    statusContext.busy();
-    network.fetch_status();
+    provideSvnStatus(keyboardContext.ctrl$.value);
     actived.value = false;
   }, []);
   const pickRootDir = useCallback(() => {
