@@ -65,4 +65,18 @@ export default {
       tasks.clear(request);
     },
   },
+  fetch_logs: {
+    pending: (request: string, id: string) => {
+      tasks.pending(request, id);
+    },
+    set: (id: string, payload: SvnLog[], job: Job) => {
+      tasks.set(id, payload, job);
+    },
+    get: (request: string) => {
+      return tasks.get<SvnLog[]>(request);
+    },
+    reset: (request: string) => {
+      tasks.clear(request);
+    },
+  },
 };

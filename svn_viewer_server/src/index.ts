@@ -259,17 +259,28 @@ app.post("/unversioned", async (req, res) => {
 app.post("/logs", async (req, res) => {
   console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;
-  const params = req.body as { job?: string };
+  const params = req.body as { job?: string; flush?: boolean };
+  const body = JSON.stringify({
+    path,
+    job: params.job,
+  });
+  const cached = cache.fetch_logs.get(body);
+  if (!!cached && !!cached.payload) {
+    if (!!params.flush) {
+      cache.fetch_logs.reset(body);
+    } else {
+      console.log("[💾cache] loaded", cached);
+      res.send({ payload: cached.payload, id: cached.id }).end();
+      return;
+    }
+  }
   const result = await fetch(`${svnUri}/fetch/logs`, {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
     method: "POST",
-    body: JSON.stringify({
-      path,
-      job: params.job,
-    }),
+    body,
   });
   if (result.status !== 200) {
     res
@@ -283,7 +294,11 @@ app.post("/logs", async (req, res) => {
       .end();
     return;
   }
-  res.send(await result.json()).end();
+  const id = await result.json();
+  if ((!cached || !!params.flush) && !!id) {
+    cache.fetch_logs.pending(body, id);
+  }
+  res.send({ id }).end();
 });
 
 app.post("/logdiff", async (req, res) => {

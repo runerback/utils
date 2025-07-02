@@ -10,13 +10,11 @@ export interface ISvnStatusContext {
 export const SvnStatusContext = createContext<ISvnStatusContext>(null!);
 
 export const provideSvnStatus = async (flush?: boolean) => {
-  console.log("[SvnStatusContext]", { flush });
   const result = await network.fetch_status(flush);
   if (!!result) {
     if (!!result.payload) {
       const id = moment().valueOf().toString();
       setTimeout(() => {
-        console.log(`already published`);
         publishSvnStatusStream({
           id,
           job: "FETCH_STATUS",

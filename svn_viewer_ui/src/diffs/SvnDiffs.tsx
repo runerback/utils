@@ -3,21 +3,23 @@ import {
   useSignalEffect,
   useSignals,
 } from "@preact/signals-react/runtime";
-import { SvnChangelistCard } from "./SvnChangelistCard";
 import "./diffs.css";
 import { useCallback, useContext, useMemo } from "preact/hooks";
 import { SvnSettingsContext } from "../context/settingsContext";
 import { filter } from "rxjs";
 import { SvnStatusContext } from "../context/svnStatusContext";
+import { KeyboardContext } from "../context/keyboardContext";
+import { provideSvnLogs } from "../context/svnLogsContext";
+import { lazy, Suspense } from "preact/compat";
+import { Skeleton } from "antd";
 
-export default function (props: {
-  fetchLogs: (status: SvnStatusItem) => void;
-}) {
+const SvnChangelistCard = lazy(() => import("./SvnChangelistCard"));
+
+export default function () {
   useSignals();
   const status = useSignal(Array<SvnStatus>());
   const svnStatusContext = useContext(SvnStatusContext);
   useSignalEffect(() => {
-    console.log(`but now I'm subscribing`);
     svnStatusContext.stream$
       .pipe(filter((it) => !!it && !!it.id && it.job === "FETCH_STATUS"))
       .subscribe((content) => {
@@ -35,6 +37,10 @@ export default function (props: {
       settings.value = value;
     });
   });
+  const keyboard = useContext(KeyboardContext);
+  const fetchLogs = useCallback((status: SvnStatusItem) => {
+    provideSvnLogs(status, keyboard.ctrl$.value);
+  }, []);
   const options = useMemo(
     () => ({
       root: document.querySelector(".status"),
@@ -68,14 +74,16 @@ export default function (props: {
       {status.value
         .filter((it) => it.changes.length > 0)
         .map((states, idx) => (
-          <SvnChangelistCard
-            {...props}
-            settings={settings}
-            fkey={idx}
-            status={states}
-            observe={observe}
-            unobserve={unobserve}
-          />
+          <Suspense fallback={<Skeleton loading />}>
+            <SvnChangelistCard
+              fetchLogs={fetchLogs}
+              settings={settings}
+              fkey={idx}
+              status={states}
+              observe={observe}
+              unobserve={unobserve}
+            />
+          </Suspense>
         ))}
     </div>
   );

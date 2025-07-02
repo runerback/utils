@@ -90,15 +90,15 @@ const fetch_diff = async (source?: string, job?: Job) => {
   return await res.text();
 };
 
-const fetch_logs = async (source: string, job?: Job) => {
+const fetch_logs = async (source: string, job?: Job, flush?: boolean) => {
   const res = await fetch(`/api/server/logs?path=${encodeURI(source)}`, {
     headers: {
       "Content-Type": "application/json",
     },
     method: "POST",
-    body: JSON.stringify({ job }),
+    body: JSON.stringify({ job, flush }),
   });
-  return await res.text();
+  return (await res.json()) as NetworkResponse<SvnLog[]>;
 };
 
 const fetch_log_diffs = async (
@@ -290,8 +290,12 @@ export default {
     request((source) => fetch_unversioned(source, "FETCH_UNVERSIONED"), source),
   fetch_file_remote: (source: string) =>
     request((source) => fetch_file_remote(source, "FETCH_FILE_REMOTE"), source),
-  fetch_logs: (source: string) =>
-    request((source) => fetch_logs(source!, "FETCH_LOGS"), source),
+  fetch_logs: (source: string, flush?: boolean) =>
+    request2(
+      (source, flush) => fetch_logs(source!, "FETCH_LOGS", flush),
+      source,
+      flush
+    ),
   fetch_info: (source: string, status?: boolean, flush?: boolean) =>
     request3(
       (source, status, flush) =>

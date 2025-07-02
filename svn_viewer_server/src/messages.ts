@@ -32,6 +32,7 @@ const preprocess_diffs = (id: string, data: string, job: Job) => {
 const preprocess_logs = (id: string, data: string, job: Job) => {
   const parsed = svnparser.parse_logs(data);
   sendMessage(id, { data: parsed, job });
+  cache.fetch_logs.set(id, parsed, job);
   global.setTimeout(() => sendMessage(id, { completed: true, job }), 30);
 };
 

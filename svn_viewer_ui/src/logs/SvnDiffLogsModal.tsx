@@ -1,4 +1,3 @@
-import type { ReadonlySignal } from "@preact/signals-react";
 import { Modal } from "antd";
 import SvnLogs from "./SvnLogs";
 import {
@@ -12,33 +11,31 @@ import { filter } from "rxjs";
 import { StatusContext } from "../context/statusContext";
 import { lazy, Suspense } from "preact/compat";
 import modalContext from "../context/modalContext";
+import { SvnLogsContext } from "../context/svnLogsContext";
 
 const History = lazy(() => import("../assets/History.svg?react"));
 const Close = lazy(() => import("../assets/ChromeClose.svg?react"));
 
-export default (props: {
-  status: ReadonlySignal<SvnStatusItem | undefined>;
-  open: ReadonlySignal<boolean>;
-  onClose: () => void;
-}) => {
+export default () => {
   useSignals();
   const statusContext = useContext(StatusContext);
   const svnLogs = useSignal(Array<SvnLogs>());
   const svnDiffContext = useContext(SvnDiffContext);
+  const svnLogsContext = useContext(SvnLogsContext);
   useSignalEffect(() => {
     svnDiffContext.stream$
       .pipe(filter((it) => it.job === "FETCH_LOGS"))
       .subscribe((e) => {
-        if (props.open.value) {
+        if (svnLogsContext.show$.value) {
           if (!!e.logs && e.logs.length > 0) {
             svnLogs.value = [
               ...e.logs
                 .filter((it) => !!it.logs && it.logs.length > 0)
                 .map((it) => {
                   if (!it.status) {
-                    if (!!props.status.value) {
+                    if (!!svnLogsContext.status$.value) {
                       return {
-                        status: props.status.value,
+                        status: svnLogsContext.status$.value,
                         logs: it.logs ?? [],
                       };
                     }
@@ -57,7 +54,7 @@ export default (props: {
       });
   });
   const close = useCallback(() => {
-    props.onClose();
+    svnLogsContext.close();
     svnLogs.value = [];
   }, []);
   return (
@@ -79,13 +76,13 @@ export default (props: {
         </Suspense>
       }
       onCancel={close}
-      open={props.open.value}
+      open={svnLogsContext.show$.value}
       cancelButtonProps={{ style: { display: "none" } }}
       okButtonProps={{ style: { display: "none" } }}
       footer={null}
     >
       <SvnLogs
-        status={props.status}
+        status={svnLogsContext.status$}
         logs={svnLogs}
         busy={statusContext.busy$}
       />

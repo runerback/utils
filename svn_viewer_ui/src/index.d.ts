@@ -31,7 +31,10 @@ declare type INetwork = {
   fetch_diff: (source: string) => CreateTaskResult;
   fetch_unversioned: (source: string) => CreateTaskResult;
   fetch_file_remote: (source: string) => CreateTaskResult;
-  fetch_logs: (source: string) => CreateTaskResult;
+  fetch_logs: (
+    source: string,
+    flush?: boolean
+  ) => Promise<NetworkResponse<SvnLog[]> | null | undefined>;
   fetch_info: (
     source: string,
     status?: boolean,

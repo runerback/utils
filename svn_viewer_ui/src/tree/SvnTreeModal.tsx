@@ -1,4 +1,3 @@
-import type { ReadonlySignal } from "@preact/signals-react";
 import {
   useSignal,
   useSignalEffect,
@@ -19,6 +18,8 @@ import { filter } from "rxjs";
 import SvnTreeNode from "./SvnTreeNode";
 import { StatusContext } from "../context/statusContext";
 import modalContext from "../context/modalContext";
+import { KeyboardContext } from "../context/keyboardContext";
+import { provideSvnLogs } from "../context/svnLogsContext";
 
 const treeNodesLookup: Record<string, SvnTreeNode[]> = {};
 export type TreeDataNode = FieldDataNode<{
@@ -52,12 +53,7 @@ const buildTree = (root: string): TreeDataNode[] => {
     });
 };
 
-export default (props: {
-  open: ReadonlySignal<boolean>;
-  onClose: () => void;
-  fetchLogs: (status: SvnStatusItem) => void;
-  fetchRevLogs: (dir: string) => void;
-}) => {
+export default (props: { fetchRevLogs: (dir: string) => void }) => {
   useSignals();
   const statusContext = useContext(StatusContext);
   const treeNodes = useSignal(Array<TreeDataNode>());
@@ -94,7 +90,7 @@ export default (props: {
     svnTreeContext.stream$
       .pipe(filter((it) => !!it && !!it.id && it.job === "FETCH_TREE"))
       .subscribe((e) => {
-        if (props.open.value) {
+        if (svnTreeContext.show$.value) {
           if (e.id === fetchId.value) {
             if (!!e.nodes && e.nodes.length > 0) {
               treeNodesLookup[loadingRoot.value] = e.nodes;
@@ -108,7 +104,7 @@ export default (props: {
       });
   });
   useSignalEffect(() => {
-    if (props.open.value) {
+    if (svnTreeContext.show$.value) {
       svnTreeContext.provide(loadingRoot.value).then((id) => {
         if (!!id) {
           fetchId.value = id;
@@ -132,8 +128,13 @@ export default (props: {
   }, []);
 
   const close = useCallback(() => {
-    props.onClose();
+    svnTreeContext.close();
     treeNodes.value = [];
+  }, []);
+
+  const keyboard = useContext(KeyboardContext);
+  const fetchLogs = useCallback((status: SvnStatusItem) => {
+    provideSvnLogs(status, keyboard.ctrl$.value);
   }, []);
 
   return (
@@ -150,7 +151,7 @@ export default (props: {
       closable
       closeIcon={<Close className="icon" />}
       onCancel={close}
-      open={props.open.value}
+      open={svnTreeContext.show$.value}
       cancelButtonProps={{ style: { display: "none" } }}
       okButtonProps={{ style: { display: "none" } }}
       footer={null}
@@ -176,7 +177,7 @@ export default (props: {
             busy={statusContext.busy$}
             node={node}
             openned={expandedKeys.value.includes(node.key as string)}
-            fetchLogs={props.fetchLogs}
+            fetchLogs={fetchLogs}
             fetchRevLogs={props.fetchRevLogs}
           />
         )}

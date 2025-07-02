@@ -5,14 +5,14 @@ import type { Key } from "preact";
 import { useRef } from "preact/hooks";
 import type { ReadonlySignal } from "@preact/signals-react";
 
-export function SvnChangelistCard(props: {
+export default (props: {
   fkey?: Key;
   status: SvnStatus;
   settings: ReadonlySignal<Settings | undefined>;
   observe: (target: HTMLElement) => void;
   unobserve: (target: HTMLElement) => void;
   fetchLogs: (status: SvnStatusItem) => void;
-}) {
+}) => {
   useSignals();
   const headerRef = useRef<HTMLSpanElement>(null);
   return (
@@ -34,4 +34,4 @@ export function SvnChangelistCard(props: {
       ]}
     ></Collapse>
   );
-}
+};
