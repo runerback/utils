@@ -20,6 +20,7 @@ const parse_status = (rawStatus: string, settings: Settings): SvnStatus[] => {
   let changelist = NO_CHANGE_LIST_NAME;
   const changes = Array<SvnStatusItem>();
   const flush = () => {
+    changes.sort((a, b) => a.state.localeCompare(b.state));
     status.push({
       changelist,
       changes: [...changes],
@@ -142,7 +143,7 @@ const buildchunk1 = (chunk: Chunk0, settings: Settings): Chunk1 => {
       };
       return;
     }
-    section?.changes?.push(line.replaceAll(' ', '\u00B7'));
+    // section?.changes?.push(line.replaceAll(" ", "\u00B7"));
   });
   if (!!section) {
     chunk1.sections.push(section);
