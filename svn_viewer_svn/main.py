@@ -10,6 +10,8 @@ from starlette.middleware.cors import CORSMiddleware
 from models import (
     SchedulerStateResponseModel,
     SettingsRequestModel,
+    SvnCommitRequestModel,
+    SvnCommitResponseModel,
     SvnDiffRequestModel,
     SvnFetchInfoRequestModel,
     SvnFetchRevisionLogsRequestModel,
@@ -22,7 +24,7 @@ from models import (
     SvnStatusRequestModel,
     SvnUnversionedRequestModel,
 )
-from svn import svn_repo_browser
+from svn import svn_commit_changes, svn_repo_browser
 from worker import (
     create_fetch_svn_diff_task,
     create_fetch_svn_file_remote_task,
@@ -158,6 +160,20 @@ def fetch_revision_logs(data: SvnFetchRevisionLogsRequestModel):
 def open_repo_browser():
     args = svn_repo_browser()
     return SvnOperationResponseModel(args=args)
+
+
+# end def
+
+
+@app.post("/svn/sync/commit", response_model=SvnCommitResponseModel)
+def commit_changes(data: SvnCommitRequestModel):
+    assert data, "data is required"
+    assert data.message, "message is required"
+    assert data.files and any(data.files), "any file is required"
+    result, error = svn_commit_changes(data.message, data.files, logger)
+    return SvnCommitResponseModel(
+        output=str(result) if result else None, error=str(error) if error else None
+    )
 
 
 # end def

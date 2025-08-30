@@ -199,6 +199,17 @@ const fetch_rev_logs = async (source: string, rev: number, job?: Job) => {
   return await res.text();
 };
 
+const commit = async (message: string, files: Array<string>) => {
+  const res = await fetch(`/api/server/commit`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ message, files }),
+  });
+  return await res.text();
+};
+
 const pick_dir = async (init?: string) => {
   const res = await fetch(
     "/api/uihelper/pickdir" + (!!init ? `?path=${encodeURI(init)}` : ""),
@@ -322,4 +333,6 @@ export default {
     ),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
   open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
+  commit: (message: string, files: Array<string>) =>
+    request2((message, files) => commit(message!, files!), message, files),
 } as INetwork;

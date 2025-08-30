@@ -1,7 +1,9 @@
+from datetime import datetime
 import json
 from logging import Logger
 import os
 import subprocess
+import tempfile
 from typing import Any, List, Tuple
 
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
@@ -24,9 +26,17 @@ _settings = {
 }
 
 
-def validateUrl(source: str | None):
+def get_svn_root():
     svn_root = _settings["svn_root"]
     assert svn_root, "svn root is required"
+    return svn_root
+
+
+# end def
+
+
+def validateUrl(source: str | None):
+    svn_root = get_svn_root()
     if not source or len(source) == 0:
         return None
     # end if
@@ -86,8 +96,7 @@ def svn_fetch_settings(svn_root: str):
 
 
 def svn_fetch_status() -> Tuple[Any | None, str | None]:
-    svn_root = _settings["svn_root"]
-    assert svn_root, "svn root is required"
+    svn_root = get_svn_root()
     print(f'[svn_fetch_status] "{svn_root}"')
     status = subprocess.run(
         [_svn_executable, "status", svn_root],
@@ -239,6 +248,65 @@ def svn_fetch_log_diffs(
         shell=True,
     )
     return logs.stderr, logs.stdout
+
+
+# end def
+
+
+def svn_commit_changes(message: str, files: list[str], logger: Logger):
+    urls = [x for x in [validateUrl(f) for f in files] if x]
+    assert any(urls), "not have any valid file"
+    timestamp = datetime.now()
+    clName = "".join(
+        [
+            "COMMIT_",
+            timestamp.strftime("%Y%m%d%H%M%S"),
+            str(timestamp.microsecond // 1000),
+        ]
+    )
+    logger.info(f'[commit-_changes] -m {message} -cl "{clName}" {",".join(urls)}')
+    try:
+        for url in urls:
+            changelist = subprocess.run(
+                [
+                    _svn_executable,
+                    "changelist",
+                    clName,
+                    url,
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                shell=True,
+            )
+            if changelist.stderr:
+                return changelist.stderr, None
+            # end if
+        # end for
+        committed = subprocess.run(
+            [
+                _svn_executable,
+                "commit",
+                "-m",
+                f'"{message}"',
+                "--changelist",
+                clName,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            shell=True,
+            cwd=get_svn_root(),
+        )
+        return committed.stderr, committed.stdout
+    except Exception as exp:
+        logger.error(exp)
+        error = str(exp)
+        if not error:
+            error = "failed"
+        # end if
+        return error, None
+    # end try
 
 
 # end def

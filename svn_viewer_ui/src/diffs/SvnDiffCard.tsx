@@ -14,10 +14,13 @@ import network from "../context/network";
 import SvnDiffCardLabel from "./SvnDiffCardLabel";
 import SvnDiffCardContent from "./SvnDiffCardContent";
 import Refresh from "../assets/Refresh.svg?react";
-import OpenFolder from "../assets/OpenFolderHorizontal.svg?react";
 import { lazy, Suspense } from "preact/compat";
+import DocPendingCommitIcon from "../components/icons/DocPendingCommitIcon";
+import DocNotCommitIcon from "../components/icons/DocNotCommitIcon";
+import { SvnCommitContext } from "../context/svnCommitContext";
 
 const History = lazy(() => import("../assets/History.svg?react"));
+const OpenFolderIcon = lazy(() => import("../components/icons/OpenFolderIcon"));
 
 export function SvnDiffCard(props: {
   fkey?: Key;
@@ -105,6 +108,15 @@ export function SvnDiffCard(props: {
         return true;
     }
   });
+  const checked = useSignal(false);
+  const svnCommitContext = useContext(SvnCommitContext);
+  const fetchCommitContext = useCallback(() => {
+    if (checked.value) {
+      svnCommitContext.append(props.status.source);
+    } else {
+      svnCommitContext.remove(props.status.source);
+    }
+  }, []);
   return (
     <div className="diffcard">
       <Spin spinning={busy.value}>
@@ -123,7 +135,7 @@ export function SvnDiffCard(props: {
                       icon={
                         <Suspense fallback={<img className="icon" />}>
                           <History
-                            className={busy.value ? "icon spin" : "icon"}
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
                           />
                         </Suspense>
                       }
@@ -136,25 +148,62 @@ export function SvnDiffCard(props: {
                     />
                   )}
                   {canViewFile.value && (
-                    <Button
-                      loading={busy.value}
-                      icon={
-                        <OpenFolder
-                          className={busy.value ? "icon spin" : "icon"}
-                        />
-                      }
-                      title="Open Containing Folder"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        network.open_in_dir(props.status.source);
-                      }}
-                    />
+                    <>
+                      <Button
+                        loading={busy.value}
+                        icon={
+                          <Suspense fallback={<img className="icon" />}>
+                            <OpenFolderIcon
+                              className={
+                                busy.value ? "icon p5 spin" : "icon p5"
+                              }
+                            />
+                          </Suspense>
+                        }
+                        title="Open Containing Folder"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          network.open_in_dir(props.status.source);
+                        }}
+                      />
+                      <Button
+                        loading={busy.value}
+                        icon={
+                          checked.value ? (
+                            <DocPendingCommitIcon
+                              className={
+                                busy.value ? "icon p5 spin" : "icon p5"
+                              }
+                            />
+                          ) : (
+                            <DocNotCommitIcon
+                              className={
+                                busy.value ? "icon p5 spin" : "icon p5"
+                              }
+                            />
+                          )
+                        }
+                        title={
+                          checked.value
+                            ? "Will be committed"
+                            : "Will not be committed"
+                        }
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          checked.value = !checked.peek();
+                          fetchCommitContext();
+                        }}
+                      />
+                    </>
                   )}
                   <Button
                     loading={busy.value}
                     icon={
-                      <Refresh className={busy.value ? "icon spin" : "icon"} />
+                      <Refresh
+                        className={busy.value ? "icon p5 spin" : "icon p5"}
+                      />
                     }
                     title="Reload"
                     onClick={(e) => {

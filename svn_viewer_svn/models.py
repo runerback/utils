@@ -102,3 +102,19 @@ class SvnOperationResponseModel(BaseModel):
 
 
 # end class
+
+
+class SvnCommitRequestModel(BaseModel):
+    message: str
+    files: list[str]
+
+
+# end class
+
+
+class SvnCommitResponseModel(BaseModel):
+    output: str | None
+    error: str | None
+
+
+# end class

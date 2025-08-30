@@ -21,6 +21,9 @@ import SvnRevLogsContextProvider, {
 import SvnLogsContextProvider, {
   SvnLogsContext,
 } from "./context/svnLogsContext";
+import SvnCommitContextProvider, {
+  SvnCommitContext,
+} from "./context/svnCommitContext";
 import { StatusContext } from "./context/statusContext";
 import { lazy, Suspense } from "preact/compat";
 import { Skeleton } from "antd";
@@ -28,6 +31,7 @@ import SvnStatusContextProvider, {
   SvnStatusContext,
 } from "./context/svnStatusContext";
 import Diffs from "./diffs/SvnDiffs";
+import SvnChangesCommitModal from "./commit/SvnChangesCommitModal";
 
 const SvnDiffLogsModal = lazy(() => import("./logs/SvnDiffLogsModal"));
 const SvnTreeModal = lazy(() => import("./tree/SvnTreeModal"));
@@ -42,6 +46,7 @@ export default () => {
   const svnInfoContext = useMemo(() => SvnInfoContextProvider(), []);
   const svnRevLogsContext = useMemo(() => SvnRevLogsContextProvider(), []);
   const svnStatusContext = useMemo(() => SvnStatusContextProvider(), []);
+  const svnCommitContext = useMemo(() => SvnCommitContextProvider(), []);
 
   const statusContext = useContext(StatusContext);
 
@@ -55,15 +60,34 @@ export default () => {
     });
   }, []);
 
+  const onCommitChanges = useCallback((message: string) => {
+    svnCommitContext
+      .commit({
+        message,
+        files: svnCommitContext.files$.peek(),
+      })
+      .then((res) => {
+        console.log(res);
+      });
+  }, []);
+
   return (
     <Layout>
       <Header>
-        <Settings onFetchTree={svnTreeContext.show} />
+        <Settings
+          onFetchTree={svnTreeContext.show}
+          onCommitting={svnCommitContext.show}
+        />
       </Header>
       <SvnDiffContext.Provider value={svnContext}>
         <Content>
           <SvnStatusContext.Provider value={svnStatusContext}>
-            <Diffs />
+            <SvnCommitContext.Provider value={svnCommitContext}>
+              <Diffs />
+              <Suspense fallback={<Skeleton loading />}>
+                <SvnChangesCommitModal onCommitChanges={onCommitChanges} />
+              </Suspense>
+            </SvnCommitContext.Provider>
           </SvnStatusContext.Provider>
         </Content>
         <SvnLogsContext.Provider value={svnLogsContext}>

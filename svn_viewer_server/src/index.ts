@@ -444,6 +444,52 @@ app.post("/rev/logs", async (req, res) => {
   res.send(await result.json()).end();
 });
 
+app.post("/commit", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
+  const params = req.body as { message: string; files: [] };
+  if (
+    !params ||
+    !params.message ||
+    !params.files ||
+    params.files.length === 0
+  ) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: 400,
+          statusText: `Invalid request body: ${req.body}`,
+        },
+      })
+      .end();
+    return;
+  }
+  const result = await fetch(`${svnUri}/sync/commit`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      message: params.message,
+      files: params.files,
+    }),
+  });
+  if (result.status !== 200) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
+  }
+  res.status(200).json(await result.json());
+});
+
 app.post("/repo/browser", async (req, res) => {
   console.log({ url: req.url });
   const result = await fetch(`${svnUri}/repo/browser`, {

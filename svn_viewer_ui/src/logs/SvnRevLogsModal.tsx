@@ -10,7 +10,7 @@ import modalContext from "../context/modalContext";
 import SvnRevLogs from "./SvnRevLogs";
 
 const History = lazy(() => import("../assets/History.svg?react"));
-const Close = lazy(() => import("../assets/ChromeClose.svg?react"));
+const CloseIcon = lazy(() => import("../components/icons/CloseIcon"));
 
 export default (props: {
   dir: string;
@@ -57,7 +57,7 @@ export default (props: {
       style={{ maxHeight: "80vh" }}
       closeIcon={
         <Suspense fallback={<img className="icon" />}>
-          <Close className="icon" />
+          <CloseIcon />
         </Suspense>
       }
       onCancel={close}

@@ -8,4 +8,7 @@ export default {
   SvnTreeModal: {
     priority: 1,
   },
+  SvnCommitModal: {
+    priority: 9,
+  },
 };

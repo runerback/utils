@@ -49,6 +49,7 @@ declare type INetwork = {
   fetch_rev_logs: (source: string, rev: number) => Promise<string | undefined>;
   pick_dir: (init?: string) => Promise<string | undefined>;
   open_in_dir: (path?: string) => Promise<void | undefined>;
+  commit: (message: string, files: Array<string>) => Promise<string>;
 };
 
 declare type NetworkResponse<TPayload> = {

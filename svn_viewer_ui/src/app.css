@@ -16,6 +16,8 @@
 .icon.p5 {
   width: 1.5em;
   height: 1.5em;
+  margin-right: 0;
+  margin-bottom: -0.3em;
 }
 
 .icon.spin {

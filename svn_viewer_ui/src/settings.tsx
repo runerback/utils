@@ -26,6 +26,7 @@ import { KeyboardContext } from "./context/keyboardContext";
 
 const Refresh = lazy(() => import("./assets/Refresh.svg?react"));
 const DOM = lazy(() => import("./assets/DOM.svg?react"));
+const UploadIcon = lazy(() => import("./components/icons/UploadIcon"));
 
 const SettingsHeader = (props: { settings: Settings }) => {
   const openRepo = useCallback((url: string) => {
@@ -62,7 +63,10 @@ const SettingsHeader = (props: { settings: Settings }) => {
   );
 };
 
-export default function (props: { onFetchTree: () => void }) {
+export default function (props: {
+  onFetchTree: () => void;
+  onCommitting: () => void;
+}) {
   useSignals();
   const statusContext = useContext(StatusContext);
   const serverStatus = useSignal("");
@@ -214,7 +218,9 @@ export default function (props: { onFetchTree: () => void }) {
                       <Suspense fallback={<img className="icon" />}>
                         <Refresh
                           className={
-                            statusContext.busy$.value ? "icon spin" : "icon"
+                            statusContext.busy$.value
+                              ? "icon p5 spin"
+                              : "icon p5"
                           }
                         />
                       </Suspense>
@@ -229,7 +235,7 @@ export default function (props: { onFetchTree: () => void }) {
                   <Button
                     icon={
                       <Suspense fallback={<img className="icon" />}>
-                        <DOM className={"icon"} />
+                        <DOM className={"icon p5"} />
                       </Suspense>
                     }
                     title="Check Tree"
@@ -237,6 +243,25 @@ export default function (props: { onFetchTree: () => void }) {
                       e.preventDefault();
                       e.stopPropagation();
                       props.onFetchTree();
+                    }}
+                  />,
+                  <Button
+                    icon={
+                      <Suspense fallback={<img className="icon" />}>
+                        <UploadIcon
+                          className={
+                            statusContext.busy$.value
+                              ? "icon p5 spin"
+                              : "icon p5"
+                          }
+                        />
+                      </Suspense>
+                    }
+                    title="Upload"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      props.onCommitting();
                     }}
                   />,
                 ],

@@ -5,7 +5,6 @@ import {
 } from "@preact/signals-react/runtime";
 import { Modal, Skeleton, Tree } from "antd";
 import DOM from "../assets/DOM.svg?react";
-import Close from "../assets/ChromeClose.svg?react";
 import { useCallback, useContext } from "preact/hooks";
 import "./tree.css";
 import type { EventDataNode, FieldDataNode } from "rc-tree/lib/interface";
@@ -20,6 +19,7 @@ import { StatusContext } from "../context/statusContext";
 import modalContext from "../context/modalContext";
 import { KeyboardContext } from "../context/keyboardContext";
 import { provideSvnLogs } from "../context/svnLogsContext";
+import CloseIcon from "../components/icons/CloseIcon";
 
 const treeNodesLookup: Record<string, SvnTreeNode[]> = {};
 export type TreeDataNode = FieldDataNode<{
@@ -149,7 +149,7 @@ export default (props: { fetchRevLogs: (dir: string) => void }) => {
       height="80vh"
       zIndex={modalContext.SvnTreeModal.priority}
       closable
-      closeIcon={<Close className="icon" />}
+      closeIcon={<CloseIcon />}
       onCancel={close}
       open={svnTreeContext.show$.value}
       cancelButtonProps={{ style: { display: "none" } }}

@@ -1,0 +1,20 @@
+.modal_footer {
+  width: 100%;
+  text-align: center;
+}
+
+.modal_empty_list {
+  min-height: 30vh;
+  max-height: 60vh;
+  align-content: center;
+}
+
+.modal_list {
+  max-height: 60vh;
+  min-height: 10vh;
+  overflow-y: auto;
+}
+
+.modal_message {
+  width: 100%;
+}
