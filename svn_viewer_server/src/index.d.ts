@@ -30,7 +30,7 @@ declare type MessageContent = {
   readonly timestamp: string;
 };
 
-declare type SvnChangelistName = "<NO-CHANGE-LIST>" | string;
+declare type SvnChangelistName = "no-change-list" | string;
 
 declare type SvnStatusItem = {
   readonly state: string;
