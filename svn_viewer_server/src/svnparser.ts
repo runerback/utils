@@ -143,7 +143,7 @@ const buildchunk1 = (chunk: Chunk0, settings: Settings): Chunk1 => {
       };
       return;
     }
-    // section?.changes?.push(line.replaceAll(" ", "\u00B7"));
+    section?.changes?.push(line); //.replaceAll(" ", "\u00B7"));
   });
   if (!!section) {
     chunk1.sections.push(section);
