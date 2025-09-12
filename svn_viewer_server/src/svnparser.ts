@@ -34,7 +34,7 @@ const parse_status = (rawStatus: string, settings: Settings): SvnStatus[] => {
       changelist = changelistTest.groups["cl"];
       return;
     }
-    const statusTest = /(?<state>.)\s*(?<source>.+)/g.exec(line);
+    const statusTest = /(?<state>.)(\s+\+)?\s*(?<source>.+)/g.exec(line);
     if (!!statusTest && !!statusTest.groups) {
       const status = statusTest.groups["state"].trim();
       if (status.length === 0) {
