@@ -24,6 +24,9 @@ import SvnLogsContextProvider, {
 import SvnCommitContextProvider, {
   SvnCommitContext,
 } from "./context/svnCommitContext";
+import SvnRevertContextProvider, {
+  SvnRevertContext,
+} from "./context/svnRevertContext";
 import { StatusContext } from "./context/statusContext";
 import { lazy, Suspense } from "preact/compat";
 import { Skeleton } from "antd";
@@ -32,6 +35,7 @@ import SvnStatusContextProvider, {
 } from "./context/svnStatusContext";
 import Diffs from "./diffs/SvnDiffs";
 import SvnChangesCommitModal from "./commit/SvnChangesCommitModal";
+import { NotifyContext } from "./context/notifyContext";
 
 const SvnDiffLogsModal = lazy(() => import("./logs/SvnDiffLogsModal"));
 const SvnTreeModal = lazy(() => import("./tree/SvnTreeModal"));
@@ -39,6 +43,8 @@ const SvnRevLogsModal = lazy(() => import("./logs/SvnRevLogsModal"));
 
 export default () => {
   useSignals();
+  const statusContext = useContext(StatusContext);
+  const notifyContext = useContext(NotifyContext);
   const svnContext = useMemo(() => SvnDiffProvider(), []);
   const svnLogsContext = useMemo(() => SvnLogsContextProvider(), []);
   const svnLogDiffsContext = useMemo(() => SvnLogDiffsProvider(), []);
@@ -47,8 +53,14 @@ export default () => {
   const svnRevLogsContext = useMemo(() => SvnRevLogsContextProvider(), []);
   const svnStatusContext = useMemo(() => SvnStatusContextProvider(), []);
   const svnCommitContext = useMemo(() => SvnCommitContextProvider(), []);
-
-  const statusContext = useContext(StatusContext);
+  const svnRevertContext = useMemo(
+    () =>
+      SvnRevertContextProvider({
+        notifier: notifyContext,
+        status: statusContext,
+      }),
+    [notifyContext, statusContext]
+  );
 
   const svnRevLogDir = useSignal("");
   const showSvnRevLogs = useSignal(false);
@@ -60,16 +72,20 @@ export default () => {
     });
   }, []);
 
-  const onCommitChanges = useCallback((message: string) => {
-    svnCommitContext
-      .commit({
-        message,
-        files: svnCommitContext.files$.peek(),
-      })
-      .then((res) => {
-        console.log(res);
-      });
-  }, []);
+  const onCommitChanges = useCallback(
+    (params: { files: string[]; message: string; commit?: boolean }) => {
+      svnCommitContext
+        .commit({
+          message: params.message,
+          files: params.files,
+          commit: params.commit,
+        })
+        .then((res) => {
+          console.log(res);
+        });
+    },
+    []
+  );
 
   return (
     <Layout>
@@ -83,10 +99,12 @@ export default () => {
         <Content>
           <SvnStatusContext.Provider value={svnStatusContext}>
             <SvnCommitContext.Provider value={svnCommitContext}>
-              <Diffs />
-              <Suspense fallback={<Skeleton loading />}>
-                <SvnChangesCommitModal onCommitChanges={onCommitChanges} />
-              </Suspense>
+              <SvnRevertContext.Provider value={svnRevertContext}>
+                <Diffs />
+                <Suspense fallback={<Skeleton loading />}>
+                  <SvnChangesCommitModal onCommitChanges={onCommitChanges} />
+                </Suspense>
+              </SvnRevertContext.Provider>
             </SvnCommitContext.Provider>
           </SvnStatusContext.Provider>
         </Content>

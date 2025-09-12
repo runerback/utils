@@ -446,12 +446,16 @@ app.post("/rev/logs", async (req, res) => {
 
 app.post("/commit", async (req, res) => {
   console.log({ url: req.url, body: req.body });
-  const params = req.body as { message: string; files: [] };
+  const params = req.body as {
+    message: string;
+    files: string[];
+    commit?: boolean;
+  };
   if (
     !params ||
-    !params.message ||
     !params.files ||
-    params.files.length === 0
+    params.files.length === 0 ||
+    (!!params.commit && !params.message)
   ) {
     res
       .status(400)
@@ -473,6 +477,49 @@ app.post("/commit", async (req, res) => {
     body: JSON.stringify({
       message: params.message,
       files: params.files,
+      commit: !!params.commit,
+    }),
+  });
+  if (result.status !== 200) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
+  }
+  res.status(200).json(await result.json());
+});
+
+app.post("/revert", async (req, res) => {
+  console.log({ url: req.url, body: req.body });
+  const params = req.body as {
+    file: string;
+  };
+  if (!params || !params.file) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: 400,
+          statusText: `Invalid request body: ${req.body}`,
+        },
+      })
+      .end();
+    return;
+  }
+  const result = await fetch(`${svnUri}/sync/revert`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      file: params.file,
     }),
   });
   if (result.status !== 200) {

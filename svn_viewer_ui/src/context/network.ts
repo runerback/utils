@@ -199,15 +199,26 @@ const fetch_rev_logs = async (source: string, rev: number, job?: Job) => {
   return await res.text();
 };
 
-const commit = async (message: string, files: Array<string>) => {
+const commit = async (message: string, files: string[], commit?: boolean) => {
   const res = await fetch(`/api/server/commit`, {
     headers: {
       "Content-Type": "application/json",
     },
     method: "POST",
-    body: JSON.stringify({ message, files }),
+    body: JSON.stringify({ message, files, commit }),
   });
-  return await res.text();
+  return await res.json();
+};
+
+const revert = async (file: string) => {
+  const res = await fetch(`/api/server/revert`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ file }),
+  });
+  return await res.json();
 };
 
 const pick_dir = async (init?: string) => {
@@ -335,4 +346,5 @@ export default {
   open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
   commit: (message: string, files: Array<string>) =>
     request2((message, files) => commit(message!, files!), message, files),
+  revert: (file: string) => request((file) => revert(file!), file),
 } as INetwork;

@@ -1,25 +1,71 @@
-import { Button, Checkbox, Input, List, Modal, Space } from "antd";
+import { Button, Checkbox, Input, List, Modal, Space, Switch } from "antd";
 import UploadIcon from "../components/icons/UploadIcon";
 import modalContext from "../context/modalContext";
 import CloseIcon from "../components/icons/CloseIcon";
-import { useContext } from "preact/hooks";
+import { useCallback, useContext } from "preact/hooks";
 import { SvnCommitContext } from "../context/svnCommitContext";
-import { useSignal, useSignals } from "@preact/signals-react/runtime";
+import {
+  useComputed,
+  useSignal,
+  useSignals,
+} from "@preact/signals-react/runtime";
 import { NotifyContext } from "../context/notifyContext";
 import "./commit.css";
+import { Signal, signal } from "@preact/signals-react";
 
-export default (props: { onCommitChanges: (message: string) => void }) => {
+export default (props: {
+  onCommitChanges: (params: {
+    files: string[];
+    message: string;
+    commit?: boolean;
+  }) => void;
+}) => {
   useSignals();
   const svnCommitContext = useContext(SvnCommitContext);
   const notifyContext = useContext(NotifyContext);
-  const checked = useSignal(true);
   const message = useSignal("");
+  const committing = useSignal(false);
+  const files = useComputed(() => {
+    return svnCommitContext.files$.value.map(
+      (it) => [it, signal(true)] as [string, Signal<boolean>]
+    );
+  });
+  const confirm = useCallback(() => {
+    const msg = message.value;
+    if (committing.value && (!msg || msg.length < 10)) {
+      notifyContext.notify(
+        "Commit message should has at least 10 chars",
+        "warning"
+      );
+    }
+    props.onCommitChanges({
+      files: files.value
+        .filter(([, checked]) => checked.value)
+        .map(([file]) => file),
+      message: msg,
+      commit: committing.value,
+    });
+    svnCommitContext.close();
+  }, []);
   return (
     <Modal
       title={
-        <div>
+        <div className="modal_title">
           <UploadIcon />
-          &nbsp;svn commit ({svnCommitContext.files$.value.length} items) . . .
+          <span>
+            svn commit (
+            {files.value.filter(([, checked]) => checked.value).length} items) .
+            . .
+          </span>
+          <div className="modal_switch">
+            <Switch
+              value={committing.value}
+              onChange={(e) => (committing.value = e)}
+              checkedChildren="Commit"
+              unCheckedChildren="Add To ChangeList"
+              defaultChecked
+            />
+          </div>
         </div>
       }
       width="60vw"
@@ -33,21 +79,8 @@ export default (props: { onCommitChanges: (message: string) => void }) => {
         svnCommitContext.files$.value.length > 0 && (
           <div className="modal_footer">
             <Space>
-              <Button
-                type="primary"
-                onClick={() => {
-                  const msg = message.peek();
-                  if (!msg || msg.length < 10) {
-                    notifyContext.notify(
-                      "Commit message should has at least 10 chars",
-                      "warning"
-                    );
-                  }
-                  props.onCommitChanges(msg);
-                  svnCommitContext.close();
-                }}
-              >
-                Commit
+              <Button type="primary" onClick={confirm}>
+                Confirm
               </Button>
               <Button onClick={() => svnCommitContext.close()}>Cancel</Button>
             </Space>
@@ -61,8 +94,8 @@ export default (props: { onCommitChanges: (message: string) => void }) => {
             ? "modal_empty_list"
             : "modal_list"
         }
-        dataSource={svnCommitContext.files$.value}
-        renderItem={(file) => (
+        dataSource={files.value}
+        renderItem={([file, checked]) => (
           <List.Item>
             <Space direction="horizontal">
               <Checkbox
@@ -74,11 +107,12 @@ export default (props: { onCommitChanges: (message: string) => void }) => {
           </List.Item>
         )}
       />
-      {svnCommitContext.files$.value.length > 0 && (
+      {committing.value && svnCommitContext.files$.value.length > 0 && (
         <Input.TextArea
           className="modal_message"
           rows={4}
           value={message.value}
+          placeholder="Enter commit messages . . ."
           onChange={(e) => (message.value = e.currentTarget.value)}
         />
       )}

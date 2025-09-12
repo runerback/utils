@@ -49,7 +49,24 @@ declare type INetwork = {
   fetch_rev_logs: (source: string, rev: number) => Promise<string | undefined>;
   pick_dir: (init?: string) => Promise<string | undefined>;
   open_in_dir: (path?: string) => Promise<void | undefined>;
-  commit: (message: string, files: Array<string>) => Promise<string>;
+  commit: (
+    message: string,
+    files: string[],
+    commit?: boolean
+  ) => Promise<
+    | {
+        output?: string | null;
+        error?: string | null;
+      }
+    | undefined
+  >;
+  revert: (file: string) => Promise<
+    | {
+        output?: string | null;
+        error?: string | null;
+      }
+    | undefined
+  >;
 };
 
 declare type NetworkResponse<TPayload> = {
@@ -97,8 +114,10 @@ declare type SvnStream = {
 
 declare type SvnChangelistName = "NO-CHANGE-LIST" | string;
 
+declare type SvnState = "M" | "D" | "A" | "R" | "C" | "?" | "!" | string;
+
 declare type SvnStatusItem = {
-  readonly state: string;
+  readonly state: SvnState;
   readonly source: string;
 };
 

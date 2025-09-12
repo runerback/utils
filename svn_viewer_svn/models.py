@@ -107,12 +107,28 @@ class SvnOperationResponseModel(BaseModel):
 class SvnCommitRequestModel(BaseModel):
     message: str
     files: list[str]
+    commit: bool | None
 
 
 # end class
 
 
 class SvnCommitResponseModel(BaseModel):
+    output: str | None
+    error: str | None
+
+
+# end class
+
+
+class SvnRevertRequestModel(BaseModel):
+    file: str
+
+
+# end class
+
+
+class SvnRevertResponseModel(BaseModel):
     output: str | None
     error: str | None
 

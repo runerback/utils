@@ -28,6 +28,7 @@
 .changes .source {
   flex: 90%;
   align-content: flex-end;
+  margin-left: 1em;
 }
 
 .changes .source .matched {

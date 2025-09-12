@@ -18,3 +18,22 @@
 .modal_message {
   width: 100%;
 }
+
+.modal_title {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.modal_switch {
+  margin: auto;
+
+  button {
+    :has(.ant-switch-inner-checked) {
+      background-color: #1677ff;
+    }
+    :has(:not(.ant-switch-inner-checked)) {
+      background-color: #1677ff;
+    }
+  }
+}

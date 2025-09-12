@@ -18,6 +18,8 @@ import { lazy, Suspense } from "preact/compat";
 import DocPendingCommitIcon from "../components/icons/DocPendingCommitIcon";
 import DocNotCommitIcon from "../components/icons/DocNotCommitIcon";
 import { SvnCommitContext } from "../context/svnCommitContext";
+import RevertIcon from "../components/icons/RevertIcon";
+import { SvnRevertContext } from "../context/svnRevertContext";
 
 const History = lazy(() => import("../assets/History.svg?react"));
 const OpenFolderIcon = lazy(() => import("../components/icons/OpenFolderIcon"));
@@ -39,6 +41,7 @@ export function SvnDiffCard(props: {
   const unversioned = useSignal(Array<string>());
   const missing = useSignal(Array<string>());
   const svnContext = useContext(SvnDiffContext);
+  const svnRevertContext = useContext(SvnRevertContext);
   useSignalEffect(() => {
     svnContext.stream$
       .pipe(
@@ -117,6 +120,7 @@ export function SvnDiffCard(props: {
       svnCommitContext.remove(props.status.source);
     }
   }, []);
+  const canRevert = useComputed(() => props.status.state === "M");
   return (
     <div className="diffcard">
       <Spin spinning={busy.value}>
@@ -167,6 +171,24 @@ export function SvnDiffCard(props: {
                           network.open_in_dir(props.status.source);
                         }}
                       />
+                      {canRevert.value && (
+                        <Button
+                          loading={busy.value}
+                          icon={
+                            <RevertIcon
+                              className={
+                                busy.value ? "icon p5 spin" : "icon p5"
+                              }
+                            />
+                          }
+                          title="Revert"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            svnRevertContext.revert({ status: props.status });
+                          }}
+                        />
+                      )}
                       <Button
                         loading={busy.value}
                         icon={

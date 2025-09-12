@@ -235,7 +235,13 @@ export default function (props: {
                   <Button
                     icon={
                       <Suspense fallback={<img className="icon" />}>
-                        <DOM className={"icon p5"} />
+                        <DOM
+                          className={
+                            statusContext.busy$.value
+                              ? "icon p5 spin"
+                              : "icon p5"
+                          }
+                        />
                       </Suspense>
                     }
                     title="Check Tree"

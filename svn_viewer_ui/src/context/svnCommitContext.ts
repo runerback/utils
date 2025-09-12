@@ -10,7 +10,17 @@ export interface ISvnCommitContext {
   append: (file: string) => void;
   remove: (file: string) => void;
   clear: () => void;
-  commit: (props: { message: string; files: Array<string> }) => Promise<string>;
+  commit: (props: {
+    message: string;
+    files: string[];
+    commit?: boolean;
+  }) => Promise<
+    | {
+        output?: string | null;
+        error?: string | null;
+      }
+    | undefined
+  >;
 }
 
 export const SvnCommitContext = createContext<ISvnCommitContext>(null!);
@@ -49,6 +59,6 @@ export default (): ISvnCommitContext => ({
   },
   clear: () => (files$.value = {}),
   commit: (props) => {
-    return network.commit(props.message, props.files);
+    return network.commit(props.message, props.files, props.commit);
   },
 });

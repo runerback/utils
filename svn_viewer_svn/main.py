@@ -21,10 +21,12 @@ from models import (
     SvnLogDiffsRequestModel,
     SvnLogsRequestModel,
     SvnOperationResponseModel,
+    SvnRevertRequestModel,
+    SvnRevertResponseModel,
     SvnStatusRequestModel,
     SvnUnversionedRequestModel,
 )
-from svn import svn_commit_changes, svn_repo_browser
+from svn import svn_commit_changes, svn_repo_browser, svn_revert_file
 from worker import (
     create_fetch_svn_diff_task,
     create_fetch_svn_file_remote_task,
@@ -168,10 +170,25 @@ def open_repo_browser():
 @app.post("/svn/sync/commit", response_model=SvnCommitResponseModel)
 def commit_changes(data: SvnCommitRequestModel):
     assert data, "data is required"
-    assert data.message, "message is required"
     assert data.files and any(data.files), "any file is required"
-    result, error = svn_commit_changes(data.message, data.files, logger)
+    if data.commit:
+        assert data.message, "message is required"
+    # end if
+    error, result = svn_commit_changes(data.message, data.files, data.commit, logger)
     return SvnCommitResponseModel(
+        output=str(result) if result else None, error=str(error) if error else None
+    )
+
+
+# end def
+
+
+@app.post("/svn/sync/revert", response_model=SvnRevertResponseModel)
+def revert_file(data: SvnRevertRequestModel):
+    assert data, "data is required"
+    assert data.file, "file is required"
+    error, result = svn_revert_file(data.file)
+    return SvnRevertResponseModel(
         output=str(result) if result else None, error=str(error) if error else None
     )
 

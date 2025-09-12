@@ -253,7 +253,7 @@ def svn_fetch_log_diffs(
 # end def
 
 
-def svn_commit_changes(message: str, files: list[str], logger: Logger):
+def svn_commit_changes(message: str, files: list[str], commit: bool, logger: Logger):
     urls = [x for x in [validateUrl(f) for f in files] if x]
     assert any(urls), "not have any valid file"
     timestamp = datetime.now()
@@ -264,7 +264,11 @@ def svn_commit_changes(message: str, files: list[str], logger: Logger):
             str(timestamp.microsecond // 1000),
         ]
     )
-    logger.info(f'[commit-_changes] -m {message} -cl "{clName}" {",".join(urls)}')
+    if commit:
+        logger.info(f'[commit-_changes] -m {message} -cl "{clName}" {",".join(urls)}')
+    else:
+        logger.info(f'[add to changelist] -cl "{clName}" {",".join(urls)}')
+    # end if
     try:
         for url in urls:
             changelist = subprocess.run(
@@ -283,22 +287,25 @@ def svn_commit_changes(message: str, files: list[str], logger: Logger):
                 return changelist.stderr, None
             # end if
         # end for
-        committed = subprocess.run(
-            [
-                _svn_executable,
-                "commit",
-                "-m",
-                f'"{message}"',
-                "--changelist",
-                clName,
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            shell=True,
-            cwd=get_svn_root(),
-        )
-        return committed.stderr, committed.stdout
+        if commit:
+            committed = subprocess.run(
+                [
+                    _svn_executable,
+                    "commit",
+                    "-m",
+                    f'"{message}"',
+                    "--changelist",
+                    clName,
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                shell=True,
+                cwd=get_svn_root(),
+            )
+            return committed.stderr, committed.stdout
+        # end if
+        return None, None
     except Exception as exp:
         logger.error(exp)
         error = str(exp)
@@ -307,6 +314,23 @@ def svn_commit_changes(message: str, files: list[str], logger: Logger):
         # end if
         return error, None
     # end try
+
+
+# end def
+
+
+def svn_revert_file(file: str):
+    url = validateUrl(file)
+    assert url, "invalid path"
+    print(f'[svn_revert_file] "{url}"')
+    revert = subprocess.run(
+        [_svn_executable, "revert", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=True,
+    )
+    return revert.stderr, revert.stdout
 
 
 # end def
