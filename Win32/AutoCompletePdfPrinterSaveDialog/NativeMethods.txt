@@ -1,0 +1,11 @@
+﻿FindWindow
+FindWindowEx
+EnumChildWindows
+GetParent
+GetClassName
+GetWindowText
+SendMessage
+PostMessage
+SetForegroundWindow
+SetFocus
+IsWindow
