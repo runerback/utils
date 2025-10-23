@@ -11,21 +11,23 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="assets\SVNLogo.ico" />
-    <Resource Include="assets\SVNLogo.ico" />
+    <None Include="assets\*.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3344-prerelease" />
-    <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.183">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.135" />
+    <PackageReference Include="aspire-webview2-wpf" Version="1.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.1-dev-02307" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.1-dev-00953" />
   </ItemGroup>
 
-  <PropertyGroup Condition="'$(BuildingInsideVisualStudio)'=='true'">
-    <DefineConstants>$(DefineConstants);BUILT_INSIDE_VS</DefineConstants>
-  </PropertyGroup>
+  <ItemGroup>
+    <None Update="appsettings.*.json">
+      <DependentUpon>appsettings.json</DependentUpon>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
 </Project>

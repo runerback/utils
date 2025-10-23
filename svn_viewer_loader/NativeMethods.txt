@@ -1,3 +1,0 @@
-GetConsoleWindow
-ShowWindow
-GenerateConsoleCtrlEvent
