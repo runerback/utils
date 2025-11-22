@@ -45,6 +45,7 @@ export default (props: {
       message: msg,
       commit: committing.value,
     });
+    svnCommitContext.clear();
     svnCommitContext.close();
   }, []);
   return (
