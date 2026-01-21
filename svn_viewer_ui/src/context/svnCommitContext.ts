@@ -5,6 +5,7 @@ import network from "./network";
 export interface ISvnCommitContext {
   readonly show$: ReadonlySignal<boolean>;
   readonly files$: ReadonlySignal<string[]>;
+  readonly pendingCount$: ReadonlySignal<number>;
   show: () => void;
   close: () => void;
   append: (file: string) => void;
@@ -16,9 +17,9 @@ export interface ISvnCommitContext {
     commit?: boolean;
   }) => Promise<
     | {
-        output?: string | null;
-        error?: string | null;
-      }
+      output?: string | null;
+      error?: string | null;
+    }
     | undefined
   >;
 }
@@ -34,6 +35,9 @@ export default (): ISvnCommitContext => ({
     return Object.entries(files$.value)
       .filter(([, checked]) => !!checked)
       .map(([file, _]) => file);
+  }),
+  pendingCount$: computed(() => {
+    return Object.values(files$.value).filter(Boolean).length;
   }),
   show: () => {
     show$.value = true;

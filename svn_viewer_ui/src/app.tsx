@@ -59,7 +59,7 @@ export default () => {
         notifier: notifyContext,
         status: statusContext,
       }),
-    [notifyContext, statusContext]
+    [notifyContext, statusContext],
   );
 
   const svnRevLogDir = useSignal("");
@@ -84,54 +84,54 @@ export default () => {
           console.log(res);
         });
     },
-    []
+    [],
   );
 
   return (
-    <Layout>
-      <Header>
-        <Settings
-          onFetchTree={svnTreeContext.show}
-          onCommitting={svnCommitContext.show}
-        />
-      </Header>
-      <SvnDiffContext.Provider value={svnContext}>
-        <Content>
-          <SvnStatusContext.Provider value={svnStatusContext}>
-            <SvnCommitContext.Provider value={svnCommitContext}>
+    <SvnCommitContext.Provider value={svnCommitContext}>
+      <Layout>
+        <Header>
+          <Settings
+            onFetchTree={svnTreeContext.show}
+            onCommitting={svnCommitContext.show}
+          />
+        </Header>
+        <SvnDiffContext.Provider value={svnContext}>
+          <Content>
+            <SvnStatusContext.Provider value={svnStatusContext}>
               <SvnRevertContext.Provider value={svnRevertContext}>
                 <Diffs />
                 <Suspense fallback={<Skeleton loading />}>
                   <SvnChangesCommitModal onCommitChanges={onCommitChanges} />
                 </Suspense>
               </SvnRevertContext.Provider>
-            </SvnCommitContext.Provider>
-          </SvnStatusContext.Provider>
-        </Content>
-        <SvnLogsContext.Provider value={svnLogsContext}>
-          <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
+            </SvnStatusContext.Provider>
+          </Content>
+          <SvnLogsContext.Provider value={svnLogsContext}>
+            <SvnLogDiffsContext.Provider value={svnLogDiffsContext}>
+              <Suspense fallback={<Skeleton loading />}>
+                <SvnDiffLogsModal />
+              </Suspense>
+            </SvnLogDiffsContext.Provider>
+          </SvnLogsContext.Provider>
+          <SvnTreeContext.Provider value={svnTreeContext}>
+            <SvnInfoContext.Provider value={svnInfoContext}>
+              <Suspense fallback={<Skeleton loading />}>
+                <SvnTreeModal fetchRevLogs={onFetchRevLogs} />
+              </Suspense>
+            </SvnInfoContext.Provider>
+          </SvnTreeContext.Provider>
+          <SvnRevLogsContext.Provider value={svnRevLogsContext}>
             <Suspense fallback={<Skeleton loading />}>
-              <SvnDiffLogsModal />
+              <SvnRevLogsModal
+                dir={svnRevLogDir.value}
+                open={showSvnRevLogs}
+                onClose={() => (showSvnRevLogs.value = false)}
+              />
             </Suspense>
-          </SvnLogDiffsContext.Provider>
-        </SvnLogsContext.Provider>
-        <SvnTreeContext.Provider value={svnTreeContext}>
-          <SvnInfoContext.Provider value={svnInfoContext}>
-            <Suspense fallback={<Skeleton loading />}>
-              <SvnTreeModal fetchRevLogs={onFetchRevLogs} />
-            </Suspense>
-          </SvnInfoContext.Provider>
-        </SvnTreeContext.Provider>
-        <SvnRevLogsContext.Provider value={svnRevLogsContext}>
-          <Suspense fallback={<Skeleton loading />}>
-            <SvnRevLogsModal
-              dir={svnRevLogDir.value}
-              open={showSvnRevLogs}
-              onClose={() => (showSvnRevLogs.value = false)}
-            />
-          </Suspense>
-        </SvnRevLogsContext.Provider>
-      </SvnDiffContext.Provider>
-    </Layout>
+          </SvnRevLogsContext.Provider>
+        </SvnDiffContext.Provider>
+      </Layout>
+    </SvnCommitContext.Provider>
   );
 };

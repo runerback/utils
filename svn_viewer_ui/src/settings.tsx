@@ -1,4 +1,13 @@
-import { Button, Collapse, Form, Input, Space, Spin, Switch } from "antd";
+import {
+  Badge,
+  Button,
+  Collapse,
+  Form,
+  Input,
+  Space,
+  Spin,
+  Switch,
+} from "antd";
 import { useForm } from "antd/es/form/Form";
 import {
   useComputed,
@@ -23,6 +32,7 @@ import { lazy, Suspense } from "preact/compat";
 import { NotifyContext } from "./context/notifyContext";
 import { provideSvnStatus } from "./context/svnStatusContext";
 import { KeyboardContext } from "./context/keyboardContext";
+import { SvnCommitContext } from "./context/svnCommitContext";
 
 const Refresh = lazy(() => import("./assets/Refresh.svg?react"));
 const DOM = lazy(() => import("./assets/DOM.svg?react"));
@@ -60,6 +70,25 @@ const SettingsHeader = (props: { settings: Settings }) => {
         </span>
       )}
     </div>
+  );
+};
+
+const UploadButtonIcon = () => {
+  useSignals();
+  const statusContext = useContext(StatusContext);
+  const svnCommitContext = useContext(SvnCommitContext);
+  return svnCommitContext.pendingCount$.value > 0 ? (
+    <Badge count={svnCommitContext.pendingCount$.value} overflowCount={99}>
+      <UploadIcon
+        className={statusContext.busy$.value ? "icon p5 spin" : "icon p5"}
+      />
+    </Badge>
+  ) : (
+    <Suspense fallback={<img className="icon" />}>
+      <UploadIcon
+        className={statusContext.busy$.value ? "icon p5 spin" : "icon p5"}
+      />
+    </Suspense>
   );
 };
 
@@ -253,17 +282,7 @@ export default function (props: {
                       }}
                     />
                     <Button
-                      icon={
-                        <Suspense fallback={<img className="icon" />}>
-                          <UploadIcon
-                            className={
-                              statusContext.busy$.value
-                                ? "icon p5 spin"
-                                : "icon p5"
-                            }
-                          />
-                        </Suspense>
-                      }
+                      icon={<UploadButtonIcon />}
                       title="Upload"
                       onClick={(e) => {
                         e.preventDefault();
