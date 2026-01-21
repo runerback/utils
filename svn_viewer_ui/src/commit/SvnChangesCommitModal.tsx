@@ -24,6 +24,7 @@ export default (props: {
   const svnCommitContext = useContext(SvnCommitContext);
   const notifyContext = useContext(NotifyContext);
   const message = useSignal("");
+  const clname = useSignal("");
   const committing = useSignal(false);
   const files = useComputed(() => {
     return svnCommitContext.files$.value.map(
@@ -98,25 +99,33 @@ export default (props: {
         dataSource={files.value}
         renderItem={([file, checked]) => (
           <List.Item>
-            <Space direction="horizontal">
+            <Space direction="horizontal" wrap>
               <Checkbox
                 checked={checked.value}
                 onChange={(e) => (checked.value = e.target.checked)}
-              />
-              {file}
+              >
+                {file}
+              </Checkbox>
             </Space>
           </List.Item>
         )}
       />
-      {committing.value && svnCommitContext.files$.value.length > 0 && (
-        <Input.TextArea
-          className="modal_message"
-          rows={4}
-          value={message.value}
-          placeholder="Enter commit messages . . ."
-          onChange={(e) => (message.value = e.currentTarget.value)}
-        />
-      )}
+      {svnCommitContext.files$.value.length > 0 &&
+        (committing.value ? (
+          <Input.TextArea
+            className="modal_message"
+            rows={4}
+            value={message.value}
+            placeholder="Enter commit messages . . ."
+            onChange={(e) => (message.value = e.currentTarget.value)}
+          />
+        ) : (
+          <Input
+            value={clname.value}
+            placeholder="Enter changelist name . . ."
+            onChange={(e) => (clname.value = e.currentTarget.value)}
+          />
+        ))}
     </Modal>
   );
 };

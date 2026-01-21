@@ -47,8 +47,11 @@ export function SvnDiffCard(props: {
       .pipe(
         filter(
           (it) =>
-            !!it && !!it.id && it.job !== "FETCH_LOGS" && it.id === diffId.value
-        )
+            !!it &&
+            !!it.id &&
+            it.job !== "FETCH_LOGS" &&
+            it.id === diffId.value,
+        ),
       )
       .subscribe((e) => {
         if (!!e.chunks && e.chunks.length > 0) {
@@ -130,7 +133,12 @@ export function SvnDiffCard(props: {
           onChange={fetch}
           items={[
             {
-              label: <SvnDiffCardLabel status={props.status} />,
+              label: (
+                <SvnDiffCardLabel
+                  status={props.status}
+                  viewed={fetched.value}
+                />
+              ),
               extra: (
                 <Space>
                   {canShowLog.value && (
@@ -152,73 +160,65 @@ export function SvnDiffCard(props: {
                     />
                   )}
                   {canViewFile.value && (
-                    <>
-                      <Button
-                        loading={busy.value}
-                        icon={
-                          <Suspense fallback={<img className="icon" />}>
-                            <OpenFolderIcon
-                              className={
-                                busy.value ? "icon p5 spin" : "icon p5"
-                              }
-                            />
-                          </Suspense>
-                        }
-                        title="Open Containing Folder"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          network.open_in_dir(props.status.source);
-                        }}
-                      />
-                      {canRevert.value && (
-                        <Button
-                          loading={busy.value}
-                          icon={
-                            <RevertIcon
-                              className={
-                                busy.value ? "icon p5 spin" : "icon p5"
-                              }
-                            />
-                          }
-                          title="Revert"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            svnRevertContext.revert({ status: props.status });
-                          }}
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        <Suspense fallback={<img className="icon" />}>
+                          <OpenFolderIcon
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        </Suspense>
+                      }
+                      title="Open Containing Folder"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        network.open_in_dir(props.status.source);
+                      }}
+                    />
+                  )}
+                  {canViewFile.value && canRevert.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        <RevertIcon
+                          className={busy.value ? "icon p5 spin" : "icon p5"}
                         />
-                      )}
-                      <Button
-                        loading={busy.value}
-                        icon={
-                          checked.value ? (
-                            <DocPendingCommitIcon
-                              className={
-                                busy.value ? "icon p5 spin" : "icon p5"
-                              }
-                            />
-                          ) : (
-                            <DocNotCommitIcon
-                              className={
-                                busy.value ? "icon p5 spin" : "icon p5"
-                              }
-                            />
-                          )
-                        }
-                        title={
-                          checked.value
-                            ? "Will be committed"
-                            : "Will not be committed"
-                        }
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          checked.value = !checked.peek();
-                          fetchCommitContext();
-                        }}
-                      />
-                    </>
+                      }
+                      title="Revert"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        svnRevertContext.revert({ status: props.status });
+                      }}
+                    />
+                  )}
+                  {canViewFile.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        checked.value ? (
+                          <DocPendingCommitIcon
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        ) : (
+                          <DocNotCommitIcon
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        )
+                      }
+                      title={
+                        checked.value
+                          ? "Will be committed"
+                          : "Will not be committed"
+                      }
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        checked.value = !checked.peek();
+                        fetchCommitContext();
+                      }}
+                    />
                   )}
                   <Button
                     loading={busy.value}

@@ -38,7 +38,7 @@ export default (props: {
         {
           label: (
             <span ref={headerRef}>
-              <b>{props.status.changelist}</b>
+              <b>{props.status.changelist}</b> (<b>{changes.value.length}</b>)
             </span>
           ),
           children: changes.value.map(([states, idx]) => (

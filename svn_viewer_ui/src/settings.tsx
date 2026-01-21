@@ -1,4 +1,4 @@
-import { Button, Collapse, Form, Input, Spin, Switch } from "antd";
+import { Button, Collapse, Form, Input, Space, Spin, Switch } from "antd";
 import { useForm } from "antd/es/form/Form";
 import {
   useComputed,
@@ -37,7 +37,7 @@ const SettingsHeader = (props: { settings: Settings }) => {
     });
   }, []);
   return (
-    <>
+    <div className="headerTitle">
       <b>{props.settings.svn_root}</b>
       {!!props.settings.svn_repo && (
         <span>
@@ -59,7 +59,7 @@ const SettingsHeader = (props: { settings: Settings }) => {
           )
         </span>
       )}
-    </>
+    </div>
   );
 };
 
@@ -107,7 +107,7 @@ export default function (props: {
       .pipe(
         map((it) => it.content),
         filter(Boolean),
-        filter((it) => it.job === "FETCH_SETTINGS" && !!it.completed)
+        filter((it) => it.job === "FETCH_SETTINGS" && !!it.completed),
       )
       .subscribe(() => {
         getSettings();
@@ -211,66 +211,68 @@ export default function (props: {
               ),
               extra: !actived.value &&
                 !fetching.value &&
-                !!currentSettings.value && [
-                  <Button
-                    loading={statusContext.busy$.value}
-                    icon={
-                      <Suspense fallback={<img className="icon" />}>
-                        <Refresh
-                          className={
-                            statusContext.busy$.value
-                              ? "icon p5 spin"
-                              : "icon p5"
-                          }
-                        />
-                      </Suspense>
-                    }
-                    title="Check Status"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      fetchStatus();
-                    }}
-                  />,
-                  <Button
-                    icon={
-                      <Suspense fallback={<img className="icon" />}>
-                        <DOM
-                          className={
-                            statusContext.busy$.value
-                              ? "icon p5 spin"
-                              : "icon p5"
-                          }
-                        />
-                      </Suspense>
-                    }
-                    title="Check Tree"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      props.onFetchTree();
-                    }}
-                  />,
-                  <Button
-                    icon={
-                      <Suspense fallback={<img className="icon" />}>
-                        <UploadIcon
-                          className={
-                            statusContext.busy$.value
-                              ? "icon p5 spin"
-                              : "icon p5"
-                          }
-                        />
-                      </Suspense>
-                    }
-                    title="Upload"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      props.onCommitting();
-                    }}
-                  />,
-                ],
+                !!currentSettings.value && (
+                  <Space>
+                    <Button
+                      loading={statusContext.busy$.value}
+                      icon={
+                        <Suspense fallback={<img className="icon" />}>
+                          <Refresh
+                            className={
+                              statusContext.busy$.value
+                                ? "icon p5 spin"
+                                : "icon p5"
+                            }
+                          />
+                        </Suspense>
+                      }
+                      title="Check Status"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        fetchStatus();
+                      }}
+                    />
+                    <Button
+                      icon={
+                        <Suspense fallback={<img className="icon" />}>
+                          <DOM
+                            className={
+                              statusContext.busy$.value
+                                ? "icon p5 spin"
+                                : "icon p5"
+                            }
+                          />
+                        </Suspense>
+                      }
+                      title="Check Tree"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        props.onFetchTree();
+                      }}
+                    />
+                    <Button
+                      icon={
+                        <Suspense fallback={<img className="icon" />}>
+                          <UploadIcon
+                            className={
+                              statusContext.busy$.value
+                                ? "icon p5 spin"
+                                : "icon p5"
+                            }
+                          />
+                        </Suspense>
+                      }
+                      title="Upload"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        props.onCommitting();
+                      }}
+                    />
+                  </Space>
+                ),
               children: [
                 <Form
                   style={{ minWidth: 800, maxWidth: "100%", textAlign: "left" }}

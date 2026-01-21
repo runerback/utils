@@ -1,6 +1,7 @@
 import { useComputed } from "@preact/signals-react";
 import SvnStateIcon from "../components/common/SvnStateIcon";
 import "./SvnDiffCardLabel.css";
+import { Badge } from "antd";
 
 const Hightlight = (props: { source: string; match: string }) => {
   const matchIdx = useComputed(() => props.source.indexOf(props.match));
@@ -30,7 +31,11 @@ const Hightlight = (props: { source: string; match: string }) => {
   );
 };
 
-export default (props: { status: SvnStatusItem; hightlight?: string }) => {
+export default (props: {
+  status: SvnStatusItem;
+  hightlight?: string;
+  viewed?: boolean;
+}) => {
   const stateTip = useComputed(() => {
     switch (props.status.state) {
       case "M":
@@ -59,6 +64,9 @@ export default (props: { status: SvnStatusItem; hightlight?: string }) => {
       <div className="state">
         <span className="tooltip">{stateTip.value}</span>
         <SvnStateIcon state={props.status.state} />
+      </div>
+      <div className="review">
+        {props.viewed ? <Badge color="#04E652" /> : <Badge color="#0370E5" />}
       </div>
       <div className="source">
         {!!props.hightlight && !!rev.value?.highlight ? (

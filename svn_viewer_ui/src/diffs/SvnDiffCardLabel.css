@@ -6,7 +6,6 @@
 .changes .state {
   display: inline;
   font-size: 1.2em;
-  margin-bottom: -0.8em;
 }
 
 .changes .state .tooltip {
@@ -28,10 +27,14 @@
 .changes .source {
   flex: 90%;
   align-content: flex-end;
-  margin-left: 1em;
+  margin-bottom: 0.25em;
 }
 
 .changes .source .matched {
   font-weight: bold;
   color: #ff2a04;
+}
+
+.review {
+  margin: 0 0.5em;
 }
