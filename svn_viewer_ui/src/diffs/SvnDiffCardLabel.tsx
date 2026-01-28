@@ -66,7 +66,7 @@ export default (props: {
         <SvnStateIcon state={props.status.state} />
       </div>
       <div className="review">
-        {props.viewed ? <Badge color="#04E652" /> : <Badge color="#0370E5" />}
+        {props.viewed ? <Badge color="#00E900" /> : <Badge color="#0370E5" />}
       </div>
       <div className="source">
         {!!props.hightlight && !!rev.value?.highlight ? (
