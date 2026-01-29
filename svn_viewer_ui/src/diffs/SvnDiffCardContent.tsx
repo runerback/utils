@@ -47,7 +47,11 @@ export default (props: {
     !!props.missing &&
     useComputed(() => {
       if (!!props.missing!.value) {
-        return props.missing!.value;
+        return [
+          "```diff",
+          ...props.missing!.value.map((line) => `-${line}`),
+          "```",
+        ];
       }
       return [];
     });
@@ -125,9 +129,9 @@ export default (props: {
         !!missingContent.value &&
         missingContent.value.length > 0 && (
           <Suspense fallback={<Skeleton loading />}>
-            <SvnRawMarkdown
-              lines$={missingContent}
-              language={language}
+            <SvnDiffMarkdown
+              content={missingContent.value.join("\n")}
+              maxLine={maxLine}
               {...props}
             />
           </Suspense>
