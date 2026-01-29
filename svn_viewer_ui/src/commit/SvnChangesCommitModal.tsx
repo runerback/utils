@@ -28,24 +28,40 @@ export default (props: {
   const committing = useSignal(false);
   const files = useComputed(() => {
     return svnCommitContext.files$.value.map(
-      (it) => [it, signal(true)] as [string, Signal<boolean>]
+      (it) => [it, signal(true)] as [string, Signal<boolean>],
     );
   });
   const confirm = useCallback(() => {
-    const msg = message.value;
-    if (committing.value && (!msg || msg.length < 10)) {
-      notifyContext.notify(
-        "Commit message should has at least 10 chars",
-        "warning"
-      );
+    if (committing.value) {
+      const msg = message.value;
+      if (!msg || msg.length < 10) {
+        notifyContext.notify(
+          "Commit message should has at least 10 chars",
+          "warning",
+        );
+        return;
+      }
+      props.onCommitChanges({
+        files: files.value
+          .filter(([, checked]) => checked.value)
+          .map(([file]) => file),
+        message: msg,
+        commit: committing.value,
+      });
+    } else {
+      const changelistName = clname.value?.trim();
+      if (!changelistName) {
+        notifyContext.notify("Changelist should have a name", "warning");
+        return;
+      }
+      props.onCommitChanges({
+        files: files.value
+          .filter(([, checked]) => checked.value)
+          .map(([file]) => file),
+        message: changelistName,
+        commit: committing.value,
+      });
     }
-    props.onCommitChanges({
-      files: files.value
-        .filter(([, checked]) => checked.value)
-        .map(([file]) => file),
-      message: msg,
-      commit: committing.value,
-    });
     svnCommitContext.clear();
     svnCommitContext.close();
   }, []);
