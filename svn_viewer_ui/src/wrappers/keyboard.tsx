@@ -1,4 +1,4 @@
-import App from "../app";
+import Clipboard from "./clipboard";
 import KeyboardContextProvider, {
   KeyboardContext,
 } from "../context/keyboardContext";
@@ -30,7 +30,7 @@ export default () => {
   });
   return (
     <KeyboardContext.Provider value={keyboardContext}>
-      <App />
+      <Clipboard />
     </KeyboardContext.Provider>
   );
 };

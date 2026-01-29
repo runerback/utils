@@ -20,6 +20,8 @@ import DocNotCommitIcon from "../components/icons/DocNotCommitIcon";
 import { SvnCommitContext } from "../context/svnCommitContext";
 import RevertIcon from "../components/icons/RevertIcon";
 import { SvnRevertContext } from "../context/svnRevertContext";
+import CopyIcon from "../components/icons/CopyIcon";
+import { ClipboardContext } from "../context/clipboardContext";
 
 const History = lazy(() => import("../assets/History.svg?react"));
 const OpenFolderIcon = lazy(() => import("../components/icons/OpenFolderIcon"));
@@ -153,6 +155,7 @@ export function SvnDiffCard(props: {
       isfile.value = res === true;
     });
   }, []);
+  const clipboard = useContext(ClipboardContext);
   return (
     <div className="diffcard">
       <Spin spinning={busy.value}>
@@ -172,6 +175,26 @@ export function SvnDiffCard(props: {
               ),
               extra: (
                 <Space>
+                  {isfile.value && canViewFile.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        <Suspense fallback={<img className="icon" />}>
+                          <CopyIcon
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        </Suspense>
+                      }
+                      title="Copy Full Path"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        clipboard.copy(
+                          `${props.settings.value?.svn_root}/${props.status.source}`,
+                        );
+                      }}
+                    />
+                  )}
                   {canShowLog.value && (
                     <Button
                       loading={busy.value}
