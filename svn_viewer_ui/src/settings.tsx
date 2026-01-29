@@ -215,6 +215,7 @@ export default function (props: {
       <Spin spinning={fetchingServerStatus.value}>
         <Collapse
           bordered
+          size="small"
           className="card"
           activeKey={actived.value ? [1] : []}
           onChange={(e) => (actived.value = e.length > 0)}
