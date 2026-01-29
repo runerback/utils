@@ -53,7 +53,7 @@ const get_settings = async () => {
 const update_settings = async (settings: SettingsRequest, job?: Job) => {
   const res = await fetch(
     `/api/server/settings?path=${encodeURI(settings.svn_root)}` +
-      (!!settings.dark_theme ? "&dark" : ""),
+    (!!settings.dark_theme ? "&dark" : ""),
     {
       headers: {
         "Content-Type": "application/json",
@@ -250,6 +250,34 @@ const open_repo_browser = async () => {
   return (await res.json()) as { succeed?: boolean };
 };
 
+const get_file_isfile = async (file: string) => {
+  const res = await fetch("/api/server/file/isfile", {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ path: file }),
+  });
+  if (res.status !== 200) {
+    return false;
+  }
+  return (await res.text())?.toLowerCase() === "true";
+}
+
+const get_file_modifed_time = async (file: string) => {
+  const res = await fetch("/api/server/file/stm", {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({ path: file }),
+  });
+  if (res.status !== 200) {
+    return { error: res.statusText };
+  }
+  return await res.json();
+}
+
 const errors$ = new Subject<any>();
 
 const request = async <TReq = never, TRes = never>(
@@ -347,4 +375,6 @@ export default {
   commit: (message: string, files: Array<string>) =>
     request2((message, files) => commit(message!, files!), message, files),
   revert: (file: string) => request((file) => revert(file!), file),
+  get_file_isfile: (file: string) => request((file) => get_file_isfile(file!), file),
+  get_file_modifed_time: (file: string) => request((file) => get_file_modifed_time(file!), file),
 } as INetwork;

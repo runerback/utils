@@ -3,7 +3,6 @@ import json
 from logging import Logger
 import os
 import subprocess
-import tempfile
 from typing import Any, List, Tuple
 
 _svn_executable = os.environ.get("SVN_EXECUTABLE")
@@ -483,6 +482,30 @@ def svn_repo_browser() -> List[str] | None:
         return None
     # end if
     return [_tortoise_svn_executable, "/command:repobrowser", f'/path:"{repo}"']
+
+
+# end def
+
+
+def get_svn_file_is_file(path: str) -> bool:
+    url = validateUrl(path)
+    if not url:
+        return False
+    # end if
+    return os.path.isfile(url)
+
+
+# end def
+
+
+def get_svn_file_modifiedtime(path: str) -> str:
+    url = validateUrl(path)
+    if not url:
+        return ""
+    # end if
+    mtime = os.path.getmtime(url)
+    local_dt = datetime.fromtimestamp(mtime)
+    return local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 # end def

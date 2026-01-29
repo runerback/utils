@@ -27,13 +27,16 @@ import SvnCommitContextProvider, {
 import SvnRevertContextProvider, {
   SvnRevertContext,
 } from "./context/svnRevertContext";
+import IntersectionContextProvider, {
+  IntersectionContext,
+} from "./context/intersectionContext";
 import { StatusContext } from "./context/statusContext";
 import { lazy, Suspense } from "preact/compat";
 import { Skeleton } from "antd";
 import SvnStatusContextProvider, {
   SvnStatusContext,
 } from "./context/svnStatusContext";
-import Diffs from "./diffs/SvnDiffs";
+import SvnDiffs from "./diffs/SvnDiffs";
 import SvnChangesCommitModal from "./commit/SvnChangesCommitModal";
 import { NotifyContext } from "./context/notifyContext";
 
@@ -61,6 +64,7 @@ export default () => {
       }),
     [notifyContext, statusContext],
   );
+  const intersectionContext = useMemo(() => IntersectionContextProvider(), []);
 
   const svnRevLogDir = useSignal("");
   const showSvnRevLogs = useSignal(false);
@@ -100,7 +104,9 @@ export default () => {
           <Content>
             <SvnStatusContext.Provider value={svnStatusContext}>
               <SvnRevertContext.Provider value={svnRevertContext}>
-                <Diffs />
+                <IntersectionContext.Provider value={intersectionContext}>
+                  <SvnDiffs />
+                </IntersectionContext.Provider>
                 <Suspense fallback={<Skeleton loading />}>
                   <SvnChangesCommitModal onCommitChanges={onCommitChanges} />
                 </Suspense>

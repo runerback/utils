@@ -4,12 +4,18 @@ import {
   useSignals,
 } from "@preact/signals-react/runtime";
 import "./diffs.css";
-import { useCallback, useContext, useMemo } from "preact/hooks";
+import {
+  useCallback,
+  useContext,
+  useMemo,
+  type MutableRef,
+} from "preact/hooks";
 import { SvnSettingsContext } from "../context/settingsContext";
 import { filter } from "rxjs";
 import { SvnStatusContext } from "../context/svnStatusContext";
 import { KeyboardContext } from "../context/keyboardContext";
 import { provideSvnLogs } from "../context/svnLogsContext";
+import { IntersectionContext } from "../context/intersectionContext";
 import { lazy, Suspense } from "preact/compat";
 import { Skeleton } from "antd";
 
@@ -47,27 +53,34 @@ export default function () {
       rootMargin: "0px",
       threshold: 0.5,
     }),
-    []
+    [],
   );
-  const callback = useCallback<IntersectionObserverCallback>((entries) => {
-    entries.forEach((entry) => {
-      console.log("IntersectionObserverCallback", {
-        target: entry.target,
-        isIntersecting: entry.isIntersecting,
-      });
-    });
-  }, []);
+  const intersectionContext = useContext(IntersectionContext);
   const observer = useMemo(
-    () => new IntersectionObserver(callback, options),
-    [options]
+    () =>
+      new IntersectionObserver(intersectionContext.ObserverCallback$, options),
+    [options],
   );
-  const observe = useCallback((target: HTMLElement) => {
-    observer.observe(target);
-    console.log("observing", target);
-  }, []);
-  const unobserve = useCallback((target: HTMLElement) => {
-    observer.unobserve(target);
-    console.log("stop observe", target);
+  const observe = useCallback(
+    (target: MutableRef<HTMLElement>, callback: (active: boolean) => void) => {
+      if (target.current) {
+        observer.observe(target.current);
+        intersectionContext.register(
+          target.current.textContent,
+          target,
+          callback,
+        );
+        console.log("observing", target.current);
+      }
+    },
+    [],
+  );
+  const unobserve = useCallback((target: MutableRef<HTMLElement>) => {
+    if (target.current) {
+      observer.unobserve(target.current);
+      intersectionContext.unregister(target.current.textContent);
+      console.log("stop observe", target.current);
+    }
   }, []);
   return (
     <div className="status">

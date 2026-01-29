@@ -6,3 +6,17 @@
 .statuscard .diffcard {
   margin: 6px;
 }
+
+.lastModifiedTime {
+  text-align: left;
+  font-size: smaller;
+  color: gray;
+
+  span {
+    font-weight: bold;
+  }
+
+  span::before {
+    content: '✏️';
+  }
+}

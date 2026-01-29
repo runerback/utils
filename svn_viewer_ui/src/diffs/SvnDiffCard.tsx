@@ -6,10 +6,10 @@ import {
   useSignals,
 } from "@preact/signals-react/runtime";
 import type { Key } from "preact";
-import { useCallback, useContext } from "preact/hooks";
+import { useCallback, useContext, type MutableRef } from "preact/hooks";
 import { SvnDiffContext } from "../context/svnDiffContext";
 import { filter } from "rxjs";
-import type { ReadonlySignal } from "@preact/signals-react";
+import { type ReadonlySignal } from "@preact/signals-react";
 import network from "../context/network";
 import SvnDiffCardLabel from "./SvnDiffCardLabel";
 import SvnDiffCardContent from "./SvnDiffCardContent";
@@ -28,8 +28,11 @@ export function SvnDiffCard(props: {
   fkey?: Key;
   status: SvnStatusItem;
   settings: ReadonlySignal<Settings | undefined>;
-  observe: (target: HTMLElement) => void;
-  unobserve: (target: HTMLElement) => void;
+  observe: (
+    target: MutableRef<HTMLElement>,
+    callback: (active: boolean) => void,
+  ) => void;
+  unobserve: (target: MutableRef<HTMLElement>) => void;
   fetchLogs: (status: SvnStatusItem) => void;
 }) {
   useSignals();
@@ -124,6 +127,32 @@ export function SvnDiffCard(props: {
     }
   }, []);
   const canRevert = useComputed(() => props.status.state === "M");
+  const isfile = useSignal(false);
+  const fileLastModifiedTime = useSignal("");
+  useSignalEffect(() => {
+    if (isfile.value && props.status.state !== "D") {
+      network.get_file_modifed_time(props.status.source).then((res) => {
+        if (!!res) {
+          fileLastModifiedTime.value = res;
+        }
+      });
+    }
+  });
+  const onActivedOnce = useCallback(() => {
+    switch (props.status.state) {
+      case "M":
+      case "A":
+        break;
+      case "D":
+        isfile.value = true;
+        return;
+      default:
+        return;
+    }
+    network.get_file_isfile(props.status.source).then((res) => {
+      isfile.value = res === true;
+    });
+  }, []);
   return (
     <div className="diffcard">
       <Spin spinning={busy.value}>
@@ -135,8 +164,10 @@ export function SvnDiffCard(props: {
             {
               label: (
                 <SvnDiffCardLabel
-                  status={props.status}
+                  {...props}
                   viewed={fetched.value}
+                  onActivedOnce={onActivedOnce}
+                  lastModifiedTime={fileLastModifiedTime.value}
                 />
               ),
               extra: (
@@ -245,6 +276,7 @@ export function SvnDiffCard(props: {
                   {...props}
                 />,
               ],
+              collapsible: isfile.value ? undefined : "disabled",
             },
           ]}
         />

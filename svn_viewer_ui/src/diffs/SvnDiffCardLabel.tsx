@@ -1,7 +1,8 @@
-import { useComputed } from "@preact/signals-react";
+import { useComputed, useSignal, useSignalEffect } from "@preact/signals-react";
 import SvnStateIcon from "../components/common/SvnStateIcon";
 import "./SvnDiffCardLabel.css";
 import { Badge } from "antd";
+import { useCallback, useRef, type MutableRef } from "preact/hooks";
 
 const Hightlight = (props: { source: string; match: string }) => {
   const matchIdx = useComputed(() => props.source.indexOf(props.match));
@@ -35,6 +36,13 @@ export default (props: {
   status: SvnStatusItem;
   hightlight?: string;
   viewed?: boolean;
+  lastModifiedTime?: string;
+  observe: (
+    target: MutableRef<HTMLElement>,
+    callback: (active: boolean) => void,
+  ) => void;
+  unobserve: (target: MutableRef<HTMLElement>) => void;
+  onActivedOnce: () => void;
 }) => {
   const stateTip = useComputed(() => {
     switch (props.status.state) {
@@ -59,6 +67,24 @@ export default (props: {
   const rev = useComputed(() => {
     return props.status as SvnRevStatusItem;
   });
+  const observed = useSignal(false);
+  const activedOnce = useSignal(false);
+  const sourceRef = useRef<HTMLSpanElement>(null!);
+  const activeStateChanged = useCallback((active: boolean) => {
+    if (active) {
+      activedOnce.value = true;
+      props.unobserve(sourceRef);
+      props.onActivedOnce();
+    }
+  }, []);
+  useSignalEffect(() => {
+    if (!observed.value) {
+      if (sourceRef.current) {
+        props.observe(sourceRef, activeStateChanged);
+        observed.value = true;
+      }
+    }
+  });
   return (
     <div className="changes">
       <div className="state">
@@ -69,10 +95,17 @@ export default (props: {
         {props.viewed ? <Badge color="#00E900" /> : <Badge color="#0370E5" />}
       </div>
       <div className="source">
-        {!!props.hightlight && !!rev.value?.highlight ? (
-          <Hightlight source={props.status.source} match={props.hightlight} />
-        ) : (
-          props.status.source
+        <span ref={sourceRef}>
+          {!!props.hightlight && !!rev.value?.highlight ? (
+            <Hightlight source={props.status.source} match={props.hightlight} />
+          ) : (
+            props.status.source
+          )}
+        </span>
+        {props.lastModifiedTime && (
+          <div className="lastModifiedTime">
+            <span>{props.lastModifiedTime}</span>
+          </div>
         )}
         {rev.value && rev.value.from && (
           <span>

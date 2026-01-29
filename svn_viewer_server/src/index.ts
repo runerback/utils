@@ -61,6 +61,60 @@ app.get("/settings", (_, res) => {
   res.send(settings).end();
 });
 
+app.post("/file/stm", async (req, res) => {
+  const { path } = req.body as { path: string };
+  const result = await fetch(`${svnUri}/file/stm`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      path,
+    }),
+  });
+  if (result.status !== 200) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
+  }
+  res.send(await result.text()).end();
+});
+
+app.post("/file/isfile", async (req, res) => {
+  const { path } = req.body as { path: string };
+  const result = await fetch(`${svnUri}/file/isfile`, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    method: "POST",
+    body: JSON.stringify({
+      path,
+    }),
+  });
+  if (result.status !== 200) {
+    res
+      .status(400)
+      .json({
+        error: {
+          status: result.status,
+          statusText: result.statusText,
+        },
+      })
+      .end();
+    return;
+  }
+  res.send(await result.text()).end();
+});
+
 app.post("/settings", async (req, res) => {
   console.log({ url: req.url, body: req.body });
   const path = req.query?.["path"] as string;

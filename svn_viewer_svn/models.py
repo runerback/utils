@@ -134,3 +134,10 @@ class SvnRevertResponseModel(BaseModel):
 
 
 # end class
+
+
+class FileModel(BaseModel):
+    path: str | None
+
+
+# end class

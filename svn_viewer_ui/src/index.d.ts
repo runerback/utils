@@ -21,8 +21,8 @@ declare type INetwork = {
   update_settings: (settings: SettingsRequest) => Promise<string | undefined>;
   open_repo_browser: () => Promise<
     | {
-        succeed?: boolean;
-      }
+      succeed?: boolean;
+    }
     | undefined
   >;
   fetch_status: (
@@ -55,18 +55,20 @@ declare type INetwork = {
     commit?: boolean
   ) => Promise<
     | {
-        output?: string | null;
-        error?: string | null;
-      }
+      output?: string | null;
+      error?: string | null;
+    }
     | undefined
   >;
   revert: (file: string) => Promise<
     | {
-        output?: string | null;
-        error?: string | null;
-      }
+      output?: string | null;
+      error?: string | null;
+    }
     | undefined
   >;
+  get_file_isfile: (file: string) => Promise<boolean | null | undefined>;
+  get_file_modifed_time: (file: string) => Promise<string | null | undefined>;
 };
 
 declare type NetworkResponse<TPayload> = {

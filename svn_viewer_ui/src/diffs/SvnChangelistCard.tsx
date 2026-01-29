@@ -6,7 +6,7 @@ import {
 import { Collapse } from "antd";
 import { SvnDiffCard } from "./SvnDiffCard";
 import type { Key } from "preact";
-import { useContext, useRef } from "preact/hooks";
+import { useContext, useRef, type MutableRef } from "preact/hooks";
 import type { ReadonlySignal } from "@preact/signals-react";
 import { SvnRevertContext } from "../context/svnRevertContext";
 
@@ -14,14 +14,17 @@ export default (props: {
   fkey?: Key;
   status: SvnStatus;
   settings: ReadonlySignal<Settings | undefined>;
-  observe: (target: HTMLElement) => void;
-  unobserve: (target: HTMLElement) => void;
+  observe: (
+    target: MutableRef<HTMLElement>,
+    callback: (active: boolean) => void,
+  ) => void;
+  unobserve: (target: MutableRef<HTMLElement>) => void;
   fetchLogs: (status: SvnStatusItem) => void;
 }) => {
   useSignals();
   const headerRef = useRef<HTMLSpanElement>(null);
   const changes = useSignal(
-    props.status.changes.map((it, idx) => [it, idx] as [SvnStatusItem, number])
+    props.status.changes.map((it, idx) => [it, idx] as [SvnStatusItem, number]),
   );
   const svnRevertContext = useContext(SvnRevertContext);
   useSignalEffect(() => {

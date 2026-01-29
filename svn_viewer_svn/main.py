@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 from fastapi import FastAPI
 import os
@@ -8,6 +9,7 @@ from fastapi_swagger import patch_fastapi
 from LoggingMiddleware import LoggingMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from models import (
+    FileModel,
     SchedulerStateResponseModel,
     SettingsRequestModel,
     SvnCommitRequestModel,
@@ -26,7 +28,13 @@ from models import (
     SvnStatusRequestModel,
     SvnUnversionedRequestModel,
 )
-from svn import svn_commit_changes, svn_repo_browser, svn_revert_file
+from svn import (
+    get_svn_file_is_file,
+    get_svn_file_modifiedtime,
+    svn_commit_changes,
+    svn_repo_browser,
+    svn_revert_file,
+)
 from worker import (
     create_fetch_svn_diff_task,
     create_fetch_svn_file_remote_task,
@@ -41,6 +49,7 @@ from worker import (
     create_fetch_svn_revision_logs_task,
     get_running_jobs_count,
 )
+from zoneinfo import ZoneInfo
 
 with open("logging.config.json", "r") as logging_config:
     dictConfig(json.load(logging_config))
@@ -53,6 +62,28 @@ app = FastAPI(docs_url=None, swagger_ui_oauth2_redirect_url=None)
 @app.get("/scheduler/state", response_model=SchedulerStateResponseModel)
 def get_scheduler_state():
     return SchedulerStateResponseModel(runningJobsCount=get_running_jobs_count())
+
+
+# end def
+
+
+@app.post("/svn/file/stm", response_model=str)
+def get_file_modifiedtime(data: FileModel):
+    if not data.path:
+        return False
+    # end if
+    return get_svn_file_modifiedtime(data.path)
+
+
+# end def
+
+
+@app.post("/svn/file/isfile", response_model=bool)
+def get_file_modifiedtime(data: FileModel):
+    if not data.path:
+        return False
+    # end if
+    return get_svn_file_is_file(data.path)
 
 
 # end def
