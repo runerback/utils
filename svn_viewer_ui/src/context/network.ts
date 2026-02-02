@@ -372,8 +372,8 @@ export default {
     ),
   pick_dir: (init?: string) => request((init) => pick_dir(init), init),
   open_in_dir: (path?: string) => request((path) => open_in_dir(path), path),
-  commit: (message: string, files: Array<string>) =>
-    request2((message, files) => commit(message!, files!), message, files),
+  commit: (message: string, files: Array<string>, c?: boolean) =>
+    request3((message, files, c) => commit(message!, files!, c!), message, files, c),
   revert: (file: string) => request((file) => revert(file!), file),
   get_file_isfile: (file: string) => request((file) => get_file_isfile(file!), file),
   get_file_modifed_time: (file: string) => request((file) => get_file_modifed_time(file!), file),

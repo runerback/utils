@@ -266,6 +266,9 @@ def svn_commit_changes(message: str, files: list[str], commit: bool, logger: Log
     if commit:
         logger.info(f'[commit-_changes] -m {message} -cl "{clName}" {",".join(urls)}')
     else:
+        if message:
+            clName = message.strip()
+        # end if
         logger.info(f'[add to changelist] -cl "{clName}" {",".join(urls)}')
     # end if
     try:
