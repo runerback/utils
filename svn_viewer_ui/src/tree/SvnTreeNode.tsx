@@ -161,7 +161,7 @@ export default (props: {
                 <Info className="icon" />
               </Suspense>
             }
-            title="Info"
+            title="Reload"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
