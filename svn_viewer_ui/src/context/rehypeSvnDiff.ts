@@ -6,6 +6,11 @@ import { toText } from "hast-util-to-text";
 const name = "hljs";
 const addition = `${name}-addition`;
 const deletion = `${name}-deletion`;
+const whitespaceMarker = "diff-whitespace-marker";
+const whitespaceSpace = "diff-whitespace-space";
+const whitespaceTab = "diff-whitespace-tab";
+const whitespaceTrailing = "diff-whitespace-trailing";
+const diffLineMarker = "diff-line-marker";
 
 export default function () {
   const lowlight = createLowlight(common);
@@ -128,6 +133,7 @@ const appendLineNumbers = (
     nodes.forEach((node) => {
       switch (node.type) {
         case "text":
+          const whitespaceLine = visualizeWhitespaceInText(node.value);
           lines.push({
             type: "element",
             tagName: "div",
@@ -155,7 +161,7 @@ const appendLineNumbers = (
                 type: "element",
                 tagName: "span",
                 properties: {},
-                children: [node],
+                children: whitespaceLine,
               },
             ],
           } as Element);
@@ -166,6 +172,9 @@ const appendLineNumbers = (
           const classes = node.properties?.["className"];
           if (Array.isArray(classes)) {
             if (classes.includes(addition)) {
+              const visualizedNode = visualizeWhitespaceInNode(
+                splitLeadingDiffMarker(node, "+")
+              );
               lines.push({
                 type: "element",
                 tagName: "div",
@@ -173,11 +182,11 @@ const appendLineNumbers = (
                   className: ["diff_row"],
                 },
                 children: [
-                  {
-                    type: "element",
-                    tagName: "span",
-                    properties: {
-                      className: ["number", "addition"],
+                   {
+                     type: "element",
+                     tagName: "span",
+                     properties: {
+                       className: ["number", "addition"],
                     },
                     children: [{ type: "text", value: "" }],
                   },
@@ -188,14 +197,17 @@ const appendLineNumbers = (
                       className: ["number", "addition"],
                     },
                     children: [{ type: "text", value: working_number }],
-                  },
-                  node,
-                ],
-              } as Element);
-              working_number++;
-              return;
+                   },
+                   visualizedNode,
+                 ],
+               } as Element);
+               working_number++;
+               return;
             }
             if (classes.includes(deletion)) {
+              const visualizedNode = visualizeWhitespaceInNode(
+                splitLeadingDiffMarker(node, "-")
+              );
               lines.push({
                 type: "element",
                 tagName: "div",
@@ -203,11 +215,11 @@ const appendLineNumbers = (
                   className: ["diff_row"],
                 },
                 children: [
-                  {
-                    type: "element",
-                    tagName: "span",
-                    properties: {
-                      className: ["number", "deletion"],
+                   {
+                     type: "element",
+                     tagName: "span",
+                     properties: {
+                       className: ["number", "deletion"],
                     },
                     children: [{ type: "text", value: revision_number }],
                   },
@@ -218,15 +230,16 @@ const appendLineNumbers = (
                       className: ["number", "deletion"],
                     },
                     children: [{ type: "text", value: "" }],
-                  },
-                  node,
-                ],
-              } as Element);
-              revision_number++;
-              return;
+                   },
+                   visualizedNode,
+                 ],
+               } as Element);
+               revision_number++;
+               return;
             }
           }
           // no-change line
+          const visualizedNode = visualizeWhitespaceInNode(node);
           lines.push({
             type: "element",
             tagName: "div",
@@ -248,9 +261,9 @@ const appendLineNumbers = (
                 properties: {
                   className: ["number"],
                 },
-                children: [{ type: "text", value: working_number }],
+               children: [{ type: "text", value: working_number }],
               },
-              node,
+              visualizedNode,
             ],
           } as Element);
           revision_number++;
@@ -261,6 +274,145 @@ const appendLineNumbers = (
       }
     });
     return lines;
+  }
+  return nodes;
+};
+
+const splitLeadingDiffMarker = (node: Element, marker: string): Element => {
+  const state = { done: false };
+  return {
+    ...node,
+    children: splitLeadingDiffMarkerInChildren(
+      node.children as ElementContent[],
+      marker,
+      state
+    ),
+  };
+};
+
+const splitLeadingDiffMarkerInChildren = (
+  children: ElementContent[],
+  marker: string,
+  state: { done: boolean }
+) => {
+  if (state.done) {
+    return children;
+  }
+  const transformed = Array<ElementContent>();
+  children.forEach((child) => {
+    if (state.done) {
+      transformed.push(child);
+      return;
+    }
+    switch (child.type) {
+      case "text":
+        if (child.value.startsWith(marker)) {
+          transformed.push({
+            type: "element",
+            tagName: "span",
+            properties: { className: [diffLineMarker] },
+            children: [{ type: "text", value: marker }],
+          } as Element);
+          const rest = child.value.slice(1);
+          if (rest.length > 0) {
+            transformed.push({
+              type: "text",
+              value: rest,
+            } as Text);
+          }
+          state.done = true;
+          return;
+        }
+        transformed.push(child);
+        return;
+      case "element":
+        transformed.push({
+          ...child,
+          children: splitLeadingDiffMarkerInChildren(
+            child.children as ElementContent[],
+            marker,
+            state
+          ),
+        });
+        return;
+      default:
+        transformed.push(child);
+        return;
+    }
+  });
+  return transformed;
+};
+
+const visualizeWhitespaceInNode = (node: Element): Element => {
+  return {
+    ...node,
+    children: visualizeWhitespaceInChildren(node.children as ElementContent[]),
+  };
+};
+
+const visualizeWhitespaceInChildren = (children: ElementContent[]) => {
+  const transformed = Array<ElementContent>();
+  children.forEach((child) => {
+    switch (child.type) {
+      case "text":
+        transformed.push(...visualizeWhitespaceInText(child.value));
+        break;
+      case "element":
+        transformed.push(visualizeWhitespaceInNode(child));
+        break;
+      default:
+        transformed.push(child);
+    }
+  });
+  return transformed;
+};
+
+const visualizeWhitespaceInText = (line: string) => {
+  const trailing = /[ \t]+$/.exec(line);
+  const trailingFrom = trailing ? line.length - trailing[0].length : line.length;
+  const nodes = Array<ElementContent>();
+  let textBuffer = "";
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch !== " " && ch !== "\t") {
+      textBuffer += ch;
+      continue;
+    }
+    if (textBuffer.length > 0) {
+      nodes.push({
+        type: "text",
+        value: textBuffer,
+      } as Text);
+      textBuffer = "";
+    }
+    const className = [
+      whitespaceMarker,
+      ch === " " ? whitespaceSpace : whitespaceTab,
+      ...(i >= trailingFrom ? [whitespaceTrailing] : []),
+    ];
+    nodes.push({
+      type: "element",
+      tagName: "span",
+      properties: { className },
+      children: [
+        {
+          type: "text",
+          value: ch === " " ? "·" : "→",
+        },
+      ],
+    } as Element);
+  }
+  if (textBuffer.length > 0) {
+    nodes.push({
+      type: "text",
+      value: textBuffer,
+    } as Text);
+  }
+  if (nodes.length === 0) {
+    nodes.push({
+      type: "text",
+      value: line,
+    } as Text);
   }
   return nodes;
 };
