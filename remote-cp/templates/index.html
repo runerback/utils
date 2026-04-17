@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Remote Copy/Paste</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="composer-panel">
+        <div>
+          <p class="eyebrow">Send here</p>
+          <h1>Drop text, pictures, or files into the shared room.</h1>
+          <p class="subtle">
+            Everyone connected sees new posts right away. Messages stay available until the app restarts.
+          </p>
+        </div>
+
+        <form id="composer-form" class="composer-form">
+          <div class="composer-layout">
+            <div class="composer-row composer-row--message">
+              <label class="field-label" for="message-input">Message</label>
+              <div class="composer-input-group">
+                <textarea
+                  id="message-input"
+                  name="text"
+                  rows="4"
+                  maxlength="4000"
+                  placeholder="Type anything you want to share..."
+                ></textarea>
+              </div>
+              <button id="send-text-button" type="submit" data-submit-mode="text">Send text</button>
+            </div>
+
+            <div class="composer-row">
+              <label class="field-label" for="image-input">Pictures</label>
+              <div class="composer-input-group">
+                <input id="image-input" name="images" type="file" accept="image/*" multiple>
+                <p id="image-selection" class="selection-summary">No pictures selected.</p>
+              </div>
+              <button id="send-images-button" type="submit" data-submit-mode="images">Send pictures</button>
+            </div>
+
+            <div class="composer-row">
+              <label class="field-label" for="file-input">Files</label>
+              <div class="composer-input-group">
+                <input
+                  id="file-input"
+                  name="files"
+                  type="file"
+                  accept=".csv,.doc,.docx,.json,.md,.pdf,.ppt,.pptx,.rtf,.txt,.xls,.xlsx,.zip"
+                  multiple
+                >
+                <p id="file-selection" class="selection-summary">No files selected.</p>
+              </div>
+              <button id="send-files-button" type="submit" data-submit-mode="files">Send files</button>
+            </div>
+
+            <p id="status-message" class="status-message" aria-live="polite"></p>
+          </div>
+        </form>
+      </section>
+
+      <section class="feed-panel">
+        <div class="feed-header">
+          <div>
+            <p class="eyebrow">Receive here</p>
+            <h2>Room activity</h2>
+          </div>
+          <span id="connection-pill" class="connection-pill connection-pill--offline">Connecting...</span>
+        </div>
+
+        <div id="feed" class="feed" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script id="bootstrap-messages" type="application/json">{{ existing_messages | tojson }}</script>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js" crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+  </body>
+</html>
