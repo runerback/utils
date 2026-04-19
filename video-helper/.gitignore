@@ -4,4 +4,5 @@ uploads
 work
 projects
 exports
+models
 *.ps1

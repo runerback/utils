@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -45,9 +45,26 @@ class CropState(BaseModel):
         return self
 
 
+class SceneSplitState(BaseModel):
+    enabled: bool = False
+    detector: Literal["ffmpeg", "ai"] = "ffmpeg"
+    # FFmpeg scene scores are normalized to [0, 1]; common defaults are around 0.3-0.5.
+    threshold: float = Field(default=0.4, gt=0, le=1)
+    ai_sensitivity: float = Field(default=0.5, gt=0, le=1)
+    min_clip_length: float = Field(default=2.0, gt=0)
+    max_clip_length: float = Field(default=12.0, gt=0)
+
+    @model_validator(mode="after")
+    def validate_lengths(self) -> "SceneSplitState":
+        if self.min_clip_length > self.max_clip_length:
+            raise ValueError("scene_split.min_clip_length must be less than or equal to scene_split.max_clip_length")
+        return self
+
+
 class EditState(BaseModel):
     trim: TrimState = Field(default_factory=TrimState)
     crop: CropState = Field(default_factory=CropState)
+    scene_split: SceneSplitState = Field(default_factory=SceneSplitState)
     crop_enabled: bool = False
     resize_max: Optional[int] = Field(default=None, gt=0)
     fps: Optional[float] = Field(default=None, gt=0)
@@ -78,10 +95,19 @@ class StateUpdateRequest(BaseModel):
     state: EditState
 
 
-class RenderResponse(BaseModel):
-    project_id: str
+class RenderPart(BaseModel):
+    index: int = Field(ge=1)
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
     output_url: str
     output_path: Optional[str] = None
+
+
+class RenderResponse(BaseModel):
+    project_id: str
+    output_url: Optional[str] = None
+    output_path: Optional[str] = None
+    parts: list[RenderPart] = Field(default_factory=list)
 
 
 class ProjectListItem(BaseModel):

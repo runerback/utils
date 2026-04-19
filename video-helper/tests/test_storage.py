@@ -153,6 +153,33 @@ class StorageTests(unittest.TestCase):
 
             self.assertEqual(payload["player_proxy_file"], str(paths.player_proxy_file))
 
+    def test_load_project_backfills_scene_split_defaults_for_legacy_state_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            storage = Storage(root)
+            paths = storage.create_project_paths("input.mp4")
+            paths.original_file.write_bytes(b"video")
+            metadata = VideoMetadata(width=1920, height=1080, duration=8.0, fps=30.0, frame_count=240)
+            legacy_state = EditState().model_dump()
+            legacy_state.pop("scene_split", None)
+            payload = {
+                "project_id": paths.project_id,
+                "metadata": metadata.model_dump(),
+                "state": legacy_state,
+                "original_file": str(paths.original_file),
+                "preview_file": str(paths.preview_file),
+                "export_file": str(paths.export_file),
+                "player_proxy_file": str(paths.player_proxy_file),
+            }
+            paths.project_file.write_text(json.dumps(payload), encoding="utf-8")
+
+            _, _, state = storage.load_project(paths.project_id)
+
+            self.assertFalse(state.scene_split.enabled)
+            self.assertEqual(state.scene_split.threshold, 0.4)
+            self.assertEqual(state.scene_split.min_clip_length, 2.0)
+            self.assertEqual(state.scene_split.max_clip_length, 12.0)
+
     def test_project_paths_raises_when_original_and_fallback_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -6,7 +6,7 @@ Users can:
 - Load a video
 - Re-open previous projects from the web UI
 - Preview **original** and **modified** versions side by side
-- Trim (A-B), crop, and change frame rate
+- Trim (A-B), crop, resize, change frame rate, and split by scene
 - Export a new video without modifying the source file
 
 ## Features
@@ -21,7 +21,14 @@ Users can:
   - Drag crop region on preview
   - Manual numeric crop inputs
   - Presets: `4:3`, `3:4`, `16:9`, `9:16`
+- Resize control for the maximum longer edge
 - Whole-video FPS override (single global setting)
+- Scene split controls:
+  - FFmpeg threshold or AI TransNetV2 detector mode
+  - AI sensitivity control
+  - Minimum and maximum clip length
+  - Browser remembers the latest scene split UI values for new projects on the same device/browser
+  - Multipart preview clips shown in the web UI after **Apply Changes**
 - Preview render and final export render via FFmpeg
 - Browser-compatible playback proxy for HEVC/libx265 source videos
 
@@ -54,6 +61,18 @@ Python dependencies:
 .\.venv\Scripts\python -m pip install -r requirements.txt
 ```
 
+For AI scene split mode, place a **TransNetV2 ONNX** model at `models\transnetv2.onnx`, or set:
+
+```powershell
+$env:VAE_TRANSNETV2_MODEL_PATH = "D:\models\transnetv2.onnx"
+```
+
+Optional Windows CUDA acceleration:
+
+- Install `onnxruntime-gpu` instead of `onnxruntime`
+- Ensure CUDA/cuDNN versions match the ONNX Runtime GPU package
+- If CUDA is unavailable, the AI detector falls back to CPU only when you install the CPU runtime; otherwise switch the UI detector back to **FFmpeg**
+
 ## Run
 
 ```powershell
@@ -85,10 +104,13 @@ Open:
    - Select a file and click **Upload**.
    - The app automatically prefers local-path project creation when an absolute path is available from the runtime, otherwise it uploads a copy to `uploads\`.
    - The status line after Upload reports which mode was used and whether a compatibility playback proxy was created.
-2. Adjust trim/crop/fps in the UI.
+2. Adjust trim/crop/resize/fps/scene split in the UI.
 3. Click **Save State**.
-4. Click **Refresh Preview** to render the modified preview (with progress shown in UI).
+4. Click **Apply Changes** to render the modified preview.
+   - If **Scene Split** is off, the preview player shows one modified clip.
+   - If **Scene Split** is on, the preview area shows all generated clips and lets you switch between them in the web UI.
 5. Click **Export** to save the final file to `--export-path` (or `exports\` by default).
+   - If **Scene Split** is on, export writes multiple numbered output clips instead of one file.
 
 If a local-path source is missing later, the app will auto-fallback to project-derived/cached media from `work\` or `uploads\` when available.
 
@@ -100,8 +122,8 @@ If a local-path source is missing later, the app will auto-fallback to project-d
 - `GET /api/projects/{project_id}` - fetch project state
 - `GET /api/projects/{project_id}/original` - stream player-ready original media (source when browser-safe, compatibility proxy when required)
 - `PUT /api/projects/{project_id}/state` - update edit state
-- `POST /api/projects/{project_id}/preview` - render modified preview
-- `POST /api/projects/{project_id}/export` - render final export
+- `POST /api/projects/{project_id}/preview` - render modified preview (single clip or multipart scene-split clips)
+- `POST /api/projects/{project_id}/export` - render final export (single clip or multipart scene-split clips)
 
 ## Tests
 

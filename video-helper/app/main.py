@@ -12,12 +12,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .ffmpeg import FFmpegService
+from .scene_detection import SceneDetectionService
 from .schemas import (
     EditState,
     LocalProjectCreateRequest,
     ProjectCreateResponse,
     ProjectListItem,
     ProjectStateResponse,
+    RenderPart,
     RenderResponse,
     StateUpdateRequest,
     TrimFramesResponse,
@@ -90,6 +92,7 @@ storage = Storage(
     uploads_dir=resolve_uploads_dir(),
 )
 ffmpeg = FFmpegService()
+scene_detection = SceneDetectionService(ffmpeg)
 
 app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
 app.mount("/uploads", StaticFiles(directory=str(storage.uploads)), name="uploads")
@@ -121,6 +124,34 @@ def _original_player_file(paths, metadata):
     if ffmpeg.requires_player_proxy(metadata) and paths.player_proxy_file.exists():
         return paths.player_proxy_file
     return paths.original_file
+
+
+def _split_segments_for_state(source_file: Path, metadata: VideoMetadata, state: EditState) -> list[tuple[float, float]]:
+    trim_start = state.trim.start
+    trim_end = state.trim.end or metadata.duration
+    trim_duration = trim_end - trim_start
+    scene_cuts = scene_detection.detect_scene_changes(source_file, metadata, state.scene_split)
+    ranged_cuts = [cut - trim_start for cut in scene_cuts if trim_start < cut < trim_end]
+    relative_segments = ffmpeg.build_scene_split_segments(
+        duration=trim_duration,
+        candidate_cuts=ranged_cuts,
+        min_len=state.scene_split.min_clip_length,
+        max_len=state.scene_split.max_clip_length,
+    )
+    return [(round(trim_start + start, 6), round(trim_start + end, 6)) for start, end in relative_segments]
+
+
+def _multipart_output_path(base_file: Path, index: int) -> Path:
+    suffix = base_file.suffix or ".mp4"
+    stem = base_file.stem
+    return base_file.with_name(f"{stem}_part{index:03d}{suffix}")
+
+
+def _clear_multipart_outputs(base_file: Path) -> None:
+    suffix = base_file.suffix or ".mp4"
+    for part_file in sorted(base_file.parent.glob(f"{base_file.stem}_part*{suffix}")):
+        if part_file.is_file():
+            part_file.unlink()
 
 
 @app.get("/")
@@ -242,9 +273,29 @@ def render_preview(project_id: str) -> RenderResponse:
     try:
         paths, metadata, state = storage.load_project(project_id)
         ffmpeg.validate_state(metadata, state)
-        command = ffmpeg.build_preview_command(paths.original_file, paths.preview_file, metadata, state)
-        ffmpeg.run(command)
-        return RenderResponse(project_id=project_id, output_url=f"/work/{paths.preview_file.name}")
+        _clear_multipart_outputs(paths.preview_file)
+        if not state.scene_split.enabled:
+            command = ffmpeg.build_preview_command(paths.original_file, paths.preview_file, metadata, state)
+            ffmpeg.run(command)
+            return RenderResponse(project_id=project_id, output_url=f"/work/{paths.preview_file.name}")
+
+        if paths.preview_file.exists():
+            paths.preview_file.unlink()
+        segments = _split_segments_for_state(paths.original_file, metadata, state)
+        parts: list[RenderPart] = []
+        for part_index, (start, end) in enumerate(segments, start=1):
+            part_file = _multipart_output_path(paths.preview_file, part_index)
+            command = ffmpeg.build_preview_segment_command(
+                paths.original_file,
+                part_file,
+                metadata,
+                state,
+                segment_start=start,
+                segment_end=end,
+            )
+            ffmpeg.run(command)
+            parts.append(RenderPart(index=part_index, start=start, end=end, output_url=f"/work/{part_file.name}"))
+        return RenderResponse(project_id=project_id, parts=parts)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
@@ -277,14 +328,40 @@ def render_export(project_id: str) -> RenderResponse:
         paths, metadata, state = storage.load_project(project_id)
         ffmpeg.validate_state(metadata, state)
         paths.export_file = storage.build_export_file_path(paths.export_file.suffix or ".mp4")
-        command = ffmpeg.build_export_command(paths.original_file, paths.export_file, metadata, state)
-        ffmpeg.run(command)
+        if not state.scene_split.enabled:
+            command = ffmpeg.build_export_command(paths.original_file, paths.export_file, metadata, state)
+            ffmpeg.run(command)
+            storage.save_project(paths, metadata, state)
+            return RenderResponse(
+                project_id=project_id,
+                output_url=f"/exports/{paths.export_file.name}",
+                output_path=str(paths.export_file.resolve()),
+            )
+
+        segments = _split_segments_for_state(paths.original_file, metadata, state)
+        parts: list[RenderPart] = []
+        for part_index, (start, end) in enumerate(segments, start=1):
+            part_file = _multipart_output_path(paths.export_file, part_index)
+            command = ffmpeg.build_export_segment_command(
+                paths.original_file,
+                part_file,
+                metadata,
+                state,
+                segment_start=start,
+                segment_end=end,
+            )
+            ffmpeg.run(command)
+            parts.append(
+                RenderPart(
+                    index=part_index,
+                    start=start,
+                    end=end,
+                    output_url=f"/exports/{part_file.name}",
+                    output_path=str(part_file.resolve()),
+                )
+            )
         storage.save_project(paths, metadata, state)
-        return RenderResponse(
-            project_id=project_id,
-            output_url=f"/exports/{paths.export_file.name}",
-            output_path=str(paths.export_file.resolve()),
-        )
+        return RenderResponse(project_id=project_id, parts=parts)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:

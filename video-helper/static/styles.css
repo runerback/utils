@@ -27,7 +27,7 @@ h1, h2 {
   font-weight: 500;
 }
 
-.controls, .timeline, .crop, .fps, .resize, .actions {
+.controls, .timeline, .crop, .fps, .resize, .scene-split, .actions {
   background: #1a2026;
   border: 1px solid #2f3944;
   padding: 12px;
@@ -104,6 +104,93 @@ input[type="range"] {
 
 .preview-wrap {
   position: relative;
+}
+
+.preview-parts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 8px;
+}
+
+.preview-part-info {
+  color: #9be8b1;
+  font-size: 13px;
+}
+
+.preview-parts-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.preview-parts-progress progress {
+  flex: 1;
+}
+
+.preview-parts-progress span {
+  font-size: 13px;
+  color: #9be8b1;
+  min-width: 160px;
+}
+
+.preview-parts-list {
+  margin: 0 0 8px;
+  border: 1px solid #2f3944;
+  background: #111920;
+  padding: 8px;
+}
+
+.preview-parts-list h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.preview-parts-list ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.preview-parts-list li {
+  margin: 0 0 4px;
+}
+
+.preview-part-button {
+  width: 100%;
+  text-align: left;
+  background: #24303c;
+  border: 1px solid #344658;
+  color: inherit;
+}
+
+.preview-part-button.active {
+  border-color: #2d73ff;
+  background: #294d9a;
+}
+
+.preview-part-empty {
+  color: #b7c0ca;
+}
+
+.scene-split-hint {
+  margin: 8px 0 0;
+  color: #b7c0ca;
+}
+
+.scene-split-threshold-controls {
+  align-items: center;
+}
+
+.scene-split-threshold-range {
+  min-width: 220px;
+}
+
+.scene-split-threshold-value {
+  min-width: 3.5ch;
+  color: #9be8b1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .crop-overlay {

@@ -45,6 +45,19 @@
       </div>
       <div>
         <h2 class="player-title">Preview <span id="previewDims" class="dims">(—)</span></h2>
+        <div id="previewPartsWrap" class="preview-parts hidden">
+          <label for="previewPartSelect">Clip</label>
+          <select id="previewPartSelect"></select>
+          <span id="previewPartInfo" class="preview-part-info"></span>
+        </div>
+        <div id="previewPartsProgressWrap" class="preview-parts-progress hidden">
+          <progress id="previewPartsProgressBar" max="100" value="0"></progress>
+          <span id="previewPartsProgressText">Idle</span>
+        </div>
+        <div id="previewPartsListWrap" class="preview-parts-list hidden">
+          <h3>Preview Clips</h3>
+          <ol id="previewPartsList"></ol>
+        </div>
         <div class="preview-wrap">
           <video id="previewVideo" controls></video>
           <div id="cropOverlay" class="crop-overlay hidden">
@@ -65,6 +78,7 @@
       <button class="editor-tab" type="button" data-panel="crop">Crop</button>
       <button class="editor-tab" type="button" data-panel="fps">Frame Rate</button>
       <button class="editor-tab" type="button" data-panel="resize">Resize</button>
+      <button class="editor-tab" type="button" data-panel="scene-split">Scene Split</button>
     </section>
 
     <section class="timeline editor-panel" data-panel="trim">
@@ -162,6 +176,56 @@
         <button class="resize-preset" type="button" data-resize="1280">1280</button>
         <button id="resizeResetBtn" type="button">Reset Resize</button>
       </div>
+    </section>
+
+    <section class="scene-split editor-panel hidden" data-panel="scene-split">
+      <h2>Scene Split</h2>
+      <div class="timeline-row">
+        <label><input id="sceneSplitEnabled" type="checkbox"> Scene Split On</label>
+        <button id="sceneSplitResetBtn" type="button">Reset Remembered Scene Split</button>
+      </div>
+      <div class="timeline-row">
+        <label>
+          Detector
+          <select id="sceneSplitDetector">
+            <option value="ffmpeg">FFmpeg</option>
+            <option value="ai">AI (TransNetV2)</option>
+          </select>
+        </label>
+      </div>
+      <div class="timeline-row scene-split-threshold-controls" data-scene-detector="ffmpeg">
+        <label>FFmpeg Threshold (0-1) <input id="sceneSplitThreshold" type="number" min="0.01" max="1" step="0.01"></label>
+        <input
+          id="sceneSplitThresholdRange"
+          class="scene-split-threshold-range"
+          type="range"
+          min="0.01"
+          max="1"
+          step="0.01"
+          value="0.40"
+        >
+        <span id="sceneSplitThresholdValue" class="scene-split-threshold-value">0.40</span>
+      </div>
+      <div class="timeline-row scene-split-threshold-controls hidden" data-scene-detector="ai">
+        <label>AI Sensitivity (0-1) <input id="sceneSplitAiSensitivity" type="number" min="0.01" max="1" step="0.01"></label>
+        <input
+          id="sceneSplitAiSensitivityRange"
+          class="scene-split-threshold-range"
+          type="range"
+          min="0.01"
+          max="1"
+          step="0.01"
+          value="0.50"
+        >
+        <span id="sceneSplitAiSensitivityValue" class="scene-split-threshold-value">0.50</span>
+      </div>
+      <div class="timeline-row">
+        <label>Min clip (s) <input id="sceneSplitMinClip" type="number" min="0.1" step="0.1"></label>
+        <label>Max clip (s) <input id="sceneSplitMaxClip" type="number" min="0.1" step="0.1"></label>
+      </div>
+      <p class="scene-split-hint">Lower threshold finds more cuts. Higher threshold finds fewer. Higher AI sensitivity finds more cuts. This browser remembers your latest scene split values for new projects.</p>
+      <p class="scene-split-hint">AI mode uses a local TransNetV2 ONNX model and can use CUDA on Windows when ONNX Runtime GPU is installed.</p>
+      <p class="scene-split-hint">Turn on Scene Split, then click <strong>Apply Changes</strong> to render all preview clips here.</p>
     </section>
   </main>
   <script src="/static/app.js"></script>
