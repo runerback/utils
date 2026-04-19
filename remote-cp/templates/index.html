@@ -21,16 +21,20 @@
           <div class="composer-layout">
             <div class="composer-row composer-row--message">
               <label class="field-label" for="message-input">Message</label>
-              <div class="composer-input-group">
-                <textarea
-                  id="message-input"
-                  name="text"
-                  rows="4"
-                  maxlength="4000"
-                  placeholder="Type anything you want to share..."
-                ></textarea>
+              <div class="composer-message-stack">
+                <div class="composer-input-group">
+                  <textarea
+                    id="message-input"
+                    name="text"
+                    rows="4"
+                    placeholder="Type anything you want to share..."
+                  ></textarea>
+                </div>
+                <div class="composer-actions">
+                  <button id="send-text-button" type="submit" data-submit-mode="text">Send text</button>
+                  <button id="paste-as-file-button" type="button" data-action-mode="paste-file">Paste as file</button>
+                </div>
               </div>
-              <button id="send-text-button" type="submit" data-submit-mode="text">Send text</button>
             </div>
 
             <div class="composer-row">

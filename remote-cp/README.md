@@ -24,5 +24,10 @@ Small Flask + Socket.IO chat room for anonymous text, picture, and file sharing.
 - Uploaded images and files are stored in `instance\uploads` for the current app run only.
 - General file uploads are limited to document-style formats: `.csv`, `.doc`, `.docx`, `.json`, `.md`, `.pdf`, `.ppt`, `.pptx`, `.rtf`, `.txt`, `.xls`, `.xlsx`, and `.zip`.
 - Uploaded non-image files appear in the feed with download links for everyone in the room.
+- The message box no longer has a fixed input cap. `Send text` posts inline messages up to 4,000 characters and automatically sends longer content to the room as a generated `.txt` file attachment.
+- Room messages show newest first.
+- Long text posts collapse after 8 visible lines and can be expanded inline.
 - Video uploads are not supported.
+- `Paste as file` reads clipboard text and saves it locally. Browsers with the File System Access API show a native save dialog; other supported browsers fall back to downloading a generated `.txt` file.
 - Direct clipboard image copy needs a secure browser context. It works on `localhost`; for other devices, use HTTPS if the browser blocks clipboard image writes on plain HTTP.
+- Clipboard text read for `Paste as file` also needs a secure browser context (`localhost` or HTTPS) and browser clipboard permission.
