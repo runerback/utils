@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VAE - Video Editor</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main>
+    <h1>Video Adjustment Editor</h1>
+    <section class="controls">
+      <label for="fileInput">Load Video</label>
+      <input id="fileInput" type="file" accept="video/*" class="hidden">
+      <button id="selectFileBtn" type="button">Select File</button>
+      <span id="selectedFileName">No file selected</span>
+      <button id="uploadBtn">Upload</button>
+    </section>
+
+    <section class="controls">
+      <label for="projectSelect">Previous Projects</label>
+      <select id="projectSelect"></select>
+      <button id="refreshProjectsBtn">Refresh</button>
+      <button id="loadProjectBtn">Load</button>
+    </section>
+    
+    <section class="controls">
+      <span id="status"></span>
+    </section>
+
+    <section class="actions">
+      <button id="saveStateBtn">Save State</button>
+      <button id="previewBtn">Apply Changes</button>
+      <progress id="previewProgress" class="hidden" max="100" value="0"></progress>
+      <span id="previewStatus" class="export-status">Idle</span>
+      <button id="exportBtn">Export</button>
+      <progress id="exportProgress" class="hidden" max="100" value="0"></progress>
+      <span id="exportStatus" class="export-status">Idle</span>
+    </section>
+
+    <section class="players">
+      <div>
+        <h2 class="player-title">Original <span id="originalDims" class="dims">(—)</span></h2>
+        <video id="originalVideo" controls></video>
+      </div>
+      <div>
+        <h2 class="player-title">Preview <span id="previewDims" class="dims">(—)</span></h2>
+        <div class="preview-wrap">
+          <video id="previewVideo" controls></video>
+          <div id="cropOverlay" class="crop-overlay hidden">
+            <div id="cropBox" class="crop-box">
+              <button id="cropCloseBtn" class="crop-close-btn" type="button" aria-label="Close crop indicator">×</button>
+              <div class="crop-handle corner-tl" data-corner="tl"></div>
+              <div class="crop-handle corner-tr" data-corner="tr"></div>
+              <div class="crop-handle corner-bl" data-corner="bl"></div>
+              <div class="crop-handle corner-br" data-corner="br"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls editor-tabs">
+      <button class="editor-tab active" type="button" data-panel="trim">Trim</button>
+      <button class="editor-tab" type="button" data-panel="crop">Crop</button>
+      <button class="editor-tab" type="button" data-panel="fps">Frame Rate</button>
+      <button class="editor-tab" type="button" data-panel="resize">Resize</button>
+    </section>
+
+    <section class="timeline editor-panel" data-panel="trim">
+      <h2>Trim (A-B)</h2>
+      <div class="trim-previews">
+        <div class="trim-preview-card">
+          <h3>A Frame</h3>
+          <img id="trimStartImage" alt="Trim start preview">
+        </div>
+        <div class="trim-preview-card">
+          <h3>B Frame</h3>
+          <img id="trimEndImage" alt="Trim end preview">
+        </div>
+      </div>
+      <div class="timeline-row">
+        <label>Zoom (s window)</label>
+        <input id="zoom" type="range" min="0.04" max="10" step="0.04" value="10">
+        <span id="zoomLabel">10.00s</span>
+      </div>
+      <div class="timeline-row">
+        <input id="startRange" type="range" min="0" max="0" step="0.01" value="0">
+        <input id="endRange" type="range" min="0" max="0" step="0.01" value="0">
+      </div>
+      <div class="timeline-row">
+        <button id="startToBeginningBtn">A to Beginning</button>
+        <button id="startPrevFrame">A -1f</button>
+        <button id="startNextFrame">A +1f</button>
+        <label>A <input id="startInput" type="number" min="0" step="0.01"></label>
+        <label>B <input id="endInput" type="number" min="0" step="0.01"></label>
+        <button id="endPrevFrame">B -1f</button>
+        <button id="endNextFrame">B +1f</button>
+        <button id="endToEndBtn">B to End</button>
+      </div>
+      <div class="timeline-row">
+        <label>A Presets</label>
+        <button class="trim-shift-btn" type="button" data-target="start" data-seconds="-10">-10s</button>
+        <button class="trim-shift-btn" type="button" data-target="start" data-seconds="-5">-5s</button>
+        <button class="trim-shift-btn" type="button" data-target="start" data-seconds="-3">-3s</button>
+        <button class="trim-shift-btn" type="button" data-target="start" data-seconds="-1">-1s</button>
+        <button class="trim-shift-btn" type="button" data-target="start" data-seconds="1">+1s</button>
+        <button class="trim-shift-btn" type="button" data-target="start" data-seconds="3">+3s</button>
+        <button class="trim-shift-btn" type="button" data-target="start" data-seconds="5">+5s</button>
+        <button class="trim-shift-btn" type="button" data-target="start" data-seconds="10">+10s</button>
+      </div>
+      <div class="timeline-row">
+        <label>B Presets</label>
+        <button class="trim-shift-btn" type="button" data-target="end" data-seconds="-10">-10s</button>
+        <button class="trim-shift-btn" type="button" data-target="end" data-seconds="-5">-5s</button>
+        <button class="trim-shift-btn" type="button" data-target="end" data-seconds="-3">-3s</button>
+        <button class="trim-shift-btn" type="button" data-target="end" data-seconds="-1">-1s</button>
+        <button class="trim-shift-btn" type="button" data-target="end" data-seconds="1">+1s</button>
+        <button class="trim-shift-btn" type="button" data-target="end" data-seconds="3">+3s</button>
+        <button class="trim-shift-btn" type="button" data-target="end" data-seconds="5">+5s</button>
+        <button class="trim-shift-btn" type="button" data-target="end" data-seconds="10">+10s</button>
+      </div>
+      <div class="timeline-row">
+        <span id="clipLengthLabel">Clip length: 00:00.000</span>
+      </div>
+    </section>
+
+    <section class="crop editor-panel hidden" data-panel="crop">
+      <h2>Crop</h2>
+      <div class="timeline-row">
+        <label><input id="cropEnabled" type="checkbox"> Crop On</label>
+      </div>
+      <div class="timeline-row">
+        <label>X <input id="cropX" type="number" min="0" step="1"></label>
+        <label>Y <input id="cropY" type="number" min="0" step="1"></label>
+        <label>W <input id="cropW" type="number" min="0" step="1"></label>
+        <label>H <input id="cropH" type="number" min="0" step="1"></label>
+      </div>
+      <div class="timeline-row">
+        <button class="preset" data-preset="4:3">4:3</button>
+        <button class="preset" data-preset="3:4">3:4</button>
+        <button class="preset" data-preset="16:9">16:9</button>
+        <button class="preset" data-preset="9:16">9:16</button>
+        <button id="cropResetBtn" type="button">Reset Crop</button>
+      </div>
+    </section>
+
+    <section class="fps editor-panel hidden" data-panel="fps">
+      <h2>Frame Rate (whole video)</h2>
+      <label>FPS <input id="fpsInput" type="number" min="1" step="0.01" placeholder="keep original"></label>
+    </section>
+
+    <section class="resize editor-panel hidden" data-panel="resize">
+      <h2>Resize</h2>
+      <label>Max longer edge <input id="resizeMaxInput" type="number" min="2" step="1" placeholder="keep original"></label>
+      <div class="timeline-row">
+        <button class="resize-preset" type="button" data-resize="640">640</button>
+        <button class="resize-preset" type="button" data-resize="720">720</button>
+        <button class="resize-preset" type="button" data-resize="810">810</button>
+        <button class="resize-preset" type="button" data-resize="960">960</button>
+        <button class="resize-preset" type="button" data-resize="1080">1080</button>
+        <button class="resize-preset" type="button" data-resize="1280">1280</button>
+        <button id="resizeResetBtn" type="button">Reset Resize</button>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
