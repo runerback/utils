@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
+
+
+PositiveClipIndex = Annotated[int, Field(ge=1)]
+QuarterTurnCount = Annotated[int, Field(ge=0, le=3)]
 
 
 class VideoMetadata(BaseModel):
@@ -53,17 +57,24 @@ class SceneSplitState(BaseModel):
     ai_sensitivity: float = Field(default=0.5, gt=0, le=1)
     min_clip_length: float = Field(default=2.0, gt=0)
     max_clip_length: float = Field(default=12.0, gt=0)
+    selected_clip_indexes: list[PositiveClipIndex] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_lengths(self) -> "SceneSplitState":
         if self.min_clip_length > self.max_clip_length:
             raise ValueError("scene_split.min_clip_length must be less than or equal to scene_split.max_clip_length")
+        self.selected_clip_indexes = sorted(set(self.selected_clip_indexes))
         return self
+
+
+class RotationState(BaseModel):
+    quarter_turns: QuarterTurnCount = 0
 
 
 class EditState(BaseModel):
     trim: TrimState = Field(default_factory=TrimState)
     crop: CropState = Field(default_factory=CropState)
+    rotation: RotationState = Field(default_factory=RotationState)
     scene_split: SceneSplitState = Field(default_factory=SceneSplitState)
     crop_enabled: bool = False
     resize_max: Optional[int] = Field(default=None, gt=0)

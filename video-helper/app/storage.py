@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -61,7 +62,8 @@ class Storage:
             safe_name = "upload.mp4"
         suffix = Path(safe_name).suffix or ".mp4"
         stem = Path(safe_name).stem.strip() or "upload"
-        filtered_stem = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in stem)
+        normalized_stem = unicodedata.normalize("NFKD", stem).encode("ascii", "ignore").decode("ascii")
+        filtered_stem = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in normalized_stem)
         filtered_stem = filtered_stem.strip("_") or "upload"
         filtered_stem = filtered_stem[:80]
         filename = f"{project_id}_{filtered_stem}{suffix}"

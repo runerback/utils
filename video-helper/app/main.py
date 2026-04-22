@@ -141,6 +141,17 @@ def _split_segments_for_state(source_file: Path, metadata: VideoMetadata, state:
     return [(round(trim_start + start, 6), round(trim_start + end, 6)) for start, end in relative_segments]
 
 
+def _selected_scene_split_indexes(state: EditState, segment_count: int) -> set[int]:
+    selected_indexes = {
+        clip_index
+        for clip_index in state.scene_split.selected_clip_indexes
+        if 1 <= clip_index <= segment_count
+    }
+    if state.scene_split.selected_clip_indexes and not selected_indexes:
+        raise ValueError("Selected clips are no longer available. Render preview again or clear the clip selection.")
+    return selected_indexes
+
+
 def _multipart_output_path(base_file: Path, index: int) -> Path:
     suffix = base_file.suffix or ".mp4"
     stem = base_file.stem
@@ -339,8 +350,11 @@ def render_export(project_id: str) -> RenderResponse:
             )
 
         segments = _split_segments_for_state(paths.original_file, metadata, state)
+        selected_indexes = _selected_scene_split_indexes(state, len(segments))
         parts: list[RenderPart] = []
         for part_index, (start, end) in enumerate(segments, start=1):
+            if selected_indexes and part_index not in selected_indexes:
+                continue
             part_file = _multipart_output_path(paths.export_file, part_index)
             command = ffmpeg.build_export_segment_command(
                 paths.original_file,

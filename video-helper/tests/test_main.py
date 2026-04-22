@@ -359,9 +359,45 @@ class MainTests(unittest.TestCase):
             self.assertEqual(fake_storage.created_source_file, source_file.resolve())
             self.assertFalse(response.original_uses_proxy)
             self.assertFalse(response.state.scene_split.enabled)
+            self.assertEqual(response.state.rotation.quarter_turns, 0)
             self.assertEqual(response.state.scene_split.threshold, 0.4)
             self.assertEqual(response.state.scene_split.min_clip_length, 2.0)
             self.assertEqual(response.state.scene_split.max_clip_length, 12.0)
+
+    def test_create_project_from_path_accepts_unicode_absolute_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_file = root / "日本語の動画.mp4"
+            source_file.write_bytes(b"video")
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=source_file,
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState()
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg()
+
+            with patch("app.main.storage", fake_storage), patch("app.main.ffmpeg", fake_ffmpeg):
+                response = create_project_from_path(LocalProjectCreateRequest(source_path=str(source_file)))
+
+            self.assertEqual(response.project_id, project_id)
+            self.assertEqual(fake_storage.created_source_file, source_file.resolve())
+            self.assertFalse(response.original_uses_proxy)
 
     def test_get_project_original_uses_current_project_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -529,6 +565,7 @@ class MainTests(unittest.TestCase):
             )
             stored_state = EditState()
             next_state = EditState(
+                rotation={"quarter_turns": 3},
                 scene_split={
                     "enabled": True,
                     "detector": "ai",
@@ -536,6 +573,7 @@ class MainTests(unittest.TestCase):
                     "ai_sensitivity": 0.72,
                     "min_clip_length": 3.0,
                     "max_clip_length": 9.0,
+                    "selected_clip_indexes": [3, 1, 3],
                 }
             )
             fake_storage = _FakeStorage(paths, metadata, stored_state)
@@ -545,15 +583,35 @@ class MainTests(unittest.TestCase):
                 response = update_state(project_id, StateUpdateRequest(state=next_state))
 
             self.assertIsNotNone(fake_storage.saved_state)
+            self.assertEqual(fake_storage.saved_state.rotation.quarter_turns, 3)
             self.assertTrue(fake_storage.saved_state.scene_split.enabled)
             self.assertEqual(fake_storage.saved_state.scene_split.detector, "ai")
             self.assertEqual(fake_storage.saved_state.scene_split.threshold, 0.55)
             self.assertEqual(fake_storage.saved_state.scene_split.ai_sensitivity, 0.72)
             self.assertEqual(fake_storage.saved_state.scene_split.min_clip_length, 3.0)
             self.assertEqual(fake_storage.saved_state.scene_split.max_clip_length, 9.0)
+            self.assertEqual(fake_storage.saved_state.scene_split.selected_clip_indexes, [1, 3])
+            self.assertEqual(response.state.rotation.quarter_turns, 3)
             self.assertTrue(response.state.scene_split.enabled)
             self.assertEqual(response.state.scene_split.detector, "ai")
             self.assertEqual(response.state.scene_split.threshold, 0.55)
+            self.assertEqual(response.state.scene_split.selected_clip_indexes, [1, 3])
+
+    def test_rotate_ui_exposes_buttons_and_fixed_order_hint(self) -> None:
+        html = (Path(__file__).resolve().parent.parent / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('data-panel="rotate"', html)
+        self.assertIn('id="rotateLeftBtn"', html)
+        self.assertIn('id="rotateRightBtn"', html)
+        self.assertIn('id="rotateResetBtn"', html)
+        self.assertIn("Rotation is applied after crop and before resize.", html)
+
+    def test_rotation_state_is_normalized_in_browser_script(self) -> None:
+        script = (Path(__file__).resolve().parent.parent / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("const DEFAULT_ROTATION =", script)
+        self.assertIn("function normalizeRotationConfig(rotation)", script)
+        self.assertIn("quarter_turns", script)
+        self.assertIn("showOriginalPreviewForCropEditing", script)
+        self.assertIn("Current rotation:", script)
 
     def test_render_preview_scene_split_returns_parts_and_numbered_filenames(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -784,22 +842,38 @@ class MainTests(unittest.TestCase):
 
     def test_scene_split_ui_exposes_threshold_slider_and_browser_memory_hint(self) -> None:
         html = (Path(__file__).resolve().parent.parent / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="uploadProgress"', html)
+        self.assertIn('id="uploadStatus"', html)
         self.assertIn('id="sceneSplitDetector"', html)
         self.assertIn('id="sceneSplitThresholdRange"', html)
         self.assertIn('id="sceneSplitAiSensitivityRange"', html)
         self.assertIn('id="sceneSplitResetBtn"', html)
+        self.assertIn('id="previewSelectAllBtn"', html)
+        self.assertIn('id="previewClearSelectionBtn"', html)
         self.assertIn("Lower threshold finds more cuts. Higher threshold finds fewer. Higher AI sensitivity finds more cuts.", html)
         self.assertIn("This browser remembers your latest scene split values for new projects.", html)
         self.assertIn("AI mode uses a local TransNetV2 ONNX model", html)
+        self.assertIn("If none are selected, Export keeps the current behavior and writes all split clips.", html)
 
     def test_scene_split_preferences_are_persisted_in_browser_storage(self) -> None:
         script = (Path(__file__).resolve().parent.parent / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn('const SCENE_SPLIT_STORAGE_KEY = "vae-scene-split-preferences"', script)
+        self.assertIn("function uploadProjectFile(file)", script)
+        self.assertIn('xhr.upload.addEventListener("progress"', script)
+        self.assertIn("setUploadProgress(100)", script)
         self.assertIn("window.localStorage.getItem(SCENE_SPLIT_STORAGE_KEY)", script)
         self.assertIn("window.localStorage.setItem(SCENE_SPLIT_STORAGE_KEY", script)
         self.assertIn("setProjectFromPayload(payload, { useRememberedSceneSplit: true })", script)
         self.assertIn('detector: "ffmpeg"', script)
         self.assertIn("sceneSplitAiSensitivityRange", script)
+        self.assertIn("selected_clip_indexes", script)
+        self.assertIn("togglePreviewPartSelection", script)
+
+    def test_unicode_local_paths_fall_back_to_uploaded_copy_in_ui(self) -> None:
+        script = (Path(__file__).resolve().parent.parent / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("function containsNonAscii(value)", script)
+        self.assertIn("unicode path will use uploaded copy", script)
+        self.assertIn("uploaded copy (unicode path compatibility mode)", script)
 
     def test_preview_clip_selection_forces_video_reload(self) -> None:
         script = (Path(__file__).resolve().parent.parent / "static" / "app.js").read_text(encoding="utf-8")
@@ -850,6 +924,57 @@ class MainTests(unittest.TestCase):
             self.assertRegex(second_part.name, r"^vae_\d{17}_part002\.mp4$")
             self.assertEqual(response.parts[0].output_url, f"/exports/{first_part.name}")
             self.assertEqual(response.parts[1].output_url, f"/exports/{second_part.name}")
+
+    def test_render_export_scene_split_only_renders_selected_clip_indexes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState(
+                scene_split={
+                    "enabled": True,
+                    "threshold": 0.3,
+                    "min_clip_length": 2.0,
+                    "max_clip_length": 6.0,
+                    "selected_clip_indexes": [2],
+                }
+            )
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg()
+            fake_scene_detection = _FakeSceneDetection()
+
+            with (
+                patch("app.main.storage", fake_storage),
+                patch("app.main.ffmpeg", fake_ffmpeg),
+                patch("app.main.scene_detection", fake_scene_detection),
+            ):
+                response = render_export(project_id)
+
+            self.assertEqual(len(response.parts), 1)
+            self.assertEqual(response.parts[0].index, 2)
+            exported_part = Path(response.parts[0].output_path)
+            self.assertRegex(exported_part.name, r"^vae_\d{17}_part002\.mp4$")
+            self.assertEqual(
+                fake_ffmpeg.ran_commands,
+                [["ffmpeg", "-ss", "3.0", "-to", "8.0", str(exported_part)]],
+            )
 
 
 if __name__ == "__main__":

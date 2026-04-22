@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import locale
 import math
 import re
 import subprocess
@@ -17,6 +18,20 @@ class FFmpegService:
         self.ffmpeg_bin = ffmpeg_bin
         self.ffprobe_bin = ffprobe_bin
 
+    def _decode_process_output(self, output: str | bytes | None) -> str:
+        if output is None:
+            return ""
+        if isinstance(output, str):
+            return output
+        for encoding in ("utf-8-sig", locale.getpreferredencoding(False), "utf-8"):
+            if not encoding:
+                continue
+            try:
+                return output.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return output.decode("utf-8", errors="replace")
+
     def probe(self, source: Path) -> VideoMetadata:
         command = [
             self.ffprobe_bin,
@@ -28,8 +43,21 @@ class FFmpegService:
             "-show_format",
             str(source),
         ]
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-        payload = json.loads(result.stdout)
+        result = subprocess.run(command, check=True, capture_output=True)
+        stdout_text = self._decode_process_output(result.stdout).strip()
+        stderr_text = self._decode_process_output(result.stderr).strip()
+        if not stdout_text:
+            detail = f"ffprobe returned no JSON output for '{source}'"
+            if stderr_text:
+                detail = f"{detail}: {stderr_text}"
+            raise ValueError(detail)
+        try:
+            payload = json.loads(stdout_text)
+        except json.JSONDecodeError as exc:
+            detail = f"ffprobe returned invalid JSON for '{source}'"
+            if stderr_text:
+                detail = f"{detail}: {stderr_text}"
+            raise ValueError(detail) from exc
 
         video_stream = next((s for s in payload.get("streams", []) if s.get("codec_type") == "video"), None)
         if not video_stream:
@@ -84,6 +112,7 @@ class FFmpegService:
             filters.append(
                 f"crop={state.crop.width}:{state.crop.height}:{state.crop.x}:{state.crop.y}"
             )
+        filters.extend(self._rotation_filters(state))
         if state.resize_max:
             max_size = state.resize_max
             filters.append(
@@ -94,6 +123,16 @@ class FFmpegService:
         if state.fps:
             filters.append(f"fps={state.fps}")
         return ",".join(filters)
+
+    def _rotation_filters(self, state: EditState) -> list[str]:
+        quarter_turns = state.rotation.quarter_turns
+        if quarter_turns == 1:
+            return ["transpose=1"]
+        if quarter_turns == 2:
+            return ["transpose=1", "transpose=1"]
+        if quarter_turns == 3:
+            return ["transpose=2"]
+        return []
 
     def _audio_segment_options(self, metadata: VideoMetadata, segment_start: float, segment_end: float) -> list[str]:
         if not metadata.audio_codec:

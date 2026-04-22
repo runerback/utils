@@ -34,6 +34,13 @@ h1, h2 {
   margin-bottom: 12px;
 }
 
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .editor-tabs {
   display: flex;
   gap: 8px;
@@ -147,6 +154,20 @@ input[type="range"] {
   font-size: 14px;
 }
 
+.preview-parts-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.preview-selection-summary {
+  color: #9be8b1;
+  font-size: 13px;
+  flex: 1;
+}
+
 .preview-parts-list ol {
   margin: 0;
   padding-left: 20px;
@@ -154,6 +175,21 @@ input[type="range"] {
 
 .preview-parts-list li {
   margin: 0 0 4px;
+}
+
+.preview-part-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-part-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b7c0ca;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .preview-part-button {
@@ -274,9 +310,15 @@ input[type="range"] {
   height: 12px;
 }
 
+.upload-status,
 .export-status {
   min-width: 160px;
   color: #9be8b1;
+}
+
+#uploadProgress {
+  width: 220px;
+  height: 12px;
 }
 
 button {

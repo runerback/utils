@@ -15,6 +15,8 @@
       <button id="selectFileBtn" type="button">Select File</button>
       <span id="selectedFileName">No file selected</span>
       <button id="uploadBtn">Upload</button>
+      <progress id="uploadProgress" class="hidden" max="100" value="0"></progress>
+      <span id="uploadStatus" class="upload-status">Idle</span>
     </section>
 
     <section class="controls">
@@ -56,6 +58,11 @@
         </div>
         <div id="previewPartsListWrap" class="preview-parts-list hidden">
           <h3>Preview Clips</h3>
+          <div class="preview-parts-actions">
+            <span id="previewSelectionSummary" class="preview-selection-summary"></span>
+            <button id="previewSelectAllBtn" type="button">Select All for Export</button>
+            <button id="previewClearSelectionBtn" type="button">Export All Clips</button>
+          </div>
           <ol id="previewPartsList"></ol>
         </div>
         <div class="preview-wrap">
@@ -76,6 +83,7 @@
     <section class="controls editor-tabs">
       <button class="editor-tab active" type="button" data-panel="trim">Trim</button>
       <button class="editor-tab" type="button" data-panel="crop">Crop</button>
+      <button class="editor-tab" type="button" data-panel="rotate">Rotate</button>
       <button class="editor-tab" type="button" data-panel="fps">Frame Rate</button>
       <button class="editor-tab" type="button" data-panel="resize">Resize</button>
       <button class="editor-tab" type="button" data-panel="scene-split">Scene Split</button>
@@ -164,6 +172,17 @@
       <label>FPS <input id="fpsInput" type="number" min="1" step="0.01" placeholder="keep original"></label>
     </section>
 
+    <section class="rotate editor-panel hidden" data-panel="rotate">
+      <h2>Rotate</h2>
+      <div class="timeline-row">
+        <button id="rotateLeftBtn" type="button">Left 90</button>
+        <button id="rotateRightBtn" type="button">Right 90</button>
+        <button id="rotateResetBtn" type="button">Reset Rotation</button>
+      </div>
+      <p id="rotationValue">Current rotation: none</p>
+      <p class="scene-split-hint">Rotation is applied after crop and before resize.</p>
+    </section>
+
     <section class="resize editor-panel hidden" data-panel="resize">
       <h2>Resize</h2>
       <label>Max longer edge <input id="resizeMaxInput" type="number" min="2" step="1" placeholder="keep original"></label>
@@ -226,6 +245,7 @@
       <p class="scene-split-hint">Lower threshold finds more cuts. Higher threshold finds fewer. Higher AI sensitivity finds more cuts. This browser remembers your latest scene split values for new projects.</p>
       <p class="scene-split-hint">AI mode uses a local TransNetV2 ONNX model and can use CUDA on Windows when ONNX Runtime GPU is installed.</p>
       <p class="scene-split-hint">Turn on Scene Split, then click <strong>Apply Changes</strong> to render all preview clips here.</p>
+      <p class="scene-split-hint">After preview clips appear, choose the ones you want to export. If none are selected, Export keeps the current behavior and writes all split clips.</p>
     </section>
   </main>
   <script src="/static/app.js"></script>

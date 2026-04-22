@@ -1,12 +1,16 @@
 const UPLOAD_PICKER_ID = "vae-upload-video";
 const SCENE_SPLIT_STORAGE_KEY = "vae-scene-split-preferences";
+const DEFAULT_ROTATION = {
+  quarter_turns: 0
+};
 const DEFAULT_SCENE_SPLIT = {
   enabled: false,
   detector: "ffmpeg",
   threshold: 0.4,
   ai_sensitivity: 0.5,
   min_clip_length: 2,
-  max_clip_length: 12
+  max_clip_length: 12,
+  selected_clip_indexes: []
 };
 
 function toFiniteNumber(value, fallback) {
@@ -24,18 +28,34 @@ function normalizeSceneSplitConfig(sceneSplit) {
   const aiSensitivity = toFiniteNumber(next.ai_sensitivity, DEFAULT_SCENE_SPLIT.ai_sensitivity);
   const minClip = toFiniteNumber(next.min_clip_length, DEFAULT_SCENE_SPLIT.min_clip_length);
   const maxClip = toFiniteNumber(next.max_clip_length, DEFAULT_SCENE_SPLIT.max_clip_length);
+  const selectedClipIndexes = Array.from(
+    new Set(
+      (Array.isArray(next.selected_clip_indexes) ? next.selected_clip_indexes : [])
+        .map((value) => Math.round(toFiniteNumber(value, Number.NaN)))
+        .filter((value) => Number.isInteger(value) && value >= 1)
+    )
+  ).sort((left, right) => left - right);
   const normalized = {
     enabled: Boolean(next.enabled),
     detector: detector === "ai" ? "ai" : "ffmpeg",
     threshold: Math.max(0.01, Math.min(1, threshold)),
     ai_sensitivity: Math.max(0.01, Math.min(1, aiSensitivity)),
     min_clip_length: Math.max(0.1, minClip),
-    max_clip_length: Math.max(0.1, maxClip)
+    max_clip_length: Math.max(0.1, maxClip),
+    selected_clip_indexes: selectedClipIndexes
   };
   if (normalized.min_clip_length > normalized.max_clip_length) {
     normalized.max_clip_length = normalized.min_clip_length;
   }
   return normalized;
+}
+
+function normalizeRotationConfig(rotation) {
+  const next = rotation && typeof rotation === "object" ? rotation : {};
+  const quarterTurns = Math.round(toFiniteNumber(next.quarter_turns, DEFAULT_ROTATION.quarter_turns));
+  return {
+    quarter_turns: ((quarterTurns % 4) + 4) % 4
+  };
 }
 
 function loadSceneSplitPreferences() {
@@ -47,7 +67,10 @@ function loadSceneSplitPreferences() {
     if (!raw) {
       return { ...DEFAULT_SCENE_SPLIT };
     }
-    return normalizeSceneSplitConfig(JSON.parse(raw));
+    return {
+      ...normalizeSceneSplitConfig(JSON.parse(raw)),
+      selected_clip_indexes: []
+    };
   } catch (error) {
     console.warn("Could not load scene split preferences.", error);
     return { ...DEFAULT_SCENE_SPLIT };
@@ -56,19 +79,24 @@ function loadSceneSplitPreferences() {
 
 function persistSceneSplitPreferences(sceneSplit) {
   const normalized = normalizeSceneSplitConfig(sceneSplit);
+  const rememberedPreferences = {
+    ...normalized,
+    selected_clip_indexes: []
+  };
   try {
     if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem(SCENE_SPLIT_STORAGE_KEY, JSON.stringify(normalized));
+      window.localStorage.setItem(SCENE_SPLIT_STORAGE_KEY, JSON.stringify(rememberedPreferences));
     }
   } catch (error) {
     console.warn("Could not save scene split preferences.", error);
   }
-  return normalized;
+  return rememberedPreferences;
 }
 
 const state = {
   projectId: null,
   metadata: null,
+  originalUrl: null,
   originalUsesProxy: false,
   selectedFile: null,
   selectedFilePath: null,
@@ -78,6 +106,7 @@ const state = {
   edit: {
     trim: { start: 0, end: 0 },
     crop: { x: 0, y: 0, width: 0, height: 0, preset: null },
+    rotation: { ...DEFAULT_ROTATION },
     crop_enabled: false,
     resize_max: null,
     fps: null,
@@ -90,6 +119,8 @@ const el = {
   selectFileBtn: document.getElementById("selectFileBtn"),
   selectedFileName: document.getElementById("selectedFileName"),
   uploadBtn: document.getElementById("uploadBtn"),
+  uploadProgress: document.getElementById("uploadProgress"),
+  uploadStatus: document.getElementById("uploadStatus"),
   projectSelect: document.getElementById("projectSelect"),
   refreshProjectsBtn: document.getElementById("refreshProjectsBtn"),
   loadProjectBtn: document.getElementById("loadProjectBtn"),
@@ -104,6 +135,9 @@ const el = {
   previewPartsProgressText: document.getElementById("previewPartsProgressText"),
   previewPartsListWrap: document.getElementById("previewPartsListWrap"),
   previewPartsList: document.getElementById("previewPartsList"),
+  previewSelectionSummary: document.getElementById("previewSelectionSummary"),
+  previewSelectAllBtn: document.getElementById("previewSelectAllBtn"),
+  previewClearSelectionBtn: document.getElementById("previewClearSelectionBtn"),
   zoom: document.getElementById("zoom"),
   zoomLabel: document.getElementById("zoomLabel"),
   startRange: document.getElementById("startRange"),
@@ -126,6 +160,10 @@ const el = {
   cropH: document.getElementById("cropH"),
   cropEnabled: document.getElementById("cropEnabled"),
   cropResetBtn: document.getElementById("cropResetBtn"),
+  rotateLeftBtn: document.getElementById("rotateLeftBtn"),
+  rotateRightBtn: document.getElementById("rotateRightBtn"),
+  rotateResetBtn: document.getElementById("rotateResetBtn"),
+  rotationValue: document.getElementById("rotationValue"),
   resizeMaxInput: document.getElementById("resizeMaxInput"),
   resizeResetBtn: document.getElementById("resizeResetBtn"),
   fpsInput: document.getElementById("fpsInput"),
@@ -164,6 +202,7 @@ function normalizeEditState(edit, metadata = null) {
   const next = edit && typeof edit === "object" ? edit : {};
   const trim = next.trim && typeof next.trim === "object" ? next.trim : {};
   const crop = next.crop && typeof next.crop === "object" ? next.crop : {};
+  const rotation = next.rotation && typeof next.rotation === "object" ? next.rotation : {};
   const sceneSplit = next.scene_split && typeof next.scene_split === "object" ? next.scene_split : {};
 
   next.trim = {
@@ -181,6 +220,7 @@ function normalizeEditState(edit, metadata = null) {
     height: Math.max(0, Math.round(toFiniteNumber(crop.height, 0))),
     preset: crop.preset ?? null
   };
+  next.rotation = normalizeRotationConfig(rotation);
   next.crop_enabled = Boolean(next.crop_enabled);
 
   const fpsValue = toFiniteNumber(next.fps, null);
@@ -193,6 +233,22 @@ function normalizeEditState(edit, metadata = null) {
 
 function setStatus(message) {
   el.status.textContent = message;
+}
+
+function setUploadStatus(message) {
+  el.uploadStatus.textContent = message;
+}
+
+function setUploadProgress(value) {
+  const clamped = Math.max(0, Math.min(100, value));
+  el.uploadProgress.classList.remove("hidden");
+  el.uploadProgress.value = clamped;
+}
+
+function hideUploadProgress() {
+  el.uploadProgress.classList.add("hidden");
+  el.uploadProgress.value = 0;
+  setUploadStatus("Idle");
 }
 
 function setExportStatus(message) {
@@ -294,6 +350,19 @@ function withCacheBust(url) {
   return `${url}${separator}t=${Date.now()}`;
 }
 
+function normalizedPathname(url) {
+  if (!url) return "";
+  try {
+    return new URL(url, window.location.origin).pathname;
+  } catch (error) {
+    return String(url);
+  }
+}
+
+function isVideoShowingUrl(videoElement, url) {
+  return normalizedPathname(videoElement.currentSrc) === normalizedPathname(url);
+}
+
 function setVideoSource(videoElement, url, options = {}) {
   const { cacheBust = false } = options;
   videoElement.pause();
@@ -308,6 +377,19 @@ function setVideoSource(videoElement, url, options = {}) {
   videoElement.load();
 }
 
+function showOriginalPreviewForCropEditing(options = {}) {
+  const { announce = false } = options;
+  if (!state.originalUrl) return true;
+  if (isVideoShowingUrl(el.previewVideo, state.originalUrl)) {
+    return true;
+  }
+  setVideoSource(el.previewVideo, state.originalUrl);
+  if (announce) {
+    setStatus("Crop editing uses the original preview. Click and drag again to adjust the crop.");
+  }
+  return false;
+}
+
 function closeCropIndicator() {
   state.cropIndicatorVisible = false;
   updateCropUI();
@@ -317,6 +399,7 @@ function setProjectFromPayload(payload, options = {}) {
   const { forceCropOff = false, useRememberedSceneSplit = false } = options;
   state.projectId = payload.project_id;
   state.metadata = payload.metadata;
+  state.originalUrl = payload.original_url;
   state.originalUsesProxy = Boolean(payload.original_uses_proxy);
   state.edit = normalizeEditState(payload.state, state.metadata);
   if (useRememberedSceneSplit) {
@@ -325,13 +408,14 @@ function setProjectFromPayload(payload, options = {}) {
   if (forceCropOff) {
     state.edit.crop_enabled = false;
   }
-  setVideoSource(el.originalVideo, payload.original_url);
-  const previewUrl = forceCropOff ? payload.original_url : payload.preview_url;
+  setVideoSource(el.originalVideo, state.originalUrl);
+  const previewUrl = forceCropOff ? state.originalUrl : payload.preview_url;
   clearPreviewParts();
   setVideoSource(el.previewVideo, previewUrl, { cacheBust: true });
   el.fpsInput.value = state.edit.fps ?? "";
   el.resizeMaxInput.value = state.edit.resize_max ?? "";
   el.cropEnabled.checked = state.edit.crop_enabled;
+  updateRotationUI();
   updateSceneSplitUI();
   updatePreviewPartsVisibility();
   state.cropIndicatorVisible = forceCropOff
@@ -373,6 +457,10 @@ function isAbsolutePath(pathValue) {
   return /^[A-Za-z]:\\/.test(pathValue) || pathValue.startsWith("\\\\") || pathValue.startsWith("/");
 }
 
+function containsNonAscii(value) {
+  return typeof value === "string" && /[^\x00-\x7F]/.test(value);
+}
+
 function setSelectedFile(file) {
   state.selectedFile = file ?? null;
   const detectedPath = state.selectedFile ? detectLocalPath(state.selectedFile) : null;
@@ -383,6 +471,62 @@ function setSelectedFile(file) {
 
 function openFallbackFileInput() {
   el.fileInput.click();
+}
+
+function parseJsonResponse(xhr) {
+  if (xhr.response && typeof xhr.response === "object") {
+    return xhr.response;
+  }
+  if (!xhr.responseText) {
+    return null;
+  }
+  return JSON.parse(xhr.responseText);
+}
+
+function uploadProjectFile(file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/projects");
+    xhr.responseType = "json";
+    xhr.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable || !event.total) {
+        setUploadStatus("Uploading...");
+        setStatus("Uploading...");
+        return;
+      }
+      const progress = (event.loaded / event.total) * 100;
+      const rounded = Math.round(progress);
+      setUploadProgress(progress);
+      setUploadStatus(`Uploading... ${rounded}%`);
+      setStatus(`Uploading... ${rounded}%`);
+    });
+    xhr.addEventListener("load", () => {
+      let payload;
+      try {
+        payload = parseJsonResponse(xhr);
+      } catch (error) {
+        reject(new Error("Invalid upload response from server."));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload);
+        return;
+      }
+      const detail = payload && typeof payload.detail === "string"
+        ? payload.detail
+        : `Request failed with status ${xhr.status}`;
+      reject(new Error(detail));
+    });
+    xhr.addEventListener("error", () => {
+      reject(new Error("Network error while uploading."));
+    });
+    xhr.addEventListener("abort", () => {
+      reject(new Error("Upload canceled."));
+    });
+    const form = new FormData();
+    form.append("file", file, file.name);
+    xhr.send(form);
+  });
 }
 
 async function selectVideoFile() {
@@ -399,7 +543,13 @@ async function selectVideoFile() {
       if (handlePath && isAbsolutePath(handlePath)) {
         state.selectedFilePath = handlePath;
       }
-      setStatus(state.selectedFilePath ? `Selected ${file.name} (local path detected)` : `Selected ${file.name}`);
+      if (state.selectedFilePath && !containsNonAscii(state.selectedFilePath)) {
+        setStatus(`Selected ${file.name} (local path detected)`);
+      } else if (state.selectedFilePath) {
+        setStatus(`Selected ${file.name} (unicode path will use uploaded copy)`);
+      } else {
+        setStatus(`Selected ${file.name}`);
+      }
       return;
     } catch (error) {
       if (error && error.name === "AbortError") {
@@ -514,6 +664,80 @@ function clearPreviewParts() {
   updatePreviewPartsVisibility();
 }
 
+function selectedClipIndexes() {
+  return Array.isArray(state.edit.scene_split.selected_clip_indexes) ? state.edit.scene_split.selected_clip_indexes : [];
+}
+
+function setSelectedClipIndexes(indexes) {
+  state.edit.scene_split.selected_clip_indexes = normalizeSceneSplitConfig({
+    ...state.edit.scene_split,
+    selected_clip_indexes: indexes
+  }).selected_clip_indexes;
+}
+
+function updatePreviewSelectionSummary() {
+  const splitEnabled = Boolean(state.edit.scene_split.enabled);
+  const availableIndexes = new Set(state.previewParts.map((part) => part.index));
+  const selectedCount = selectedClipIndexes().filter((clipIndex) => availableIndexes.has(clipIndex)).length;
+  const totalCount = state.previewParts.length;
+  if (!splitEnabled) {
+    el.previewSelectionSummary.textContent = "";
+    el.previewSelectAllBtn.disabled = true;
+    el.previewClearSelectionBtn.disabled = true;
+    return;
+  }
+  if (!totalCount) {
+    el.previewSelectionSummary.textContent = "Render preview clips first, then choose which ones to export.";
+    el.previewSelectAllBtn.disabled = true;
+    el.previewClearSelectionBtn.disabled = true;
+    return;
+  }
+  if (!selectedCount) {
+    el.previewSelectionSummary.textContent = `Export will include all ${totalCount} clips.`;
+  } else {
+    el.previewSelectionSummary.textContent = `Export will include ${selectedCount} of ${totalCount} clips.`;
+  }
+  el.previewSelectAllBtn.disabled = selectedCount === totalCount;
+  el.previewClearSelectionBtn.disabled = selectedCount === 0;
+}
+
+function syncSelectedClipIndexesToRenderedParts() {
+  const currentIndexes = selectedClipIndexes();
+  const availableIndexes = new Set(state.previewParts.map((part) => part.index));
+  const filteredIndexes = currentIndexes.filter((clipIndex) => availableIndexes.has(clipIndex));
+  if (filteredIndexes.length !== currentIndexes.length) {
+    setSelectedClipIndexes(filteredIndexes);
+  }
+}
+
+function isPreviewPartSelected(partIndex) {
+  return selectedClipIndexes().includes(partIndex);
+}
+
+function togglePreviewPartSelection(partIndex, selected) {
+  const nextIndexes = new Set(selectedClipIndexes());
+  if (selected) {
+    nextIndexes.add(partIndex);
+  } else {
+    nextIndexes.delete(partIndex);
+  }
+  setSelectedClipIndexes([...nextIndexes]);
+  renderPreviewPartsList();
+  updatePreviewSelectionSummary();
+}
+
+function selectAllPreviewParts() {
+  setSelectedClipIndexes(state.previewParts.map((part) => part.index));
+  renderPreviewPartsList();
+  updatePreviewSelectionSummary();
+}
+
+function clearSelectedPreviewParts() {
+  setSelectedClipIndexes([]);
+  renderPreviewPartsList();
+  updatePreviewSelectionSummary();
+}
+
 function updatePreviewPartsVisibility() {
   const splitEnabled = Boolean(state.edit.scene_split.enabled);
   el.previewPartsWrap.classList.remove("hidden");
@@ -524,6 +748,7 @@ function updatePreviewPartsVisibility() {
     el.previewPartInfo.textContent = "Scene Split is off.";
     el.previewPartsList.innerHTML = '<li class="preview-part-empty">Turn on Scene Split and click Apply Changes to render preview clips.</li>';
     hidePreviewPartsProgress();
+    updatePreviewSelectionSummary();
     return;
   }
   if (!state.previewParts.length) {
@@ -531,16 +756,30 @@ function updatePreviewPartsVisibility() {
     el.previewPartsList.innerHTML = '<li class="preview-part-empty">Click Apply Changes to render split preview clips.</li>';
     hidePreviewPartsProgress();
   }
+  updatePreviewSelectionSummary();
 }
 
 function renderPreviewPartsList() {
   el.previewPartsList.innerHTML = "";
   if (!state.previewParts.length) {
     el.previewPartsList.innerHTML = '<li class="preview-part-empty">No preview clips rendered yet.</li>';
+    updatePreviewSelectionSummary();
     return;
   }
   state.previewParts.forEach((part, index) => {
     const item = document.createElement("li");
+    const row = document.createElement("div");
+    row.className = "preview-part-row";
+    const toggle = document.createElement("label");
+    toggle.className = "preview-part-toggle";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = isPreviewPartSelected(part.index);
+    checkbox.addEventListener("change", () => {
+      togglePreviewPartSelection(part.index, checkbox.checked);
+    });
+    toggle.appendChild(checkbox);
+    toggle.appendChild(document.createTextNode("Export"));
     const button = document.createElement("button");
     button.type = "button";
     button.className = "preview-part-button";
@@ -550,9 +789,12 @@ function renderPreviewPartsList() {
     button.addEventListener("click", () => {
       selectPreviewPart(index);
     });
-    item.appendChild(button);
+    row.appendChild(toggle);
+    row.appendChild(button);
+    item.appendChild(row);
     el.previewPartsList.appendChild(item);
   });
+  updatePreviewSelectionSummary();
 }
 
 function selectPreviewPart(index) {
@@ -575,6 +817,7 @@ function updatePreviewParts(parts) {
     return;
   }
   state.previewParts = parts;
+  syncSelectedClipIndexesToRenderedParts();
   state.selectedPreviewPartIndex = 0;
   el.previewPartSelect.innerHTML = "";
   parts.forEach((part, index) => {
@@ -649,12 +892,15 @@ function syncSceneSplitFromInputs(options = {}) {
     threshold,
     ai_sensitivity: aiSensitivity,
     min_clip_length: toFiniteNumber(el.sceneSplitMinClip.value, DEFAULT_SCENE_SPLIT.min_clip_length),
-    max_clip_length: toFiniteNumber(el.sceneSplitMaxClip.value, DEFAULT_SCENE_SPLIT.max_clip_length)
+    max_clip_length: toFiniteNumber(el.sceneSplitMaxClip.value, DEFAULT_SCENE_SPLIT.max_clip_length),
+    selected_clip_indexes: selectedClipIndexes()
   });
   if (!next.enabled) {
+    state.edit.scene_split = next;
     clearPreviewParts();
+  } else {
+    state.edit.scene_split = next;
   }
-  state.edit.scene_split = next;
   if (persist) {
     persistSceneSplitPreferences(next);
   }
@@ -665,6 +911,33 @@ function formatDimensions(width, height) {
   return `${width}x${height}`;
 }
 
+function rotationDescription(quarterTurns) {
+  switch (quarterTurns) {
+    case 1:
+      return "90 deg right";
+    case 2:
+      return "180 deg";
+    case 3:
+      return "90 deg left";
+    default:
+      return "none";
+  }
+}
+
+function updateRotationUI() {
+  const rotation = normalizeRotationConfig(state.edit.rotation);
+  state.edit.rotation = rotation;
+  el.rotationValue.textContent = `Current rotation: ${rotationDescription(rotation.quarter_turns)}`;
+  updateDimensionLabels();
+}
+
+function rotatePreview(deltaQuarterTurns) {
+  state.edit.rotation = normalizeRotationConfig({
+    quarter_turns: state.edit.rotation.quarter_turns + deltaQuarterTurns
+  });
+  updateRotationUI();
+}
+
 function getModifiedDimensions() {
   if (!state.metadata) return null;
   let width = state.metadata.width;
@@ -673,6 +946,9 @@ function getModifiedDimensions() {
   if (state.edit.crop_enabled && crop.width && crop.height) {
     width = crop.width;
     height = crop.height;
+  }
+  if (state.edit.rotation.quarter_turns % 2 === 1) {
+    [width, height] = [height, width];
   }
   const sourceWidth = width;
   const sourceHeight = height;
@@ -754,6 +1030,7 @@ function updateCropUI() {
 
 function applyPreset(ratio) {
   if (!state.metadata) return;
+  showOriginalPreviewForCropEditing();
   const [rw, rh] = ratio.split(":").map(Number);
   const w = state.metadata.width;
   const h = Math.floor((w * rh) / rw);
@@ -772,6 +1049,7 @@ function applyPreset(ratio) {
 
 function resetCrop() {
   if (!state.metadata) return;
+  showOriginalPreviewForCropEditing();
   state.edit.crop = {
     x: 0,
     y: 0,
@@ -789,40 +1067,60 @@ async function uploadVideo() {
     setStatus("Select a file first.");
     return;
   }
-  setStatus("Uploading...");
+  el.uploadBtn.disabled = true;
+  el.selectFileBtn.disabled = true;
   let response;
   let mode = "uploaded copy";
   const sourcePath = state.selectedFilePath || detectLocalPath(file);
-  if (sourcePath && isAbsolutePath(sourcePath)) {
-    mode = "local path";
-    response = await fetch("/api/projects/from-path", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source_path: sourcePath })
-    });
-  } else {
-    const form = new FormData();
-    form.append("file", file, file.name);
-    response = await fetch("/api/projects", { method: "POST", body: form });
-  }
-  if (!response.ok) {
-    setStatus(`Upload failed: ${(await response.json()).detail}`);
-    return;
-  }
-  const payload = await response.json();
-  setProjectFromPayload(payload, { useRememberedSceneSplit: true });
-  await refreshTrimFrames();
-  await refreshProjects();
-  el.projectSelect.value = payload.project_id;
-  const proxyMessage = payload.original_uses_proxy ? " Original player compatibility proxy is ready." : "";
-  if (mode === "local path") {
-    setStatus(`Upload complete: loaded project ${state.projectId} via local path.${proxyMessage}`);
-  } else if (sourcePath) {
-    setStatus(
-      `Upload complete: loaded project ${state.projectId} via uploaded copy (local path unavailable).${proxyMessage}`
-    );
-  } else {
-    setStatus(`Upload complete: loaded project ${state.projectId} via uploaded copy.${proxyMessage}`);
+  const canUseLocalPath = sourcePath && isAbsolutePath(sourcePath) && !containsNonAscii(sourcePath);
+  try {
+    if (canUseLocalPath) {
+      hideUploadProgress();
+      setUploadStatus("Idle");
+      setStatus("Loading project from local path...");
+      mode = "local path";
+      response = await fetch("/api/projects/from-path", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_path: sourcePath })
+      });
+      if (!response.ok) {
+        throw new Error((await response.json()).detail);
+      }
+      response = await response.json();
+    } else {
+      setUploadProgress(0);
+      setUploadStatus("Uploading...");
+      setStatus("Uploading...");
+      response = await uploadProjectFile(file);
+      setUploadProgress(100);
+      setUploadStatus("Upload complete");
+    }
+    const payload = response;
+    setProjectFromPayload(payload, { useRememberedSceneSplit: true });
+    await refreshTrimFrames();
+    await refreshProjects();
+    el.projectSelect.value = payload.project_id;
+    const proxyMessage = payload.original_uses_proxy ? " Original player compatibility proxy is ready." : "";
+    if (mode === "local path") {
+      setStatus(`Upload complete: loaded project ${state.projectId} via local path.${proxyMessage}`);
+    } else if (sourcePath && containsNonAscii(sourcePath)) {
+      setStatus(`Upload complete: loaded project ${state.projectId} via uploaded copy (unicode path compatibility mode).${proxyMessage}`);
+    } else if (sourcePath) {
+      setStatus(
+        `Upload complete: loaded project ${state.projectId} via uploaded copy (local path unavailable).${proxyMessage}`
+      );
+    } else {
+      setStatus(`Upload complete: loaded project ${state.projectId} via uploaded copy.${proxyMessage}`);
+    }
+  } catch (error) {
+    if (!canUseLocalPath) {
+      setUploadStatus("Failed");
+    }
+    setStatus(`Upload failed: ${error.message}`);
+  } finally {
+    el.uploadBtn.disabled = !state.selectedFile;
+    el.selectFileBtn.disabled = false;
   }
 }
 
@@ -991,6 +1289,8 @@ el.loadProjectBtn.addEventListener("click", loadSelectedProject);
 el.saveStateBtn.addEventListener("click", saveState);
 el.previewBtn.addEventListener("click", refreshPreview);
 el.exportBtn.addEventListener("click", exportVideo);
+el.previewSelectAllBtn.addEventListener("click", selectAllPreviewParts);
+el.previewClearSelectionBtn.addEventListener("click", clearSelectedPreviewParts);
 el.previewPartSelect.addEventListener("change", () => {
   selectPreviewPart(Number(el.previewPartSelect.value || 0));
 });
@@ -1001,10 +1301,17 @@ el.cropEnabled.addEventListener("change", () => {
     state.cropIndicatorVisible = false;
   } else if (state.edit.crop.width && state.edit.crop.height) {
     state.cropIndicatorVisible = true;
+    showOriginalPreviewForCropEditing();
   }
   updateCropUI();
 });
 el.cropResetBtn.addEventListener("click", resetCrop);
+el.rotateLeftBtn.addEventListener("click", () => rotatePreview(-1));
+el.rotateRightBtn.addEventListener("click", () => rotatePreview(1));
+el.rotateResetBtn.addEventListener("click", () => {
+  state.edit.rotation = { ...DEFAULT_ROTATION };
+  updateRotationUI();
+});
 el.resizeMaxInput.addEventListener("change", () => {
   const resizeMax = Number(el.resizeMaxInput.value);
   state.edit.resize_max = Number.isInteger(resizeMax) && resizeMax >= 2 ? resizeMax : null;
@@ -1140,6 +1447,7 @@ let cornerDrag = null;
 el.previewVideo.addEventListener("mousedown", (event) => {
   if (!state.metadata) return;
   if (!state.edit.crop_enabled) return;
+  if (!showOriginalPreviewForCropEditing({ announce: true })) return;
   if (event.target !== el.previewVideo) {
     return;
   }
@@ -1174,6 +1482,7 @@ window.addEventListener("mousemove", (event) => {
 el.cropHandles.forEach((handle) => {
   handle.addEventListener("mousedown", (event) => {
     if (!state.metadata || !state.edit.crop_enabled || !state.edit.crop.width || !state.edit.crop.height) return;
+    if (!showOriginalPreviewForCropEditing({ announce: true })) return;
     event.stopPropagation();
     const rect = el.previewVideo.getBoundingClientRect();
     cornerDrag = {
@@ -1234,6 +1543,7 @@ el.cropCloseBtn.addEventListener("click", (event) => {
 
 updateZoomUI();
 updateDimensionLabels();
+updateRotationUI();
 updateSceneSplitUI();
 clearPreviewParts();
 setActiveEditorPanel("trim");

@@ -7,6 +7,7 @@ Users can:
 - Re-open previous projects from the web UI
 - Preview **original** and **modified** versions side by side
 - Trim (A-B), crop, resize, change frame rate, and split by scene
+- Rotate left/right by 90 degrees
 - Export a new video without modifying the source file
 
 ## Features
@@ -21,6 +22,9 @@ Users can:
   - Drag crop region on preview
   - Manual numeric crop inputs
   - Presets: `4:3`, `3:4`, `16:9`, `9:16`
+- Rotate controls:
+  - Left 90
+  - Right 90
 - Resize control for the maximum longer edge
 - Whole-video FPS override (single global setting)
 - Scene split controls:
@@ -29,6 +33,7 @@ Users can:
   - Minimum and maximum clip length
   - Browser remembers the latest scene split UI values for new projects on the same device/browser
   - Multipart preview clips shown in the web UI after **Apply Changes**
+  - Choose only some rendered clips for export, or leave the selection empty to export all clips
 - Preview render and final export render via FFmpeg
 - Browser-compatible playback proxy for HEVC/libx265 source videos
 
@@ -104,13 +109,13 @@ Open:
    - Select a file and click **Upload**.
    - The app automatically prefers local-path project creation when an absolute path is available from the runtime, otherwise it uploads a copy to `uploads\`.
    - The status line after Upload reports which mode was used and whether a compatibility playback proxy was created.
-2. Adjust trim/crop/resize/fps/scene split in the UI.
+2. Adjust trim/crop/rotate/resize/fps/scene split in the UI.
 3. Click **Save State**.
 4. Click **Apply Changes** to render the modified preview.
    - If **Scene Split** is off, the preview player shows one modified clip.
-   - If **Scene Split** is on, the preview area shows all generated clips and lets you switch between them in the web UI.
+   - If **Scene Split** is on, the preview area shows all generated clips, lets you switch between them, and lets you choose which clips to export.
 5. Click **Export** to save the final file to `--export-path` (or `exports\` by default).
-   - If **Scene Split** is on, export writes multiple numbered output clips instead of one file.
+   - If **Scene Split** is on, export writes the selected numbered output clips instead of one file. If no clips are selected, export writes all split clips.
 
 If a local-path source is missing later, the app will auto-fallback to project-derived/cached media from `work\` or `uploads\` when available.
 

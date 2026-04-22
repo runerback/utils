@@ -92,6 +92,13 @@ class StorageTests(unittest.TestCase):
             paths = storage.create_project_paths("holiday clip (final).mov")
             self.assertRegex(paths.original_file.name, rf"^{paths.project_id}_holiday_clip__final\.mov$")
 
+    def test_create_project_paths_ascii_sanitizes_unicode_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            storage = Storage(root)
+            paths = storage.create_project_paths("日本語の動画.mp4")
+            self.assertRegex(paths.original_file.name, rf"^{paths.project_id}_upload\.mp4$")
+
     def test_build_export_file_path_adds_suffix_when_collision_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -179,6 +186,8 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(state.scene_split.threshold, 0.4)
             self.assertEqual(state.scene_split.min_clip_length, 2.0)
             self.assertEqual(state.scene_split.max_clip_length, 12.0)
+            self.assertEqual(state.scene_split.selected_clip_indexes, [])
+            self.assertEqual(state.rotation.quarter_turns, 0)
 
     def test_project_paths_raises_when_original_and_fallback_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

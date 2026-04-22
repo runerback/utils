@@ -22,6 +22,7 @@ class FFmpegServiceTests(unittest.TestCase):
         state = EditState(
             trim=TrimState(start=1.0, end=5.0),
             crop=CropState(x=10, y=20, width=1000, height=500),
+            rotation={"quarter_turns": 1},
             crop_enabled=True,
             resize_max=720,
             fps=24.0,
@@ -31,8 +32,11 @@ class FFmpegServiceTests(unittest.TestCase):
         vf = command[command.index("-vf") + 1]
         self.assertIn("trim=start=1.0:end=5.0", vf)
         self.assertIn("crop=1000:500:10:20", vf)
+        self.assertIn("transpose=1", vf)
         self.assertIn("scale=if(gte(iw\\,ih)\\,min(iw\\,720)\\,-2):if(gte(iw\\,ih)\\,-2\\,min(ih\\,720))", vf)
         self.assertIn("fps=24.0", vf)
+        self.assertLess(vf.index("crop=1000:500:10:20"), vf.index("transpose=1"))
+        self.assertLess(vf.index("transpose=1"), vf.index("scale=if(gte(iw\\,ih)\\,min(iw\\,720)\\,-2):if(gte(iw\\,ih)\\,-2\\,min(ih\\,720))"))
 
     def test_build_preview_command_includes_resize_filter_for_portrait_metadata(self) -> None:
         metadata = VideoMetadata(width=1080, height=1920, duration=12.0, fps=30.0, frame_count=360)
@@ -55,6 +59,7 @@ class FFmpegServiceTests(unittest.TestCase):
         state = EditState(
             trim=TrimState(start=1.0, end=10.0),
             crop=CropState(x=10, y=20, width=1000, height=500),
+            rotation={"quarter_turns": 3},
             crop_enabled=True,
             resize_max=720,
             fps=24.0,
@@ -70,6 +75,7 @@ class FFmpegServiceTests(unittest.TestCase):
         vf = command[command.index("-vf") + 1]
         self.assertIn("trim=start=2.0:end=4.5", vf)
         self.assertIn("crop=1000:500:10:20", vf)
+        self.assertIn("transpose=2", vf)
         self.assertIn("fps=24.0", vf)
         af = command[command.index("-af") + 1]
         self.assertEqual(af, "atrim=start=2.0:end=4.5,asetpts=PTS-STARTPTS")
@@ -137,6 +143,21 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertEqual(scene_split.ai_sensitivity, 0.5)
         self.assertEqual(scene_split.min_clip_length, 2.0)
         self.assertEqual(scene_split.max_clip_length, 12.0)
+        self.assertEqual(scene_split.selected_clip_indexes, [])
+
+    def test_edit_state_defaults_rotation_configuration(self) -> None:
+        rotation = EditState().rotation
+        self.assertEqual(rotation.quarter_turns, 0)
+
+    def test_edit_state_partial_rotation_payload_keeps_defaults(self) -> None:
+        rotation = EditState(rotation={}).rotation
+        self.assertEqual(rotation.quarter_turns, 0)
+
+    def test_edit_state_rejects_out_of_range_rotation_turns(self) -> None:
+        with self.assertRaises(ValueError):
+            EditState(rotation={"quarter_turns": -1})
+        with self.assertRaises(ValueError):
+            EditState(rotation={"quarter_turns": 4})
 
     def test_edit_state_partial_scene_split_payload_keeps_defaults(self) -> None:
         scene_split = EditState(scene_split={"enabled": True}).scene_split
@@ -146,6 +167,7 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertEqual(scene_split.ai_sensitivity, 0.5)
         self.assertEqual(scene_split.min_clip_length, 2.0)
         self.assertEqual(scene_split.max_clip_length, 12.0)
+        self.assertEqual(scene_split.selected_clip_indexes, [])
 
     def test_edit_state_rejects_out_of_range_scene_split_threshold(self) -> None:
         with self.assertRaises(ValueError):
@@ -181,6 +203,14 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertEqual(scene_split.min_clip_length, 4.0)
         self.assertEqual(scene_split.max_clip_length, 4.0)
 
+    def test_edit_state_normalizes_selected_scene_split_clip_indexes(self) -> None:
+        scene_split = EditState(scene_split={"selected_clip_indexes": [3, 1, 3, 2]}).scene_split
+        self.assertEqual(scene_split.selected_clip_indexes, [1, 2, 3])
+
+    def test_edit_state_rejects_non_positive_selected_scene_split_clip_indexes(self) -> None:
+        with self.assertRaises(ValueError):
+            EditState(scene_split={"selected_clip_indexes": [0]})
+
     def test_edit_state_rejects_scene_split_min_greater_than_max(self) -> None:
         with self.assertRaises(ValueError):
             EditState(scene_split={"min_clip_length": 8.0, "max_clip_length": 5.0})
@@ -192,6 +222,12 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertIn("aac", command)
         self.assertIn("yuv420p", command)
         self.assertEqual(command[-1], "player.mp4")
+
+    def test_build_preview_command_uses_double_transpose_for_180_rotation(self) -> None:
+        state = EditState(rotation={"quarter_turns": 2})
+        command = self.service.build_preview_command(Path("in.mp4"), Path("out.mp4"), self.metadata, state)
+        vf = command[command.index("-vf") + 1]
+        self.assertIn("transpose=1,transpose=1", vf)
 
     def test_requires_player_proxy_for_hevc_sources(self) -> None:
         hevc_metadata = self.metadata.model_copy(update={"video_codec": "hevc"})
@@ -229,6 +265,45 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertEqual(metadata.video_codec, "hevc")
         self.assertEqual(metadata.audio_codec, "aac")
         self.assertEqual(metadata.container_format, "mov,mp4,m4a,3gp,3g2,mj2")
+
+    def test_probe_decodes_byte_output_for_unicode_paths(self) -> None:
+        probe_output = """
+        {
+          "streams": [
+            {
+              "codec_type": "video",
+              "codec_name": "h264",
+              "width": 1280,
+              "height": 720,
+              "duration": "6.0",
+              "avg_frame_rate": "30/1"
+            }
+          ],
+          "format": {
+            "duration": "6.0",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+            "filename": "日本語の動画.mp4"
+          }
+        }
+        """.encode("utf-8")
+        source = Path("日本語の動画.mp4")
+        with patch("app.ffmpeg.subprocess.run") as mock_run:
+            mock_run.return_value.stdout = probe_output
+            mock_run.return_value.stderr = b""
+            metadata = self.service.probe(source)
+
+        command = mock_run.call_args.args[0]
+        self.assertEqual(command[-1], str(source))
+        self.assertEqual(metadata.width, 1280)
+        self.assertEqual(metadata.height, 720)
+        self.assertEqual(metadata.video_codec, "h264")
+
+    def test_probe_raises_clear_error_when_stdout_missing(self) -> None:
+        with patch("app.ffmpeg.subprocess.run") as mock_run:
+            mock_run.return_value.stdout = None
+            mock_run.return_value.stderr = b"failed to open file"
+            with self.assertRaisesRegex(ValueError, "ffprobe returned no JSON output"):
+                self.service.probe(Path("clip.mp4"))
 
     def test_parse_scene_changes_returns_empty_for_no_matches(self) -> None:
         output = "[h264 @ 123] no showinfo lines here"
