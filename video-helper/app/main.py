@@ -15,6 +15,8 @@ from .ffmpeg import FFmpegService
 from .scene_detection import SceneDetectionService
 from .schemas import (
     EditState,
+    ExportEstimatePart,
+    ExportEstimateResponse,
     LocalProjectCreateRequest,
     ProjectCreateResponse,
     ProjectListItem,
@@ -163,6 +165,95 @@ def _clear_multipart_outputs(base_file: Path) -> None:
     for part_file in sorted(base_file.parent.glob(f"{base_file.stem}_part*{suffix}")):
         if part_file.is_file():
             part_file.unlink()
+
+
+def _file_size_bytes(path: Path) -> int | None:
+    if not path.exists() or not path.is_file():
+        return None
+    return path.stat().st_size
+
+
+def _render_part_response(part_index: int, start: float, end: float, part_file: Path) -> RenderPart:
+    return RenderPart(
+        index=part_index,
+        start=start,
+        end=end,
+        output_url=f"/exports/{part_file.name}",
+        output_path=str(part_file.resolve()),
+        output_size_bytes=_file_size_bytes(part_file),
+    )
+
+
+def _export_suffix(export_format: str, fallback_suffix: str = ".mp4") -> str:
+    return ".gif" if export_format == "gif" else fallback_suffix
+
+
+def _render_export_response(
+    project_id: str,
+    paths,
+    metadata: VideoMetadata,
+    state: EditState,
+    export_format: str,
+) -> RenderResponse:
+    ffmpeg.validate_state(metadata, state)
+    paths.export_file = storage.build_export_file_path(
+        _export_suffix(export_format, paths.export_file.suffix or ".mp4")
+    )
+    if not state.scene_split.enabled:
+        command = (
+            ffmpeg.build_export_gif_command(paths.original_file, paths.export_file, metadata, state)
+            if export_format == "gif"
+            else ffmpeg.build_export_command(paths.original_file, paths.export_file, metadata, state)
+        )
+        ffmpeg.run(command)
+        storage.save_project(paths, metadata, state)
+        return RenderResponse(
+            project_id=project_id,
+            format=export_format,
+            output_url=f"/exports/{paths.export_file.name}",
+            output_path=str(paths.export_file.resolve()),
+            output_size_bytes=_file_size_bytes(paths.export_file),
+            total_output_size_bytes=_file_size_bytes(paths.export_file),
+        )
+
+    segments = _split_segments_for_state(paths.original_file, metadata, state)
+    selected_indexes = _selected_scene_split_indexes(state, len(segments))
+    parts: list[RenderPart] = []
+    total_output_size_bytes = 0
+    for part_index, (start, end) in enumerate(segments, start=1):
+        if selected_indexes and part_index not in selected_indexes:
+            continue
+        part_file = _multipart_output_path(paths.export_file, part_index)
+        command = (
+            ffmpeg.build_export_gif_segment_command(
+                paths.original_file,
+                part_file,
+                metadata,
+                state,
+                segment_start=start,
+                segment_end=end,
+            )
+            if export_format == "gif"
+            else ffmpeg.build_export_segment_command(
+                paths.original_file,
+                part_file,
+                metadata,
+                state,
+                segment_start=start,
+                segment_end=end,
+            )
+        )
+        ffmpeg.run(command)
+        part_response = _render_part_response(part_index, start, end, part_file)
+        parts.append(part_response)
+        total_output_size_bytes += part_response.output_size_bytes or 0
+    storage.save_project(paths, metadata, state)
+    return RenderResponse(
+        project_id=project_id,
+        format=export_format,
+        parts=parts,
+        total_output_size_bytes=total_output_size_bytes or None,
+    )
 
 
 @app.get("/")
@@ -337,45 +428,59 @@ def trim_frames(project_id: str, start: float, end: float) -> TrimFramesResponse
 def render_export(project_id: str) -> RenderResponse:
     try:
         paths, metadata, state = storage.load_project(project_id)
+        return _render_export_response(project_id, paths, metadata, state, export_format="mp4")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/projects/{project_id}/export/gif-estimate", response_model=ExportEstimateResponse)
+def estimate_export_gif(project_id: str) -> ExportEstimateResponse:
+    try:
+        paths, metadata, state = storage.load_project(project_id)
         ffmpeg.validate_state(metadata, state)
-        paths.export_file = storage.build_export_file_path(paths.export_file.suffix or ".mp4")
         if not state.scene_split.enabled:
-            command = ffmpeg.build_export_command(paths.original_file, paths.export_file, metadata, state)
-            ffmpeg.run(command)
-            storage.save_project(paths, metadata, state)
-            return RenderResponse(
+            return ExportEstimateResponse(
                 project_id=project_id,
-                output_url=f"/exports/{paths.export_file.name}",
-                output_path=str(paths.export_file.resolve()),
+                estimated_size_bytes=ffmpeg.estimate_gif_size(metadata, state),
             )
 
         segments = _split_segments_for_state(paths.original_file, metadata, state)
         selected_indexes = _selected_scene_split_indexes(state, len(segments))
-        parts: list[RenderPart] = []
+        parts: list[ExportEstimatePart] = []
         for part_index, (start, end) in enumerate(segments, start=1):
             if selected_indexes and part_index not in selected_indexes:
                 continue
-            part_file = _multipart_output_path(paths.export_file, part_index)
-            command = ffmpeg.build_export_segment_command(
-                paths.original_file,
-                part_file,
-                metadata,
-                state,
-                segment_start=start,
-                segment_end=end,
-            )
-            ffmpeg.run(command)
             parts.append(
-                RenderPart(
+                ExportEstimatePart(
                     index=part_index,
                     start=start,
                     end=end,
-                    output_url=f"/exports/{part_file.name}",
-                    output_path=str(part_file.resolve()),
+                    estimated_size_bytes=ffmpeg.estimate_gif_size(
+                        metadata,
+                        state,
+                        segment_start=start,
+                        segment_end=end,
+                    ),
                 )
             )
-        storage.save_project(paths, metadata, state)
-        return RenderResponse(project_id=project_id, parts=parts)
+        return ExportEstimateResponse(
+            project_id=project_id,
+            estimated_size_bytes=sum(part.estimated_size_bytes for part in parts),
+            parts=parts,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/projects/{project_id}/export/gif", response_model=RenderResponse)
+def render_export_gif(project_id: str) -> RenderResponse:
+    try:
+        paths, metadata, state = storage.load_project(project_id)
+        return _render_export_response(project_id, paths, metadata, state, export_format="gif")
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
@@ -391,7 +496,8 @@ def download_export(project_id: str) -> FileResponse:
     if not paths.export_file.exists():
         raise HTTPException(status_code=404, detail=f"Export file for project {project_id} not found")
     filename = storage.build_export_filename(paths.export_file.suffix or ".mp4")
-    return FileResponse(path=paths.export_file, media_type="video/mp4", filename=filename)
+    media_type = "image/gif" if paths.export_file.suffix.lower() == ".gif" else "video/mp4"
+    return FileResponse(path=paths.export_file, media_type=media_type, filename=filename)
 
 
 if __name__ == "__main__":

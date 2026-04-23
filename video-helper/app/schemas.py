@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 
 PositiveClipIndex = Annotated[int, Field(ge=1)]
 QuarterTurnCount = Annotated[int, Field(ge=0, le=3)]
+ExportFormat = Literal["mp4", "gif"]
 
 
 class VideoMetadata(BaseModel):
@@ -112,13 +113,31 @@ class RenderPart(BaseModel):
     end: float = Field(gt=0)
     output_url: str
     output_path: Optional[str] = None
+    output_size_bytes: Optional[int] = Field(default=None, ge=0)
 
 
 class RenderResponse(BaseModel):
     project_id: str
+    format: ExportFormat = "mp4"
     output_url: Optional[str] = None
     output_path: Optional[str] = None
+    output_size_bytes: Optional[int] = Field(default=None, ge=0)
+    total_output_size_bytes: Optional[int] = Field(default=None, ge=0)
     parts: list[RenderPart] = Field(default_factory=list)
+
+
+class ExportEstimatePart(BaseModel):
+    index: int = Field(ge=1)
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    estimated_size_bytes: int = Field(ge=0)
+
+
+class ExportEstimateResponse(BaseModel):
+    project_id: str
+    format: Literal["gif"] = "gif"
+    estimated_size_bytes: int = Field(ge=0)
+    parts: list[ExportEstimatePart] = Field(default_factory=list)
 
 
 class ProjectListItem(BaseModel):

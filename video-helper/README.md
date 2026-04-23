@@ -27,6 +27,8 @@ Users can:
   - Right 90
 - Resize control for the maximum longer edge
 - Whole-video FPS override (single global setting)
+- Export as MP4 or GIF
+- GIF export confirmation with an estimated file size before rendering
 - Scene split controls:
   - FFmpeg threshold or AI TransNetV2 detector mode
   - AI sensitivity control
@@ -114,7 +116,7 @@ Open:
 4. Click **Apply Changes** to render the modified preview.
    - If **Scene Split** is off, the preview player shows one modified clip.
    - If **Scene Split** is on, the preview area shows all generated clips, lets you switch between them, and lets you choose which clips to export.
-5. Click **Export** to save the final file to `--export-path` (or `exports\` by default).
+5. Click **Export** to save an MP4, or **Export as GIF** to render a GIF after confirming the estimated file size.
    - If **Scene Split** is on, export writes the selected numbered output clips instead of one file. If no clips are selected, export writes all split clips.
 
 If a local-path source is missing later, the app will auto-fallback to project-derived/cached media from `work\` or `uploads\` when available.
@@ -129,6 +131,8 @@ If a local-path source is missing later, the app will auto-fallback to project-d
 - `PUT /api/projects/{project_id}/state` - update edit state
 - `POST /api/projects/{project_id}/preview` - render modified preview (single clip or multipart scene-split clips)
 - `POST /api/projects/{project_id}/export` - render final export (single clip or multipart scene-split clips)
+- `POST /api/projects/{project_id}/export/gif-estimate` - estimate GIF output size for the current edit state
+- `POST /api/projects/{project_id}/export/gif` - render GIF export (single clip or multipart scene-split clips)
 
 ## Tests
 

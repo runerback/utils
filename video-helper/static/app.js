@@ -186,6 +186,7 @@ const el = {
   previewProgress: document.getElementById("previewProgress"),
   previewStatus: document.getElementById("previewStatus"),
   exportBtn: document.getElementById("exportBtn"),
+  exportGifBtn: document.getElementById("exportGifBtn"),
   exportProgress: document.getElementById("exportProgress"),
   exportStatus: document.getElementById("exportStatus"),
   cropOverlay: document.getElementById("cropOverlay"),
@@ -271,6 +272,11 @@ function setPreviewProgress(value) {
 function setExportProgress(value) {
   el.exportProgress.classList.remove("hidden");
   el.exportProgress.value = Math.max(0, Math.min(100, value));
+}
+
+function setExportButtonsDisabled(disabled) {
+  el.exportBtn.disabled = disabled;
+  el.exportGifBtn.disabled = disabled;
 }
 
 function showPreviewPartsProgress(value, text) {
@@ -653,6 +659,18 @@ function formatSeconds(seconds) {
   const minText = String(mins).padStart(2, "0");
   const secText = secs.toFixed(3).padStart(6, "0");
   return `${minText}:${secText}`;
+}
+
+function formatBytes(bytes) {
+  const safe = Number(bytes);
+  if (!Number.isFinite(safe) || safe <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  const unitIndex = Math.min(Math.floor(Math.log(safe) / Math.log(1024)), units.length - 1);
+  const scaled = safe / (1024 ** unitIndex);
+  const precision = unitIndex === 0 ? 0 : scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2;
+  return `${scaled.toFixed(precision)} ${units[unitIndex]}`;
 }
 
 function clearPreviewParts() {
@@ -1240,9 +1258,42 @@ function outputDirectory(outputPath) {
   return separatorIndex >= 0 ? normalized.slice(0, separatorIndex) : "";
 }
 
+function exportSizeText(sizeBytes) {
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    return "";
+  }
+  return ` (${formatBytes(sizeBytes)})`;
+}
+
+function buildGifExportConfirmationMessage(estimate) {
+  const estimatedSize = formatBytes(estimate.estimated_size_bytes);
+  if (Array.isArray(estimate.parts) && estimate.parts.length) {
+    return `Export ${estimate.parts.length} GIF clips?\nEstimated total size: about ${estimatedSize}.\nContinue?`;
+  }
+  return `Export as GIF?\nEstimated size: about ${estimatedSize}.\nContinue?`;
+}
+
+function updateCompletedExportStatus(payload, exportLabel) {
+  if (Array.isArray(payload.parts) && payload.parts.length) {
+    const exportDir = outputDirectory(payload.parts[0].output_path);
+    const totalSize = exportSizeText(payload.total_output_size_bytes);
+    setExportStatus(`Saved ${payload.parts.length} clips`);
+    setStatus(
+      exportDir
+        ? `${exportLabel} complete. Saved ${payload.parts.length} clips${totalSize} to ${exportDir}.`
+        : `${exportLabel} complete. Saved ${payload.parts.length} clips${totalSize}.`
+    );
+    return;
+  }
+  setExportStatus("Saved");
+  setStatus(
+    `${exportLabel} complete. Saved to ${payload.output_path}${exportSizeText(payload.output_size_bytes)}.`
+  );
+}
+
 async function exportVideo() {
   if (!state.projectId) return;
-  el.exportBtn.disabled = true;
+  setExportButtonsDisabled(true);
   setExportProgress(5);
   setExportStatus("Saving state...");
   try {
@@ -1258,24 +1309,54 @@ async function exportVideo() {
     const payload = await response.json();
     stopExportProgressTimer();
     setExportProgress(100);
-    if (Array.isArray(payload.parts) && payload.parts.length) {
-      const exportDir = outputDirectory(payload.parts[0].output_path);
-      setExportStatus(`Saved ${payload.parts.length} clips`);
-      setStatus(
-        exportDir
-          ? `Export complete. Saved ${payload.parts.length} clips to ${exportDir}.`
-          : `Export complete. Saved ${payload.parts.length} clips.`
-      );
-    } else {
-      setExportStatus("Saved");
-      setStatus(`Export complete. Saved to ${payload.output_path}.`);
-    }
+    updateCompletedExportStatus(payload, "Export");
   } catch (error) {
     stopExportProgressTimer();
     setExportStatus("Failed");
     setStatus(`Export failed: ${error.message}`);
   } finally {
-    el.exportBtn.disabled = false;
+    setExportButtonsDisabled(false);
+  }
+}
+
+async function exportGif() {
+  if (!state.projectId) return;
+  setExportButtonsDisabled(true);
+  setExportProgress(5);
+  setExportStatus("Saving state...");
+  try {
+    await saveState({ silent: true });
+    setExportProgress(10);
+    setExportStatus("Estimating GIF size...");
+    setStatus("Estimating GIF size...");
+    const estimateResponse = await fetch(`/api/projects/${state.projectId}/export/gif-estimate`, { method: "POST" });
+    if (!estimateResponse.ok) {
+      throw new Error((await estimateResponse.json()).detail);
+    }
+    const estimate = await estimateResponse.json();
+    if (!window.confirm(buildGifExportConfirmationMessage(estimate))) {
+      setExportStatus("Canceled");
+      setStatus("GIF export canceled.");
+      return;
+    }
+    setExportProgress(15);
+    setExportStatus("Rendering GIF export...");
+    setStatus("Exporting GIF...");
+    startExportProgressTimer();
+    const response = await fetch(`/api/projects/${state.projectId}/export/gif`, { method: "POST" });
+    if (!response.ok) {
+      throw new Error((await response.json()).detail);
+    }
+    const payload = await response.json();
+    stopExportProgressTimer();
+    setExportProgress(100);
+    updateCompletedExportStatus(payload, "GIF export");
+  } catch (error) {
+    stopExportProgressTimer();
+    setExportStatus("Failed");
+    setStatus(`GIF export failed: ${error.message}`);
+  } finally {
+    setExportButtonsDisabled(false);
   }
 }
 
@@ -1289,6 +1370,7 @@ el.loadProjectBtn.addEventListener("click", loadSelectedProject);
 el.saveStateBtn.addEventListener("click", saveState);
 el.previewBtn.addEventListener("click", refreshPreview);
 el.exportBtn.addEventListener("click", exportVideo);
+el.exportGifBtn.addEventListener("click", exportGif);
 el.previewSelectAllBtn.addEventListener("click", selectAllPreviewParts);
 el.previewClearSelectionBtn.addEventListener("click", clearSelectedPreviewParts);
 el.previewPartSelect.addEventListener("change", () => {

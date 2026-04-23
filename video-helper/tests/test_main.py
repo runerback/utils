@@ -8,10 +8,12 @@ from unittest.mock import Mock, patch
 from app.main import (
     create_project_from_path,
     download_export,
+    estimate_export_gif,
     get_project,
     get_project_original,
     render_preview,
     render_export,
+    render_export_gif,
     update_state,
     resolve_export_dir,
     resolve_uploads_dir,
@@ -80,6 +82,15 @@ class _FakeFFmpeg:
     ) -> list[str]:
         return ["ffmpeg", "-i", str(original_file), str(export_file)]
 
+    def build_export_gif_command(
+        self,
+        original_file: Path,
+        export_file: Path,
+        metadata: VideoMetadata,
+        state: EditState,
+    ) -> list[str]:
+        return ["ffmpeg", "-i", str(original_file), "-gif", str(export_file)]
+
     def build_preview_command(
         self,
         original_file: Path,
@@ -111,6 +122,17 @@ class _FakeFFmpeg:
     ) -> list[str]:
         return ["ffmpeg", "-ss", f"{segment_start}", "-to", f"{segment_end}", str(export_file)]
 
+    def build_export_gif_segment_command(
+        self,
+        original_file: Path,
+        export_file: Path,
+        metadata: VideoMetadata,
+        state: EditState,
+        segment_start: float,
+        segment_end: float,
+    ) -> list[str]:
+        return ["ffmpeg", "-gif-ss", f"{segment_start}", "-gif-to", f"{segment_end}", str(export_file)]
+
     def build_player_proxy_command(self, original_file: Path, proxy_file: Path) -> list[str]:
         return ["ffmpeg", "-i", str(original_file), "-c:v", "libx264", str(proxy_file)]
 
@@ -128,6 +150,17 @@ class _FakeFFmpeg:
         max_len: float,
     ) -> list[tuple[float, float]]:
         return [(0.0, 3.0), (3.0, 8.0)]
+
+    def estimate_gif_size(
+        self,
+        metadata: VideoMetadata,
+        state: EditState,
+        segment_start: float | None = None,
+        segment_end: float | None = None,
+    ) -> int:
+        start = 0.0 if segment_start is None else segment_start
+        end = state.trim.end or metadata.duration if segment_end is None else segment_end
+        return int((end - start) * 1_000_000)
 
     def run(self, command: list[str]) -> None:
         self.ran_commands.append(command)
@@ -279,6 +312,7 @@ class MainTests(unittest.TestCase):
                 response = render_export(project_id)
 
             self.assertEqual(response.project_id, project_id)
+            self.assertEqual(response.format, "mp4")
             self.assertRegex(response.output_url, r"^/exports/vae_\d{17}\.mp4$")
             self.assertRegex(Path(response.output_path).name, r"^vae_\d{17}\.mp4$")
             self.assertEqual(response.parts, [])
@@ -322,6 +356,39 @@ class MainTests(unittest.TestCase):
                 response = download_export(project_id)
 
             self.assertEqual(response.filename, "vae_20260405164322111.mp4")
+
+    def test_download_export_uses_gif_media_type_for_gif_exports(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            export_file = root / "exports" / "legacy_export.gif"
+            export_file.parent.mkdir(parents=True, exist_ok=True)
+            export_file.write_bytes(b"gif")
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=export_file,
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState()
+            fake_storage = _FakeStorage(paths, metadata, state)
+
+            with patch("app.main.storage", fake_storage):
+                response = download_export(project_id)
+
+            self.assertEqual(response.media_type, "image/gif")
 
     def test_create_project_from_path_uses_existing_absolute_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -850,6 +917,7 @@ class MainTests(unittest.TestCase):
         self.assertIn('id="sceneSplitResetBtn"', html)
         self.assertIn('id="previewSelectAllBtn"', html)
         self.assertIn('id="previewClearSelectionBtn"', html)
+        self.assertIn('id="exportGifBtn"', html)
         self.assertIn("Lower threshold finds more cuts. Higher threshold finds fewer. Higher AI sensitivity finds more cuts.", html)
         self.assertIn("This browser remembers your latest scene split values for new projects.", html)
         self.assertIn("AI mode uses a local TransNetV2 ONNX model", html)
@@ -868,6 +936,10 @@ class MainTests(unittest.TestCase):
         self.assertIn("sceneSplitAiSensitivityRange", script)
         self.assertIn("selected_clip_indexes", script)
         self.assertIn("togglePreviewPartSelection", script)
+        self.assertIn("function buildGifExportConfirmationMessage(estimate)", script)
+        self.assertIn('fetch(`/api/projects/${state.projectId}/export/gif-estimate`', script)
+        self.assertIn('fetch(`/api/projects/${state.projectId}/export/gif`', script)
+        self.assertIn("window.confirm(buildGifExportConfirmationMessage(estimate))", script)
 
     def test_unicode_local_paths_fall_back_to_uploaded_copy_in_ui(self) -> None:
         script = (Path(__file__).resolve().parent.parent / "static" / "app.js").read_text(encoding="utf-8")
@@ -915,6 +987,7 @@ class MainTests(unittest.TestCase):
             ):
                 response = render_export(project_id)
 
+            self.assertEqual(response.format, "mp4")
             self.assertIsNone(response.output_url)
             self.assertIsNone(response.output_path)
             self.assertEqual(len(response.parts), 2)
@@ -974,6 +1047,167 @@ class MainTests(unittest.TestCase):
             self.assertEqual(
                 fake_ffmpeg.ran_commands,
                 [["ffmpeg", "-ss", "3.0", "-to", "8.0", str(exported_part)]],
+            )
+
+    def test_estimate_export_gif_reports_total_for_single_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            fake_storage = _FakeStorage(paths, metadata, EditState())
+            fake_ffmpeg = _FakeFFmpeg()
+
+            with patch("app.main.storage", fake_storage), patch("app.main.ffmpeg", fake_ffmpeg):
+                response = estimate_export_gif(project_id)
+
+            self.assertEqual(response.format, "gif")
+            self.assertEqual(response.estimated_size_bytes, 8_000_000)
+            self.assertEqual(response.parts, [])
+
+    def test_estimate_export_gif_scene_split_respects_selected_clip_indexes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState(
+                scene_split={
+                    "enabled": True,
+                    "threshold": 0.3,
+                    "min_clip_length": 2.0,
+                    "max_clip_length": 6.0,
+                    "selected_clip_indexes": [2],
+                }
+            )
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg()
+            fake_scene_detection = _FakeSceneDetection()
+
+            with (
+                patch("app.main.storage", fake_storage),
+                patch("app.main.ffmpeg", fake_ffmpeg),
+                patch("app.main.scene_detection", fake_scene_detection),
+            ):
+                response = estimate_export_gif(project_id)
+
+            self.assertEqual(response.estimated_size_bytes, 5_000_000)
+            self.assertEqual(len(response.parts), 1)
+            self.assertEqual(response.parts[0].index, 2)
+
+    def test_render_export_gif_returns_gif_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState()
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg()
+
+            with patch("app.main.storage", fake_storage), patch("app.main.ffmpeg", fake_ffmpeg):
+                response = render_export_gif(project_id)
+
+            self.assertEqual(response.format, "gif")
+            self.assertRegex(response.output_url, r"^/exports/vae_\d{17}\.gif$")
+            self.assertRegex(Path(response.output_path).name, r"^vae_\d{17}\.gif$")
+            self.assertEqual(
+                fake_ffmpeg.ran_commands[-1],
+                ["ffmpeg", "-i", str(paths.original_file), "-gif", str(fake_storage.saved_paths.export_file)],
+            )
+
+    def test_render_export_gif_scene_split_returns_gif_parts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState(scene_split={"enabled": True, "threshold": 0.3, "min_clip_length": 2.0, "max_clip_length": 6.0})
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg()
+            fake_scene_detection = _FakeSceneDetection()
+
+            with (
+                patch("app.main.storage", fake_storage),
+                patch("app.main.ffmpeg", fake_ffmpeg),
+                patch("app.main.scene_detection", fake_scene_detection),
+            ):
+                response = render_export_gif(project_id)
+
+            self.assertEqual(response.format, "gif")
+            self.assertEqual(len(response.parts), 2)
+            self.assertRegex(Path(response.parts[0].output_path).name, r"^vae_\d{17}_part001\.gif$")
+            self.assertRegex(Path(response.parts[1].output_path).name, r"^vae_\d{17}_part002\.gif$")
+            self.assertEqual(
+                fake_ffmpeg.ran_commands,
+                [
+                    ["ffmpeg", "-gif-ss", "0.0", "-gif-to", "3.0", str(Path(response.parts[0].output_path))],
+                    ["ffmpeg", "-gif-ss", "3.0", "-gif-to", "8.0", str(Path(response.parts[1].output_path))],
+                ],
             )
 
 

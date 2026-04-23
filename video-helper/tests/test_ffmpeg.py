@@ -100,6 +100,33 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertIn("libx264", command)
         self.assertIn("aac", command)
 
+    def test_build_export_gif_command_uses_palette_pipeline(self) -> None:
+        state = EditState(trim=TrimState(start=1.0, end=5.0), fps=12.0, resize_max=640)
+        command = self.service.build_export_gif_command(Path("in.mp4"), Path("out.gif"), self.metadata, state)
+        self.assertIn("-filter_complex", command)
+        filter_complex = command[command.index("-filter_complex") + 1]
+        self.assertIn("[0:v]trim=start=1.0:end=5.0", filter_complex)
+        self.assertIn("fps=12.0", filter_complex)
+        self.assertIn("palettegen=stats_mode=diff", filter_complex)
+        self.assertIn("paletteuse=dither=sierra2_4a", filter_complex)
+        self.assertIn("-an", command)
+        self.assertEqual(command[-1], "out.gif")
+
+    def test_build_export_gif_segment_command_overrides_trim(self) -> None:
+        state = EditState(trim=TrimState(start=0.0, end=8.0), fps=10.0)
+        command = self.service.build_export_gif_segment_command(
+            Path("in.mp4"),
+            Path("out_part001.gif"),
+            self.metadata,
+            state,
+            segment_start=2.0,
+            segment_end=4.0,
+        )
+        filter_complex = command[command.index("-filter_complex") + 1]
+        self.assertIn("[0:v]trim=start=2.0:end=4.0", filter_complex)
+        self.assertIn("fps=10.0", filter_complex)
+        self.assertEqual(command[-1], "out_part001.gif")
+
     def test_build_preview_segment_command_disables_audio_when_source_has_none(self) -> None:
         silent_metadata = self.metadata.model_copy(update={"audio_codec": None})
         command = self.service.build_preview_segment_command(
@@ -419,6 +446,30 @@ class FFmpegServiceTests(unittest.TestCase):
     def test_build_scene_split_segments_rejects_unsegmentable_duration_range_combo(self) -> None:
         with self.assertRaises(ValueError):
             self.service.build_scene_split_segments(duration=11.0, candidate_cuts=[5.0], min_len=4.0, max_len=5.0)
+
+    def test_estimate_gif_size_reflects_resize_rotation_and_duration(self) -> None:
+        state = EditState(
+            trim=TrimState(start=1.0, end=4.0),
+            crop=CropState(x=0, y=0, width=640, height=360),
+            crop_enabled=True,
+            rotation={"quarter_turns": 1},
+            resize_max=320,
+            fps=12.0,
+        )
+        estimated = self.service.estimate_gif_size(self.metadata, state)
+        self.assertGreater(estimated, 0)
+
+        no_resize_estimated = self.service.estimate_gif_size(
+            self.metadata,
+            EditState(
+                trim=TrimState(start=1.0, end=4.0),
+                crop=CropState(x=0, y=0, width=640, height=360),
+                crop_enabled=True,
+                rotation={"quarter_turns": 1},
+                fps=12.0,
+            ),
+        )
+        self.assertLess(estimated, no_resize_estimated)
 
 
 if __name__ == "__main__":

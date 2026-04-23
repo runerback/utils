@@ -13,6 +13,8 @@ from .schemas import EditState, VideoMetadata
 class FFmpegService:
     _SCENE_PTS_TIME_PATTERN = re.compile(r"pts_time:(?P<pts_time>-?\d+(?:\.\d+)?)")
     _SEGMENT_EPSILON = 1e-6
+    _GIF_ESTIMATE_BYTES_PER_PIXEL = 0.16
+    _GIF_ESTIMATE_MIN_FRAME_BYTES = 2048
 
     def __init__(self, ffmpeg_bin: str = "ffmpeg", ffprobe_bin: str = "ffprobe") -> None:
         self.ffmpeg_bin = ffmpeg_bin
@@ -150,6 +152,41 @@ class FFmpegService:
             "128k",
         ]
 
+    def _resolved_dimensions(self, metadata: VideoMetadata, state: EditState) -> tuple[int, int]:
+        width = metadata.width
+        height = metadata.height
+        if state.crop_enabled and state.crop.width and state.crop.height:
+            width = state.crop.width
+            height = state.crop.height
+        if state.rotation.quarter_turns % 2 == 1:
+            width, height = height, width
+        resize_max = state.resize_max
+        if resize_max and resize_max >= 2:
+            source_width = width
+            source_height = height
+            if width >= height and width > resize_max:
+                width = resize_max
+                height = max(2, round((source_height * resize_max) / max(1, source_width)))
+            elif height > width and height > resize_max:
+                height = resize_max
+                width = max(2, round((source_width * resize_max) / max(1, source_height)))
+            if width % 2 != 0:
+                width = max(2, width - 1)
+            if height % 2 != 0:
+                height = max(2, height - 1)
+        return max(2, width), max(2, height)
+
+    def _effective_fps(self, metadata: VideoMetadata, state: EditState) -> float:
+        return max(1.0, state.fps or metadata.fps)
+
+    def _gif_filter_complex(self, filters: str) -> str:
+        filter_prefix = f"[0:v]{filters}" if filters else "[0:v]"
+        return (
+            f"{filter_prefix},split[palette_input][gif_input];"
+            "[palette_input]palettegen=stats_mode=diff[palette];"
+            "[gif_input][palette]paletteuse=dither=sierra2_4a"
+        )
+
     def build_preview_command(self, source: Path, output: Path, metadata: VideoMetadata, state: EditState) -> list[str]:
         vf = self._filters(metadata, state)
         return [
@@ -218,6 +255,21 @@ class FFmpegService:
             str(output),
         ]
 
+    def build_export_gif_command(self, source: Path, output: Path, metadata: VideoMetadata, state: EditState) -> list[str]:
+        filters = self._filters(metadata, state)
+        return [
+            self.ffmpeg_bin,
+            "-y",
+            "-i",
+            str(source),
+            "-filter_complex",
+            self._gif_filter_complex(filters),
+            "-an",
+            "-loop",
+            "0",
+            str(output),
+        ]
+
     def build_export_segment_command(
         self,
         source: Path,
@@ -246,6 +298,29 @@ class FFmpegService:
             "yuv420p",
             "-movflags",
             "+faststart",
+            str(output),
+        ]
+
+    def build_export_gif_segment_command(
+        self,
+        source: Path,
+        output: Path,
+        metadata: VideoMetadata,
+        state: EditState,
+        segment_start: float,
+        segment_end: float,
+    ) -> list[str]:
+        filters = self._filters(metadata, state, trim_start=segment_start, trim_end=segment_end)
+        return [
+            self.ffmpeg_bin,
+            "-y",
+            "-i",
+            str(source),
+            "-filter_complex",
+            self._gif_filter_complex(filters),
+            "-an",
+            "-loop",
+            "0",
             str(output),
         ]
 
@@ -423,6 +498,27 @@ class FFmpegService:
             start = end
 
         return segments
+
+    def estimate_gif_size(
+        self,
+        metadata: VideoMetadata,
+        state: EditState,
+        segment_start: float | None = None,
+        segment_end: float | None = None,
+    ) -> int:
+        effective_start = state.trim.start if segment_start is None else segment_start
+        effective_end = (state.trim.end or metadata.duration) if segment_end is None else segment_end
+        duration = max(0.0, effective_end - effective_start)
+        width, height = self._resolved_dimensions(metadata, state)
+        fps = self._effective_fps(metadata, state)
+        frame_count = max(1.0, duration * fps)
+        bytes_per_frame = max(
+            float(self._GIF_ESTIMATE_MIN_FRAME_BYTES),
+            width * height * self._GIF_ESTIMATE_BYTES_PER_PIXEL,
+        )
+        palette_overhead = 32 * 1024
+        total_bytes = int(round((frame_count * bytes_per_frame) + palette_overhead))
+        return max(1024, total_bytes)
 
     def run(self, command: list[str]) -> None:
         subprocess.run(command, check=True, capture_output=True, text=True)
