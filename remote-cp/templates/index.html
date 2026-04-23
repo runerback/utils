@@ -11,7 +11,7 @@
       <section class="composer-panel">
         <div>
           <p class="eyebrow">Send here</p>
-          <h1>Drop text, pictures, or files into the shared room.</h1>
+          <h1>Drop text, pictures, videos, or files into the shared room.</h1>
           <p class="subtle">
             Everyone connected sees new posts right away. Messages stay available until the app restarts.
           </p>
@@ -45,6 +45,15 @@
                 <p id="image-selection" class="selection-summary">No pictures selected.</p>
               </div>
               <button id="send-images-button" type="submit" data-submit-mode="images">Send pictures</button>
+            </div>
+
+            <div class="composer-row">
+              <label class="field-label" for="video-input">Videos</label>
+              <div class="composer-input-group">
+                <input id="video-input" name="videos" type="file" accept="video/mp4,.mp4" multiple>
+                <p id="video-selection" class="selection-summary">No videos selected.</p>
+              </div>
+              <button id="send-videos-button" type="submit" data-submit-mode="videos">Send videos</button>
             </div>
 
             <div class="composer-row">

@@ -109,7 +109,7 @@ class FFmpegService:
         filters: list[str] = []
         effective_trim_start = state.trim.start if trim_start is None else trim_start
         effective_trim_end = (state.trim.end or metadata.duration) if trim_end is None else trim_end
-        filters.append(f"trim=start={effective_trim_start}:end={effective_trim_end},setpts=PTS-STARTPTS")
+        filters.append(self._video_timing_filter(state, effective_trim_start, effective_trim_end))
         if state.crop_enabled and state.crop.width and state.crop.height:
             filters.append(
                 f"crop={state.crop.width}:{state.crop.height}:{state.crop.x}:{state.crop.y}"
@@ -122,9 +122,16 @@ class FFmpegService:
                 f"if(gte(iw\\,ih)\\,min(iw\\,{max_size})\\,-2):"
                 f"if(gte(iw\\,ih)\\,-2\\,min(ih\\,{max_size}))"
             )
-        if state.fps:
-            filters.append(f"fps={state.fps}")
         return ",".join(filters)
+
+    def _video_timing_filter(self, state: EditState, trim_start: float, trim_end: float) -> str:
+        speed = state.speed
+        if math.isclose(speed, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+            pts_expression = "PTS-STARTPTS"
+        else:
+            pts_multiplier = self._format_filter_number(1.0 / speed)
+            pts_expression = f"{pts_multiplier}*(PTS-STARTPTS)"
+        return f"trim=start={trim_start}:end={trim_end},setpts={pts_expression}"
 
     def _rotation_filters(self, state: EditState) -> list[str]:
         quarter_turns = state.rotation.quarter_turns
@@ -136,21 +143,49 @@ class FFmpegService:
             return ["transpose=2"]
         return []
 
-    def _audio_segment_options(self, metadata: VideoMetadata, segment_start: float, segment_end: float) -> list[str]:
+    def _audio_segment_options(
+        self,
+        metadata: VideoMetadata,
+        state: EditState,
+        segment_start: float,
+        segment_end: float,
+    ) -> list[str]:
         if not metadata.audio_codec:
             return ["-an"]
+        audio_filters = [
+            f"atrim=start={segment_start}:end={segment_end}",
+            "asetpts=PTS-STARTPTS",
+            *self._tempo_filters(state.speed),
+        ]
         return [
             "-map",
             "0:v:0",
             "-map",
             "0:a?",
             "-af",
-            f"atrim=start={segment_start}:end={segment_end},asetpts=PTS-STARTPTS",
+            ",".join(audio_filters),
             "-c:a",
             "aac",
             "-b:a",
             "128k",
         ]
+
+    def _tempo_filters(self, speed: float) -> list[str]:
+        remaining_speed = speed
+        filters: list[str] = []
+        while remaining_speed < 0.5 - self._SEGMENT_EPSILON:
+            filters.append("atempo=0.5")
+            remaining_speed /= 0.5
+        while remaining_speed > 2.0 + self._SEGMENT_EPSILON:
+            filters.append("atempo=2")
+            remaining_speed /= 2.0
+        if not math.isclose(remaining_speed, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+            filters.append(f"atempo={self._format_filter_number(remaining_speed)}")
+        return filters
+
+    def _format_filter_number(self, value: float) -> str:
+        text = f"{value:.6f}".rstrip("0").rstrip(".")
+        return text or "0"
 
     def _resolved_dimensions(self, metadata: VideoMetadata, state: EditState) -> tuple[int, int]:
         width = metadata.width
@@ -177,7 +212,7 @@ class FFmpegService:
         return max(2, width), max(2, height)
 
     def _effective_fps(self, metadata: VideoMetadata, state: EditState) -> float:
-        return max(1.0, state.fps or metadata.fps)
+        return max(1.0, metadata.fps)
 
     def _gif_filter_complex(self, filters: str) -> str:
         filter_prefix = f"[0:v]{filters}" if filters else "[0:v]"
@@ -189,6 +224,7 @@ class FFmpegService:
 
     def build_preview_command(self, source: Path, output: Path, metadata: VideoMetadata, state: EditState) -> list[str]:
         vf = self._filters(metadata, state)
+        trim_end = state.trim.end or metadata.duration
         return [
             self.ffmpeg_bin,
             "-y",
@@ -196,7 +232,7 @@ class FFmpegService:
             str(source),
             "-vf",
             vf,
-            "-an",
+            *self._audio_segment_options(metadata, state, state.trim.start, trim_end),
             "-preset",
             "veryfast",
             "-crf",
@@ -223,7 +259,7 @@ class FFmpegService:
             str(source),
             "-vf",
             vf,
-            *self._audio_segment_options(metadata, segment_start, segment_end),
+            *self._audio_segment_options(metadata, state, segment_start, segment_end),
             "-c:v",
             "libx264",
             "-preset",
@@ -239,6 +275,7 @@ class FFmpegService:
 
     def build_export_command(self, source: Path, output: Path, metadata: VideoMetadata, state: EditState) -> list[str]:
         vf = self._filters(metadata, state)
+        trim_end = state.trim.end or metadata.duration
         return [
             self.ffmpeg_bin,
             "-y",
@@ -246,6 +283,7 @@ class FFmpegService:
             str(source),
             "-vf",
             vf,
+            *self._audio_segment_options(metadata, state, state.trim.start, trim_end),
             "-preset",
             "medium",
             "-crf",
@@ -287,7 +325,7 @@ class FFmpegService:
             str(source),
             "-vf",
             vf,
-            *self._audio_segment_options(metadata, segment_start, segment_end),
+            *self._audio_segment_options(metadata, state, segment_start, segment_end),
             "-c:v",
             "libx264",
             "-preset",

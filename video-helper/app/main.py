@@ -526,5 +526,5 @@ if __name__ == "__main__":
         os.environ["VAE_WORK_PATH"] = args.work_path
     if args.uploads_path:
         os.environ["VAE_UPLOADS_PATH"] = args.uploads_path
-    uvicorn.run("app.main:app", host="127.0.0.1", port=31692, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=31692, reload=True)
 

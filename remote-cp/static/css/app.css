@@ -281,6 +281,12 @@ button:disabled {
   margin-top: 0.9rem;
 }
 
+.video-grid {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.9rem;
+}
+
 .file-list {
   display: grid;
   gap: 0.75rem;
@@ -310,6 +316,15 @@ button:disabled {
   border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
+.video-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
 .image-card img {
   width: 100%;
   aspect-ratio: 4 / 3;
@@ -318,7 +333,19 @@ button:disabled {
   background: #020617;
 }
 
+.video-card video {
+  width: 100%;
+  max-height: min(60vh, 420px);
+  border-radius: 12px;
+  background: #020617;
+}
+
 .image-card p {
+  margin-bottom: 0;
+  word-break: break-word;
+}
+
+.video-card p {
   margin-bottom: 0;
   word-break: break-word;
 }

@@ -25,7 +25,7 @@ class FFmpegServiceTests(unittest.TestCase):
             rotation={"quarter_turns": 1},
             crop_enabled=True,
             resize_max=720,
-            fps=24.0,
+            speed=1.5,
         )
         command = self.service.build_preview_command(Path("in.mp4"), Path("out.mp4"), self.metadata, state)
         self.assertIn("-vf", command)
@@ -34,9 +34,11 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertIn("crop=1000:500:10:20", vf)
         self.assertIn("transpose=1", vf)
         self.assertIn("scale=if(gte(iw\\,ih)\\,min(iw\\,720)\\,-2):if(gte(iw\\,ih)\\,-2\\,min(ih\\,720))", vf)
-        self.assertIn("fps=24.0", vf)
+        self.assertIn("setpts=0.666667*(PTS-STARTPTS)", vf)
         self.assertLess(vf.index("crop=1000:500:10:20"), vf.index("transpose=1"))
         self.assertLess(vf.index("transpose=1"), vf.index("scale=if(gte(iw\\,ih)\\,min(iw\\,720)\\,-2):if(gte(iw\\,ih)\\,-2\\,min(ih\\,720))"))
+        af = command[command.index("-af") + 1]
+        self.assertEqual(af, "atrim=start=1.0:end=5.0,asetpts=PTS-STARTPTS,atempo=1.5")
 
     def test_build_preview_command_includes_resize_filter_for_portrait_metadata(self) -> None:
         metadata = VideoMetadata(width=1080, height=1920, duration=12.0, fps=30.0, frame_count=360)
@@ -62,7 +64,7 @@ class FFmpegServiceTests(unittest.TestCase):
             rotation={"quarter_turns": 3},
             crop_enabled=True,
             resize_max=720,
-            fps=24.0,
+            speed=0.5,
         )
         command = self.service.build_preview_segment_command(
             Path("in.mp4"),
@@ -76,9 +78,9 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertIn("trim=start=2.0:end=4.5", vf)
         self.assertIn("crop=1000:500:10:20", vf)
         self.assertIn("transpose=2", vf)
-        self.assertIn("fps=24.0", vf)
+        self.assertIn("setpts=2*(PTS-STARTPTS)", vf)
         af = command[command.index("-af") + 1]
-        self.assertEqual(af, "atrim=start=2.0:end=4.5,asetpts=PTS-STARTPTS")
+        self.assertEqual(af, "atrim=start=2.0:end=4.5,asetpts=PTS-STARTPTS,atempo=0.5")
         self.assertEqual(command[command.index("-map") + 1:command.index("-map") + 4], ["0:v:0", "-map", "0:a?"])
         self.assertIn("libx264", command)
         self.assertIn("aac", command)
@@ -101,19 +103,19 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertIn("aac", command)
 
     def test_build_export_gif_command_uses_palette_pipeline(self) -> None:
-        state = EditState(trim=TrimState(start=1.0, end=5.0), fps=12.0, resize_max=640)
+        state = EditState(trim=TrimState(start=1.0, end=5.0), speed=1.25, resize_max=640)
         command = self.service.build_export_gif_command(Path("in.mp4"), Path("out.gif"), self.metadata, state)
         self.assertIn("-filter_complex", command)
         filter_complex = command[command.index("-filter_complex") + 1]
         self.assertIn("[0:v]trim=start=1.0:end=5.0", filter_complex)
-        self.assertIn("fps=12.0", filter_complex)
+        self.assertIn("setpts=0.8*(PTS-STARTPTS)", filter_complex)
         self.assertIn("palettegen=stats_mode=diff", filter_complex)
         self.assertIn("paletteuse=dither=sierra2_4a", filter_complex)
         self.assertIn("-an", command)
         self.assertEqual(command[-1], "out.gif")
 
     def test_build_export_gif_segment_command_overrides_trim(self) -> None:
-        state = EditState(trim=TrimState(start=0.0, end=8.0), fps=10.0)
+        state = EditState(trim=TrimState(start=0.0, end=8.0), speed=0.25)
         command = self.service.build_export_gif_segment_command(
             Path("in.mp4"),
             Path("out_part001.gif"),
@@ -124,7 +126,7 @@ class FFmpegServiceTests(unittest.TestCase):
         )
         filter_complex = command[command.index("-filter_complex") + 1]
         self.assertIn("[0:v]trim=start=2.0:end=4.0", filter_complex)
-        self.assertIn("fps=10.0", filter_complex)
+        self.assertIn("setpts=4*(PTS-STARTPTS)", filter_complex)
         self.assertEqual(command[-1], "out_part001.gif")
 
     def test_build_preview_segment_command_disables_audio_when_source_has_none(self) -> None:
@@ -139,6 +141,22 @@ class FFmpegServiceTests(unittest.TestCase):
         )
         self.assertIn("-an", command)
         self.assertNotIn("-af", command)
+
+    def test_build_export_command_preserves_audio_pitch_while_adjusting_speed(self) -> None:
+        state = EditState(trim=TrimState(start=1.5, end=6.0), speed=0.25)
+        command = self.service.build_export_command(Path("in.mp4"), Path("out.mp4"), self.metadata, state)
+        vf = command[command.index("-vf") + 1]
+        af = command[command.index("-af") + 1]
+        self.assertIn("setpts=4*(PTS-STARTPTS)", vf)
+        self.assertEqual(af, "atrim=start=1.5:end=6.0,asetpts=PTS-STARTPTS,atempo=0.5,atempo=0.5")
+
+    def test_build_export_command_chains_audio_filters_for_supported_high_speed(self) -> None:
+        state = EditState(trim=TrimState(start=1.5, end=6.0), speed=5.0)
+        command = self.service.build_export_command(Path("in.mp4"), Path("out.mp4"), self.metadata, state)
+        vf = command[command.index("-vf") + 1]
+        af = command[command.index("-af") + 1]
+        self.assertIn("setpts=0.2*(PTS-STARTPTS)", vf)
+        self.assertEqual(af, "atrim=start=1.5:end=6.0,asetpts=PTS-STARTPTS,atempo=2,atempo=2,atempo=1.25")
 
     def test_validate_state_rejects_invalid_trim(self) -> None:
         state = EditState(trim=TrimState(start=8.0, end=9.0))
@@ -161,6 +179,19 @@ class FFmpegServiceTests(unittest.TestCase):
 
     def test_edit_state_defaults_crop_enabled_off(self) -> None:
         self.assertFalse(EditState().crop_enabled)
+
+    def test_edit_state_defaults_speed_to_unmodified_playback(self) -> None:
+        self.assertEqual(EditState().speed, 1.0)
+
+    def test_edit_state_accepts_supported_preset_only_speeds(self) -> None:
+        self.assertEqual(EditState(speed=5.0).speed, 5.0)
+        self.assertEqual(EditState(speed=10.0).speed, 10.0)
+
+    def test_edit_state_rejects_unsupported_high_speeds(self) -> None:
+        with self.assertRaises(ValueError):
+            EditState(speed=3.0)
+        with self.assertRaises(ValueError):
+            EditState(speed=7.0)
 
     def test_edit_state_defaults_scene_split_configuration(self) -> None:
         scene_split = EditState().scene_split
@@ -454,7 +485,7 @@ class FFmpegServiceTests(unittest.TestCase):
             crop_enabled=True,
             rotation={"quarter_turns": 1},
             resize_max=320,
-            fps=12.0,
+            speed=0.5,
         )
         estimated = self.service.estimate_gif_size(self.metadata, state)
         self.assertGreater(estimated, 0)
@@ -466,7 +497,7 @@ class FFmpegServiceTests(unittest.TestCase):
                 crop=CropState(x=0, y=0, width=640, height=360),
                 crop_enabled=True,
                 rotation={"quarter_turns": 1},
-                fps=12.0,
+                speed=2.0,
             ),
         )
         self.assertLess(estimated, no_resize_estimated)

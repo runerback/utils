@@ -3,6 +3,10 @@ const SCENE_SPLIT_STORAGE_KEY = "vae-scene-split-preferences";
 const DEFAULT_ROTATION = {
   quarter_turns: 0
 };
+const MIN_SPEED = 0.25;
+const MAX_SPEED = 2;
+const EXTRA_SPEED_BUTTON_VALUES = [5, 10];
+const DEFAULT_SPEED = 1;
 const DEFAULT_SCENE_SPLIT = {
   enabled: false,
   detector: "ffmpeg",
@@ -58,6 +62,29 @@ function normalizeRotationConfig(rotation) {
   };
 }
 
+function isExtraSpeedButtonValue(value) {
+  return EXTRA_SPEED_BUTTON_VALUES.some((option) => Math.abs(option - value) < 0.001);
+}
+
+function normalizeManualSpeedValue(rawValue) {
+  const value = toFiniteNumber(rawValue, DEFAULT_SPEED);
+  const clamped = Math.min(MAX_SPEED, Math.max(MIN_SPEED, value));
+  return Number(clamped.toFixed(2));
+}
+
+function normalizeSpeedValue(rawValue, options = {}) {
+  const { allowExtended = false } = options;
+  const value = toFiniteNumber(rawValue, DEFAULT_SPEED);
+  if (allowExtended && isExtraSpeedButtonValue(value)) {
+    return value;
+  }
+  return normalizeManualSpeedValue(value);
+}
+
+function formatSpeedValue(rawValue) {
+  return `${String(normalizeSpeedValue(rawValue, { allowExtended: true })).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1")}x`;
+}
+
 function loadSceneSplitPreferences() {
   try {
     if (typeof window === "undefined" || !window.localStorage) {
@@ -100,6 +127,7 @@ const state = {
   originalUsesProxy: false,
   selectedFile: null,
   selectedFilePath: null,
+  activeEditorPanel: "trim",
   cropIndicatorVisible: true,
   previewParts: [],
   selectedPreviewPartIndex: 0,
@@ -109,7 +137,7 @@ const state = {
     rotation: { ...DEFAULT_ROTATION },
     crop_enabled: false,
     resize_max: null,
-    fps: null,
+    speed: DEFAULT_SPEED,
     scene_split: loadSceneSplitPreferences()
   }
 };
@@ -158,6 +186,11 @@ const el = {
   cropY: document.getElementById("cropY"),
   cropW: document.getElementById("cropW"),
   cropH: document.getElementById("cropH"),
+  cropXRange: document.getElementById("cropXRange"),
+  cropYRange: document.getElementById("cropYRange"),
+  cropWRange: document.getElementById("cropWRange"),
+  cropHRange: document.getElementById("cropHRange"),
+  cropInputs: document.querySelectorAll("[data-crop-field]"),
   cropEnabled: document.getElementById("cropEnabled"),
   cropResetBtn: document.getElementById("cropResetBtn"),
   rotateLeftBtn: document.getElementById("rotateLeftBtn"),
@@ -166,7 +199,10 @@ const el = {
   rotationValue: document.getElementById("rotationValue"),
   resizeMaxInput: document.getElementById("resizeMaxInput"),
   resizeResetBtn: document.getElementById("resizeResetBtn"),
-  fpsInput: document.getElementById("fpsInput"),
+  speedSlider: document.getElementById("speedSlider"),
+  speedValue: document.getElementById("speedValue"),
+  speedInput: document.getElementById("speedInput"),
+  speedPresetButtons: document.querySelectorAll(".speed-preset"),
   sceneSplitEnabled: document.getElementById("sceneSplitEnabled"),
   sceneSplitDetector: document.getElementById("sceneSplitDetector"),
   sceneSplitThreshold: document.getElementById("sceneSplitThreshold"),
@@ -224,12 +260,27 @@ function normalizeEditState(edit, metadata = null) {
   next.rotation = normalizeRotationConfig(rotation);
   next.crop_enabled = Boolean(next.crop_enabled);
 
-  const fpsValue = toFiniteNumber(next.fps, null);
-  next.fps = Number.isFinite(fpsValue) && fpsValue > 0 ? fpsValue : null;
+  next.speed = normalizeSpeedValue(next.speed, { allowExtended: true });
   const resizeMax = Math.round(toFiniteNumber(next.resize_max, null));
   next.resize_max = Number.isInteger(resizeMax) && resizeMax >= 2 ? resizeMax : null;
   next.scene_split = normalizeSceneSplitConfig(sceneSplit);
   return next;
+}
+
+function updateSpeedUI() {
+  state.edit.speed = normalizeSpeedValue(state.edit.speed, { allowExtended: true });
+  const manualSpeed = normalizeManualSpeedValue(state.edit.speed);
+  el.speedSlider.value = String(manualSpeed);
+  el.speedInput.value = String(manualSpeed);
+  el.speedValue.textContent = formatSpeedValue(state.edit.speed);
+  el.speedPresetButtons.forEach((button) => {
+    button.classList.toggle("active", Math.abs(Number(button.dataset.speed) - state.edit.speed) < 0.001);
+  });
+}
+
+function setSpeedValue(rawValue, options = {}) {
+  state.edit.speed = normalizeSpeedValue(rawValue, options);
+  updateSpeedUI();
 }
 
 function setStatus(message) {
@@ -391,7 +442,7 @@ function showOriginalPreviewForCropEditing(options = {}) {
   }
   setVideoSource(el.previewVideo, state.originalUrl);
   if (announce) {
-    setStatus("Crop editing uses the original preview. Click and drag again to adjust the crop.");
+    setStatus("Crop editing uses the original preview. Drag or swipe again to adjust the crop.");
   }
   return false;
 }
@@ -399,6 +450,56 @@ function showOriginalPreviewForCropEditing(options = {}) {
 function closeCropIndicator() {
   state.cropIndicatorVisible = false;
   updateCropUI();
+}
+
+function clampValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeCropBounds(crop) {
+  const next = {
+    x: Math.max(0, Math.round(toFiniteNumber(crop?.x, 0))),
+    y: Math.max(0, Math.round(toFiniteNumber(crop?.y, 0))),
+    width: Math.max(0, Math.round(toFiniteNumber(crop?.width, 0))),
+    height: Math.max(0, Math.round(toFiniteNumber(crop?.height, 0))),
+    preset: crop?.preset ?? null
+  };
+  if (!state.metadata) {
+    return next;
+  }
+  next.x = clampValue(next.x, 0, state.metadata.width);
+  next.y = clampValue(next.y, 0, state.metadata.height);
+  next.width = clampValue(next.width, 0, state.metadata.width - next.x);
+  next.height = clampValue(next.height, 0, state.metadata.height - next.y);
+  return next;
+}
+
+function updateCropControl(control, value, max) {
+  control.min = "0";
+  control.max = String(Math.max(0, Math.round(max)));
+  control.value = String(Math.max(0, Math.round(value)));
+}
+
+function setCropState(nextCrop, options = {}) {
+  const { preservePreset = false } = options;
+  state.edit.crop = normalizeCropBounds({
+    ...state.edit.crop,
+    ...nextCrop,
+    preset: preservePreset ? state.edit.crop.preset : null
+  });
+  if (state.edit.crop_enabled && state.edit.crop.width && state.edit.crop.height) {
+    state.cropIndicatorVisible = true;
+  }
+  updateCropUI();
+}
+
+function syncCropField(field, rawValue) {
+  const value = Math.max(0, Math.round(toFiniteNumber(rawValue, 0)));
+  setCropState({ [field]: value });
+}
+
+function getCropInteractionRect() {
+  return el.cropOverlay.getBoundingClientRect();
 }
 
 function setProjectFromPayload(payload, options = {}) {
@@ -418,7 +519,7 @@ function setProjectFromPayload(payload, options = {}) {
   const previewUrl = forceCropOff ? state.originalUrl : payload.preview_url;
   clearPreviewParts();
   setVideoSource(el.previewVideo, previewUrl, { cacheBust: true });
-  el.fpsInput.value = state.edit.fps ?? "";
+  updateSpeedUI();
   el.resizeMaxInput.value = state.edit.resize_max ?? "";
   el.cropEnabled.checked = state.edit.crop_enabled;
   updateRotationUI();
@@ -433,12 +534,14 @@ function setProjectFromPayload(payload, options = {}) {
 }
 
 function setActiveEditorPanel(panelName) {
+  state.activeEditorPanel = panelName;
   el.editorTabButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.panel === panelName);
   });
   el.editorPanels.forEach((panel) => {
     panel.classList.toggle("hidden", panel.dataset.panel !== panelName);
   });
+  updateCropUI();
 }
 
 function projectLabel(project) {
@@ -758,13 +861,12 @@ function clearSelectedPreviewParts() {
 
 function updatePreviewPartsVisibility() {
   const splitEnabled = Boolean(state.edit.scene_split.enabled);
-  el.previewPartsWrap.classList.remove("hidden");
-  el.previewPartsListWrap.classList.remove("hidden");
-  el.previewPartsProgressWrap.classList.remove("hidden");
+  el.previewPartsWrap.classList.toggle("hidden", !splitEnabled);
+  el.previewPartsListWrap.classList.toggle("hidden", !splitEnabled);
   el.previewPartSelect.disabled = !splitEnabled || !state.previewParts.length;
   if (!splitEnabled) {
-    el.previewPartInfo.textContent = "Scene Split is off.";
-    el.previewPartsList.innerHTML = '<li class="preview-part-empty">Turn on Scene Split and click Apply Changes to render preview clips.</li>';
+    el.previewPartInfo.textContent = "";
+    el.previewPartsList.innerHTML = "";
     hidePreviewPartsProgress();
     updatePreviewSelectionSummary();
     return;
@@ -1015,23 +1117,46 @@ function updateZoomUI() {
 }
 
 function updateCropUI() {
-  const crop = state.edit.crop;
+  const crop = normalizeCropBounds(state.edit.crop);
+  state.edit.crop = crop;
   const cropEnabled = Boolean(state.edit.crop_enabled);
+  const hasMetadata = Boolean(state.metadata);
+  const maxX = hasMetadata ? Math.max(0, state.metadata.width - crop.width) : 0;
+  const maxY = hasMetadata ? Math.max(0, state.metadata.height - crop.height) : 0;
+  const maxW = hasMetadata ? Math.max(0, state.metadata.width - crop.x) : 0;
+  const maxH = hasMetadata ? Math.max(0, state.metadata.height - crop.y) : 0;
   el.cropEnabled.checked = cropEnabled;
-  el.cropX.value = crop.x;
-  el.cropY.value = crop.y;
-  el.cropW.value = crop.width;
-  el.cropH.value = crop.height;
-  const cropControls = [el.cropX, el.cropY, el.cropW, el.cropH, ...el.presetButtons, el.cropResetBtn];
+  updateCropControl(el.cropX, crop.x, maxX);
+  updateCropControl(el.cropY, crop.y, maxY);
+  updateCropControl(el.cropW, crop.width, maxW);
+  updateCropControl(el.cropH, crop.height, maxH);
+  updateCropControl(el.cropXRange, crop.x, maxX);
+  updateCropControl(el.cropYRange, crop.y, maxY);
+  updateCropControl(el.cropWRange, crop.width, maxW);
+  updateCropControl(el.cropHRange, crop.height, maxH);
+  const cropControls = [
+    el.cropX,
+    el.cropY,
+    el.cropW,
+    el.cropH,
+    el.cropXRange,
+    el.cropYRange,
+    el.cropWRange,
+    el.cropHRange,
+    ...el.presetButtons,
+    el.cropResetBtn
+  ];
   cropControls.forEach((control) => {
-    control.disabled = !cropEnabled;
+    control.disabled = !cropEnabled || !hasMetadata;
   });
   updateDimensionLabels();
   if (!state.metadata) {
     el.cropOverlay.classList.add("hidden");
+    el.cropOverlay.classList.remove("interactive");
     return;
   }
   el.cropOverlay.classList.remove("hidden");
+  el.cropOverlay.classList.toggle("interactive", cropEnabled && state.activeEditorPanel === "crop");
   if (!cropEnabled || !crop.width || !crop.height || !state.cropIndicatorVisible) {
     el.cropBox.classList.add("hidden");
     return;
@@ -1153,14 +1278,13 @@ async function saveState(options = {}) {
   state.edit = normalizeEditState(state.edit, state.metadata);
   clampTrim();
   state.edit.crop_enabled = Boolean(el.cropEnabled.checked);
-  const fpsValue = Number(el.fpsInput.value);
-  state.edit.fps = Number.isFinite(fpsValue) && fpsValue > 0 ? fpsValue : null;
   const resizeMax = Number(el.resizeMaxInput.value);
   state.edit.resize_max = Number.isInteger(resizeMax) && resizeMax >= 2 ? resizeMax : null;
   state.edit.crop.x = Number(el.cropX.value || 0);
   state.edit.crop.y = Number(el.cropY.value || 0);
   state.edit.crop.width = Number(el.cropW.value || 0);
   state.edit.crop.height = Number(el.cropH.value || 0);
+  state.edit.crop = normalizeCropBounds(state.edit.crop);
   if (!state.edit.crop_enabled) {
     state.cropIndicatorVisible = false;
   }
@@ -1388,6 +1512,14 @@ el.cropEnabled.addEventListener("change", () => {
   updateCropUI();
 });
 el.cropResetBtn.addEventListener("click", resetCrop);
+el.cropInputs.forEach((input) => {
+  input.addEventListener("input", () => {
+    syncCropField(input.dataset.cropField, input.value);
+  });
+  input.addEventListener("change", () => {
+    syncCropField(input.dataset.cropField, input.value);
+  });
+});
 el.rotateLeftBtn.addEventListener("click", () => rotatePreview(-1));
 el.rotateRightBtn.addEventListener("click", () => rotatePreview(1));
 el.rotateResetBtn.addEventListener("click", () => {
@@ -1412,6 +1544,17 @@ el.resizeResetBtn.addEventListener("click", () => {
   state.edit.resize_max = null;
   el.resizeMaxInput.value = "";
   updateDimensionLabels();
+});
+el.speedSlider.addEventListener("input", () => {
+  setSpeedValue(el.speedSlider.value);
+});
+el.speedInput.addEventListener("change", () => {
+  setSpeedValue(el.speedInput.value);
+});
+el.speedPresetButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setSpeedValue(button.dataset.speed, { allowExtended: true });
+  });
 });
 el.sceneSplitEnabled.addEventListener("change", () => syncSceneSplitFromInputs({ persist: true }));
 el.sceneSplitDetector.addEventListener("change", () => syncSceneSplitFromInputs({ persist: true }));
@@ -1526,20 +1669,20 @@ el.presetButtons.forEach((button) => {
 let dragStart = null;
 let cornerDrag = null;
 
-el.previewVideo.addEventListener("mousedown", (event) => {
-  if (!state.metadata) return;
-  if (!state.edit.crop_enabled) return;
-  if (!showOriginalPreviewForCropEditing({ announce: true })) return;
-  if (event.target !== el.previewVideo) {
+el.cropOverlay.addEventListener("pointerdown", (event) => {
+  if (!state.metadata || !state.edit.crop_enabled || state.activeEditorPanel !== "crop") return;
+  if (event.target !== el.cropOverlay) {
     return;
   }
-  const rect = el.previewVideo.getBoundingClientRect();
+  if (!showOriginalPreviewForCropEditing({ announce: true })) return;
+  event.preventDefault();
+  const rect = getCropInteractionRect();
   const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
   const y = Math.max(0, Math.min(event.clientY - rect.top, rect.height));
   dragStart = { x, y, rect };
 });
 
-window.addEventListener("mousemove", (event) => {
+window.addEventListener("pointermove", (event) => {
   if (!dragStart || !state.metadata) return;
   if (!state.edit.crop_enabled) return;
   const x2 = Math.max(0, Math.min(event.clientX - dragStart.rect.left, dragStart.rect.width));
@@ -1550,23 +1693,22 @@ window.addEventListener("mousemove", (event) => {
   const h = Math.abs(y2 - dragStart.y);
   const sx = state.metadata.width / dragStart.rect.width;
   const sy = state.metadata.height / dragStart.rect.height;
-  state.edit.crop = {
+  event.preventDefault();
+  setCropState({
     x: Math.round(x1 * sx),
     y: Math.round(y1 * sy),
     width: Math.round(w * sx),
-    height: Math.round(h * sy),
-    preset: null
-  };
-  state.cropIndicatorVisible = true;
-  updateCropUI();
+    height: Math.round(h * sy)
+  });
 });
 
 el.cropHandles.forEach((handle) => {
-  handle.addEventListener("mousedown", (event) => {
+  handle.addEventListener("pointerdown", (event) => {
     if (!state.metadata || !state.edit.crop_enabled || !state.edit.crop.width || !state.edit.crop.height) return;
     if (!showOriginalPreviewForCropEditing({ announce: true })) return;
+    event.preventDefault();
     event.stopPropagation();
-    const rect = el.previewVideo.getBoundingClientRect();
+    const rect = getCropInteractionRect();
     cornerDrag = {
       corner: handle.dataset.corner,
       rect,
@@ -1575,7 +1717,7 @@ el.cropHandles.forEach((handle) => {
   });
 });
 
-window.addEventListener("mousemove", (event) => {
+window.addEventListener("pointermove", (event) => {
   if (!cornerDrag || !state.metadata) return;
   const { rect, corner, crop } = cornerDrag;
   const sx = state.metadata.width / rect.width;
@@ -1584,6 +1726,7 @@ window.addEventListener("mousemove", (event) => {
   const py = Math.max(0, Math.min(event.clientY - rect.top, rect.height));
   const vx = Math.round(px * sx);
   const vy = Math.round(py * sy);
+  event.preventDefault();
 
   let x1 = crop.x;
   let y1 = crop.y;
@@ -1602,21 +1745,23 @@ window.addEventListener("mousemove", (event) => {
   const nx2 = Math.max(nx1 + minW, Math.min(x2, state.metadata.width));
   const ny2 = Math.max(ny1 + minH, Math.min(y2, state.metadata.height));
 
-  state.edit.crop = {
+  setCropState({
     x: nx1,
     y: ny1,
     width: nx2 - nx1,
-    height: ny2 - ny1,
-    preset: null
-  };
-  state.cropIndicatorVisible = true;
-  updateCropUI();
+    height: ny2 - ny1
+  });
 });
 
-window.addEventListener("mouseup", () => {
+function endCropPointerInteraction() {
   dragStart = null;
   cornerDrag = null;
-});
+}
+
+window.addEventListener("pointerup", endCropPointerInteraction);
+window.addEventListener("pointercancel", endCropPointerInteraction);
+window.addEventListener("resize", updateCropUI);
+el.previewVideo.addEventListener("loadedmetadata", updateCropUI);
 
 el.cropCloseBtn.addEventListener("click", (event) => {
   event.stopPropagation();

@@ -11,6 +11,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+ALLOWED_VIDEO_EXTENSIONS = {".mp4"}
 ALLOWED_FILE_EXTENSIONS = {
     ".csv",
     ".doc",
@@ -57,16 +58,18 @@ def create_app() -> Flask:
         device_type = request.form.get("device_type", "").strip() or "Unknown device"
         client_timestamp = request.form.get("client_timestamp", "").strip() or "Unknown time"
         image_files = request.files.getlist("images")
+        video_files = request.files.getlist("videos")
         attachment_files = request.files.getlist("files")
 
         try:
             image_payload = _save_images(upload_folder, image_files)
+            video_payload = _save_videos(upload_folder, video_files)
             file_payload = _save_files(upload_folder, attachment_files)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
-        if not text and not image_payload and not file_payload:
-            return jsonify({"error": "Send text, images, files, or a mix of them."}), 400
+        if not text and not image_payload and not video_payload and not file_payload:
+            return jsonify({"error": "Send text, images, videos, files, or a mix of them."}), 400
 
         message = {
             "id": str(uuid4()),
@@ -74,6 +77,7 @@ def create_app() -> Flask:
             "deviceType": device_type,
             "clientTimestamp": client_timestamp,
             "images": image_payload,
+            "videos": video_payload,
             "files": file_payload,
         }
 
@@ -113,6 +117,16 @@ def _save_images(upload_folder: Path, image_files: list) -> list[dict[str, str]]
     )
 
 
+def _save_videos(upload_folder: Path, video_files: list) -> list[dict[str, str]]:
+    return _save_uploads(
+        upload_folder,
+        video_files,
+        ALLOWED_VIDEO_EXTENSIONS,
+        upload_kind="video",
+        required_mimetype_prefix="video/",
+    )
+
+
 def _save_files(upload_folder: Path, attachment_files: list) -> list[dict[str, str]]:
     return _save_uploads(
         upload_folder,
@@ -132,7 +146,7 @@ def _save_uploads(
     required_mimetype_prefix: str | None = None,
     blocked_mimetype_prefixes: tuple[str, ...] = (),
 ) -> list[dict[str, str]]:
-    saved_images: list[dict[str, str]] = []
+    saved_uploads: list[dict[str, str]] = []
 
     for uploaded_file in uploaded_files:
         if not uploaded_file or not uploaded_file.filename:
@@ -159,14 +173,14 @@ def _save_uploads(
         stored_name = f"{uuid4().hex}{extension}"
         destination = upload_folder / stored_name
         uploaded_file.save(destination)
-        saved_images.append(
+        saved_uploads.append(
             {
                 "name": original_name,
                 "url": f"/uploads/{stored_name}",
             }
         )
 
-    return saved_images
+    return saved_uploads
 
 
 app = create_app()

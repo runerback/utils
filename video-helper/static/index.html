@@ -85,7 +85,7 @@
       <button class="editor-tab active" type="button" data-panel="trim">Trim</button>
       <button class="editor-tab" type="button" data-panel="crop">Crop</button>
       <button class="editor-tab" type="button" data-panel="rotate">Rotate</button>
-      <button class="editor-tab" type="button" data-panel="fps">Frame Rate</button>
+      <button class="editor-tab" type="button" data-panel="speed">Speed</button>
       <button class="editor-tab" type="button" data-panel="resize">Resize</button>
       <button class="editor-tab" type="button" data-panel="scene-split">Scene Split</button>
     </section>
@@ -153,11 +153,27 @@
       <div class="timeline-row">
         <label><input id="cropEnabled" type="checkbox"> Crop On</label>
       </div>
-      <div class="timeline-row">
-        <label>X <input id="cropX" type="number" min="0" step="1"></label>
-        <label>Y <input id="cropY" type="number" min="0" step="1"></label>
-        <label>W <input id="cropW" type="number" min="0" step="1"></label>
-        <label>H <input id="cropH" type="number" min="0" step="1"></label>
+      <div class="crop-controls">
+        <label class="crop-control" for="cropX">
+          <span>X</span>
+          <input id="cropX" data-crop-field="x" type="number" min="0" step="1">
+          <input id="cropXRange" data-crop-field="x" type="range" min="0" max="0" step="1" value="0">
+        </label>
+        <label class="crop-control" for="cropY">
+          <span>Y</span>
+          <input id="cropY" data-crop-field="y" type="number" min="0" step="1">
+          <input id="cropYRange" data-crop-field="y" type="range" min="0" max="0" step="1" value="0">
+        </label>
+        <label class="crop-control" for="cropW">
+          <span>W</span>
+          <input id="cropW" data-crop-field="width" type="number" min="0" step="1">
+          <input id="cropWRange" data-crop-field="width" type="range" min="0" max="0" step="1" value="0">
+        </label>
+        <label class="crop-control" for="cropH">
+          <span>H</span>
+          <input id="cropH" data-crop-field="height" type="number" min="0" step="1">
+          <input id="cropHRange" data-crop-field="height" type="range" min="0" max="0" step="1" value="0">
+        </label>
       </div>
       <div class="timeline-row">
         <button class="preset" data-preset="4:3">4:3</button>
@@ -166,11 +182,30 @@
         <button class="preset" data-preset="9:16">9:16</button>
         <button id="cropResetBtn" type="button">Reset Crop</button>
       </div>
+      <p class="crop-hint">Drag the crop box in Preview, or use the sliders on touch devices. Manual crop values and the gizmo stay in sync.</p>
     </section>
 
-    <section class="fps editor-panel hidden" data-panel="fps">
-      <h2>Frame Rate (whole video)</h2>
-      <label>FPS <input id="fpsInput" type="number" min="1" step="0.01" placeholder="keep original"></label>
+    <section class="speed editor-panel hidden" data-panel="speed">
+      <h2>Playback Speed</h2>
+      <div class="timeline-row">
+        <label for="speedSlider">Speed ratio</label>
+        <input id="speedSlider" type="range" min="0.25" max="2" step="0.01" value="1">
+        <span id="speedValue">1x</span>
+      </div>
+      <div class="timeline-row">
+        <button class="speed-preset" type="button" data-speed="0.25">0.25x</button>
+        <button class="speed-preset" type="button" data-speed="0.5">0.5x</button>
+        <button class="speed-preset" type="button" data-speed="1">1x</button>
+        <button class="speed-preset" type="button" data-speed="1.25">1.25x</button>
+        <button class="speed-preset" type="button" data-speed="1.5">1.5x</button>
+        <button class="speed-preset" type="button" data-speed="2">2x</button>
+        <button class="speed-preset" type="button" data-speed="5">5x</button>
+        <button class="speed-preset" type="button" data-speed="10">10x</button>
+      </div>
+      <div class="timeline-row">
+        <label>Manual ratio <input id="speedInput" type="number" min="0.25" max="2" step="0.01" value="1"></label>
+      </div>
+      <p class="scene-split-hint">Below 1 slows the video down, above 1 speeds it up, 1 keeps the original timing, and 5x/10x can only be chosen from the preset buttons.</p>
     </section>
 
     <section class="rotate editor-panel hidden" data-panel="rotate">

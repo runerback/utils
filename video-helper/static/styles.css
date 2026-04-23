@@ -27,7 +27,7 @@ h1, h2 {
   font-weight: 500;
 }
 
-.controls, .timeline, .crop, .fps, .resize, .scene-split, .actions {
+.controls, .timeline, .crop, .speed, .resize, .scene-split, .actions {
   background: #1a2026;
   border: 1px solid #2f3944;
   padding: 12px;
@@ -55,6 +55,10 @@ h1, h2 {
   background: #2d73ff;
 }
 
+.speed-preset.active {
+  background: #2d73ff;
+}
+
 .players {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -73,6 +77,34 @@ video {
   gap: 8px;
   flex-wrap: wrap;
   margin: 8px 0;
+}
+
+.crop-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 12px;
+  margin: 8px 0;
+}
+
+.crop-control {
+  display: grid;
+  grid-template-columns: 24px minmax(72px, 92px) 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.crop-control span {
+  font-weight: 600;
+}
+
+.crop-control input[type="number"] {
+  width: 100%;
+}
+
+.crop-hint {
+  margin: 8px 0 0;
+  color: #aeb9c4;
+  font-size: 13px;
 }
 
 .trim-previews {
@@ -235,11 +267,18 @@ input[type="range"] {
   pointer-events: none;
 }
 
+.crop-overlay.interactive {
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
 .crop-box {
   position: absolute;
   border: 2px dashed #00d4ff;
   background: rgba(0, 212, 255, 0.15);
   pointer-events: auto;
+  touch-action: none;
 }
 
 .crop-handle {
@@ -250,6 +289,7 @@ input[type="range"] {
   border: 1px solid #ffffff;
   border-radius: 50%;
   pointer-events: auto;
+  touch-action: none;
 }
 
 .corner-tl {
@@ -287,6 +327,51 @@ input[type="range"] {
   line-height: 24px;
   font-size: 16px;
   background: #ff4f4f;
+}
+
+@media (pointer: coarse) {
+  .crop-handle {
+    width: 18px;
+    height: 18px;
+  }
+
+  .corner-tl,
+  .corner-tr,
+  .corner-bl,
+  .corner-br {
+    left: auto;
+    top: auto;
+    right: auto;
+    bottom: auto;
+  }
+
+  .corner-tl {
+    left: -10px;
+    top: -10px;
+  }
+
+  .corner-tr {
+    right: -10px;
+    top: -10px;
+  }
+
+  .corner-bl {
+    left: -10px;
+    bottom: -10px;
+  }
+
+  .corner-br {
+    right: -10px;
+    bottom: -10px;
+  }
+
+  .crop-close-btn {
+    width: 30px;
+    height: 30px;
+    right: -16px;
+    top: -16px;
+    line-height: 30px;
+  }
 }
 
 .hidden {

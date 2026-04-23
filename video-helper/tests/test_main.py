@@ -680,6 +680,47 @@ class MainTests(unittest.TestCase):
         self.assertIn("showOriginalPreviewForCropEditing", script)
         self.assertIn("Current rotation:", script)
 
+    def test_speed_ui_exposes_slider_presets_and_manual_input(self) -> None:
+        html = (Path(__file__).resolve().parent.parent / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('data-panel="speed"', html)
+        self.assertIn('id="speedSlider"', html)
+        self.assertIn('id="speedInput"', html)
+        self.assertIn('class="speed-preset"', html)
+        self.assertIn('data-speed="5"', html)
+        self.assertIn('data-speed="10"', html)
+        self.assertIn("Below 1 slows the video down, above 1 speeds it up, 1 keeps the original timing, and 5x/10x can only be chosen from the preset buttons.", html)
+
+    def test_speed_state_is_normalized_in_browser_script(self) -> None:
+        script = (Path(__file__).resolve().parent.parent / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("const MIN_SPEED = 0.25;", script)
+        self.assertIn("const EXTRA_SPEED_BUTTON_VALUES = [5, 10];", script)
+        self.assertIn("function normalizeManualSpeedValue(rawValue)", script)
+        self.assertIn("function normalizeSpeedValue(rawValue, options = {})", script)
+        self.assertIn("function updateSpeedUI()", script)
+        self.assertIn("function setSpeedValue(rawValue, options = {})", script)
+        self.assertIn('document.querySelectorAll(".speed-preset")', script)
+        self.assertIn('el.speedSlider.addEventListener("input"', script)
+        self.assertIn('el.speedInput.addEventListener("change"', script)
+        self.assertIn("next.speed = normalizeSpeedValue(next.speed, { allowExtended: true });", script)
+        self.assertIn('setSpeedValue(button.dataset.speed, { allowExtended: true });', script)
+
+    def test_crop_ui_exposes_phone_sliders_and_live_sync_browser_logic(self) -> None:
+        html = (Path(__file__).resolve().parent.parent / "static" / "index.html").read_text(encoding="utf-8")
+        script = (Path(__file__).resolve().parent.parent / "static" / "app.js").read_text(encoding="utf-8")
+        css = (Path(__file__).resolve().parent.parent / "static" / "styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="cropXRange"', html)
+        self.assertIn('id="cropYRange"', html)
+        self.assertIn('id="cropWRange"', html)
+        self.assertIn('id="cropHRange"', html)
+        self.assertIn("Manual crop values and the gizmo stay in sync.", html)
+        self.assertIn('document.querySelectorAll("[data-crop-field]")', script)
+        self.assertIn("function syncCropField(field, rawValue)", script)
+        self.assertIn('el.cropOverlay.addEventListener("pointerdown"', script)
+        self.assertIn('window.addEventListener("pointermove"', script)
+        self.assertIn('.crop-overlay.interactive', css)
+        self.assertIn("@media (pointer: coarse)", css)
+
     def test_render_preview_scene_split_returns_parts_and_numbered_filenames(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -952,6 +993,12 @@ class MainTests(unittest.TestCase):
         self.assertIn("function setVideoSource(videoElement, url, options = {})", script)
         self.assertIn("setVideoSource(el.previewVideo, part.output_url, { cacheBust: true });", script)
         self.assertIn("setVideoSource(el.previewVideo, payload.output_url, { cacheBust: true });", script)
+
+    def test_preview_clip_ui_hides_when_scene_split_is_off(self) -> None:
+        script = (Path(__file__).resolve().parent.parent / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('el.previewPartsWrap.classList.toggle("hidden", !splitEnabled);', script)
+        self.assertIn('el.previewPartsListWrap.classList.toggle("hidden", !splitEnabled);', script)
+        self.assertIn('el.previewPartInfo.textContent = "";', script)
 
     def test_render_export_scene_split_returns_parts_and_numbered_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

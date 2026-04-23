@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 PositiveClipIndex = Annotated[int, Field(ge=1)]
 QuarterTurnCount = Annotated[int, Field(ge=0, le=3)]
 ExportFormat = Literal["mp4", "gif"]
+EXTRA_SPEED_BUTTON_VALUES = (5.0, 10.0)
 
 
 class VideoMetadata(BaseModel):
@@ -79,7 +80,14 @@ class EditState(BaseModel):
     scene_split: SceneSplitState = Field(default_factory=SceneSplitState)
     crop_enabled: bool = False
     resize_max: Optional[int] = Field(default=None, gt=0)
-    fps: Optional[float] = Field(default=None, gt=0)
+    speed: float = Field(default=1.0, ge=0.25)
+
+    @field_validator("speed")
+    @classmethod
+    def validate_speed(cls, value: float) -> float:
+        if value <= 2.0 or value in EXTRA_SPEED_BUTTON_VALUES:
+            return value
+        raise ValueError("speed must be between 0.25 and 2.0, or one of the supported preset-only values")
 
 
 class ProjectCreateResponse(BaseModel):

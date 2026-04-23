@@ -1,6 +1,6 @@
 # Remote Copy/Paste app
 
-Small Flask + Socket.IO chat room for anonymous text, picture, and file sharing.
+Small Flask + Socket.IO chat room for anonymous text, picture, video, and file sharing.
 
 ## Setup
 
@@ -22,12 +22,13 @@ Small Flask + Socket.IO chat room for anonymous text, picture, and file sharing.
 
 - Chat messages are kept in memory only and disappear when the app stops.
 - Uploaded images and files are stored in `instance\uploads` for the current app run only.
+- Video uploads support `.mp4` and appear inline in the room with muted autoplay and playback controls.
 - General file uploads are limited to document-style formats: `.csv`, `.doc`, `.docx`, `.json`, `.md`, `.pdf`, `.ppt`, `.pptx`, `.rtf`, `.txt`, `.xls`, `.xlsx`, and `.zip`.
 - Uploaded non-image files appear in the feed with download links for everyone in the room.
+- Uploaded videos appear in the feed as playable cards for everyone in the room.
 - The message box no longer has a fixed input cap. `Send text` posts inline messages up to 4,000 characters and automatically sends longer content to the room as a generated `.txt` file attachment.
 - Room messages show newest first.
 - Long text posts collapse after 8 visible lines and can be expanded inline.
-- Video uploads are not supported.
 - `Copy text` first uses the async Clipboard API, then falls back to a browser-compatible selection copy path so it can still work in many Chrome LAN/HTTP sessions.
 - `Paste as file` reads clipboard text and saves it locally. Browsers with the File System Access API show a native save dialog; other supported browsers fall back to downloading a generated `.txt` file. If direct clipboard read is blocked, the app falls back to a manual paste dialog.
 - `Paste picture` reads an image from the clipboard and posts it straight into the room using the existing picture upload flow. Browsers that block direct clipboard image reads should use `Send pictures` instead.

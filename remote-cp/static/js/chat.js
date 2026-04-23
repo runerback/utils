@@ -1,10 +1,12 @@
 const form = document.getElementById("composer-form");
 const textInput = document.getElementById("message-input");
 const imageInput = document.getElementById("image-input");
+const videoInput = document.getElementById("video-input");
 const fileInput = document.getElementById("file-input");
 const pasteAsFileButton = document.getElementById("paste-as-file-button");
 const pastePictureButton = document.getElementById("paste-picture-button");
 const imageSelection = document.getElementById("image-selection");
+const videoSelection = document.getElementById("video-selection");
 const fileSelection = document.getElementById("file-selection");
 const statusMessage = document.getElementById("status-message");
 const composerButtons = Array.from(document.querySelectorAll("[data-submit-mode], [data-action-mode]"));
@@ -32,6 +34,10 @@ function bindComposerEvents() {
     updateSelectionSummary(imageInput, imageSelection, "picture", "No pictures selected.");
   });
 
+  videoInput.addEventListener("change", () => {
+    updateSelectionSummary(videoInput, videoSelection, "video", "No videos selected.");
+  });
+
   fileInput.addEventListener("change", () => {
     updateSelectionSummary(fileInput, fileSelection, "file", "No files selected.");
   });
@@ -51,6 +57,7 @@ function bindComposerEvents() {
 
     const trimmedText = textInput.value.trim();
     const images = Array.from(imageInput.files);
+    const videos = Array.from(videoInput.files);
     const attachments = Array.from(fileInput.files);
     const submitMode = event.submitter?.dataset.submitMode;
     let submitResult = { submitMode, routedAsFile: false, fileName: null };
@@ -78,6 +85,14 @@ function bindComposerEvents() {
         return;
       }
       images.forEach((file) => formData.append("images", file));
+    }
+
+    if (submitMode === "videos") {
+      if (videos.length === 0) {
+        setStatus("Choose at least one video before sending.", true);
+        return;
+      }
+      videos.forEach((file) => formData.append("videos", file));
     }
 
     if (submitMode === "files") {
@@ -217,6 +232,32 @@ function renderMessage(message, options = {}) {
     card.append(imageGrid);
   }
 
+  if (message.videos && message.videos.length) {
+    const videoGrid = document.createElement("div");
+    videoGrid.className = "video-grid";
+
+    message.videos.forEach((video) => {
+      const videoCard = document.createElement("section");
+      videoCard.className = "video-card";
+
+      const player = document.createElement("video");
+      player.src = video.url;
+      player.controls = true;
+      player.autoplay = true;
+      player.muted = true;
+      player.playsInline = true;
+      player.preload = "metadata";
+
+      const caption = document.createElement("p");
+      caption.textContent = video.name;
+
+      videoCard.append(player, caption);
+      videoGrid.append(videoCard);
+    });
+
+    card.append(videoGrid);
+  }
+
   if (message.files && message.files.length) {
     const fileList = document.createElement("div");
     fileList.className = "file-list";
@@ -341,6 +382,12 @@ function clearSubmittedInput(submitMode) {
     return;
   }
 
+  if (submitMode === "videos") {
+    videoInput.value = "";
+    videoSelection.textContent = "No videos selected.";
+    return;
+  }
+
   if (submitMode === "files") {
     fileInput.value = "";
     fileSelection.textContent = "No files selected.";
@@ -358,6 +405,10 @@ function successMessage(submitResult) {
 
   if (submitResult.submitMode === "images") {
     return "Pictures sent to the room.";
+  }
+
+  if (submitResult.submitMode === "videos") {
+    return "Videos sent to the room.";
   }
 
   return "Files sent to the room.";
@@ -380,6 +431,10 @@ function idleLabel(submitMode) {
     return "Send pictures";
   }
 
+  if (submitMode === "videos") {
+    return "Send videos";
+  }
+
   return "Send files";
 }
 
@@ -398,6 +453,10 @@ function sendingLabel(submitMode) {
 
   if (submitMode === "images") {
     return "Sending pictures...";
+  }
+
+  if (submitMode === "videos") {
+    return "Sending videos...";
   }
 
   return "Sending files...";
