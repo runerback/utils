@@ -272,7 +272,9 @@ function renderMessage(message, options = {}) {
 
       const fileActions = document.createElement("div");
       fileActions.className = "message-actions";
-      fileActions.append(buildLinkButton("Download file", file.url, { downloadName: file.name }));
+      fileActions.append(
+        buildLinkButton("Download file", file.downloadUrl || file.url, { downloadName: file.name }),
+      );
 
       fileCard.append(fileName, fileActions);
       fileList.append(fileCard);
@@ -482,11 +484,12 @@ function buildLinkButton(label, href, options = {}) {
   link.className = "secondary-button";
   link.textContent = label;
   link.href = href;
-  link.target = "_blank";
-  link.rel = "noreferrer";
 
   if (options.downloadName) {
     link.download = options.downloadName;
+  } else {
+    link.target = "_blank";
+    link.rel = "noreferrer";
   }
 
   return link;

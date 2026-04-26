@@ -5,7 +5,7 @@ from pathlib import Path
 from threading import Lock
 from uuid import uuid4
 
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, render_template, request, send_from_directory, url_for
 from flask_socketio import SocketIO
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 ALLOWED_VIDEO_EXTENSIONS = {".mp4"}
 ALLOWED_FILE_EXTENSIONS = {
+    ".7z",
     ".csv",
     ".doc",
     ".docx",
@@ -27,6 +28,8 @@ ALLOWED_FILE_EXTENSIONS = {
     ".xlsx",
     ".zip",
 }
+MAX_UPLOAD_SIZE_MB = 100
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 MESSAGE_STORE: list[dict] = []
 STORE_LOCK = Lock()
 
@@ -35,7 +38,7 @@ socketio = SocketIO(cors_allowed_origins="*", async_mode="threading")
 
 def create_app() -> Flask:
     app = Flask(__name__, instance_relative_config=True)
-    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_SIZE_BYTES
     app.config["UPLOAD_FOLDER"] = Path(app.instance_path) / "uploads"
 
     upload_folder = app.config["UPLOAD_FOLDER"]
@@ -68,6 +71,13 @@ def create_app() -> Flask:
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
+        for uploaded_file in file_payload:
+            uploaded_file["downloadUrl"] = url_for(
+                "download_file",
+                stored_name=uploaded_file.pop("storedName"),
+                download_name=uploaded_file["name"],
+            )
+
         if not text and not image_payload and not video_payload and not file_payload:
             return jsonify({"error": "Send text, images, videos, files, or a mix of them."}), 400
 
@@ -91,9 +101,30 @@ def create_app() -> Flask:
     def uploaded_file(filename: str):
         return send_from_directory(upload_folder, filename)
 
+    @app.get("/downloads/<path:stored_name>/<path:download_name>")
+    def download_file(stored_name: str, download_name: str):
+        safe_download_name = secure_filename(download_name)
+        if not safe_download_name:
+            return jsonify({"error": "Downloaded file names must include letters or numbers."}), 400
+        return send_from_directory(
+            upload_folder,
+            stored_name,
+            as_attachment=True,
+            download_name=safe_download_name,
+        )
+
     @app.errorhandler(RequestEntityTooLarge)
     def handle_file_too_large(_: RequestEntityTooLarge):
-        return jsonify({"error": "The upload is too large. Keep the total request under 16 MB."}), 413
+        return (
+            jsonify(
+                {
+                    "error": (
+                        f"The upload is too large. Keep the total request under {MAX_UPLOAD_SIZE_MB} MB."
+                    )
+                }
+            ),
+            413,
+        )
 
     return app
 
@@ -134,6 +165,7 @@ def _save_files(upload_folder: Path, attachment_files: list) -> list[dict[str, s
         ALLOWED_FILE_EXTENSIONS,
         upload_kind="file",
         blocked_mimetype_prefixes=("image/", "video/"),
+        include_stored_name=True,
     )
 
 
@@ -145,6 +177,7 @@ def _save_uploads(
     upload_kind: str,
     required_mimetype_prefix: str | None = None,
     blocked_mimetype_prefixes: tuple[str, ...] = (),
+    include_stored_name: bool = False,
 ) -> list[dict[str, str]]:
     saved_uploads: list[dict[str, str]] = []
 
@@ -173,12 +206,13 @@ def _save_uploads(
         stored_name = f"{uuid4().hex}{extension}"
         destination = upload_folder / stored_name
         uploaded_file.save(destination)
-        saved_uploads.append(
-            {
-                "name": original_name,
-                "url": f"/uploads/{stored_name}",
-            }
-        )
+        upload_payload = {
+            "name": original_name,
+            "url": f"/uploads/{stored_name}",
+        }
+        if include_stored_name:
+            upload_payload["storedName"] = stored_name
+        saved_uploads.append(upload_payload)
 
     return saved_uploads
 
