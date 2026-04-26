@@ -186,6 +186,8 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(state.scene_split.threshold, 0.4)
             self.assertEqual(state.scene_split.min_clip_length, 2.0)
             self.assertEqual(state.scene_split.max_clip_length, 12.0)
+            self.assertFalse(state.scene_split.fixed_length_enabled)
+            self.assertEqual(state.scene_split.fixed_clip_length, 12.0)
             self.assertEqual(state.scene_split.selected_clip_indexes, [])
             self.assertEqual(state.rotation.quarter_turns, 0)
             self.assertEqual(state.speed, 1.0)

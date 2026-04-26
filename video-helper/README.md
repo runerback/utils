@@ -101,6 +101,13 @@ $env:VAE_WORK_PATH = "D:\video-work"
 .\.venv\Scripts\python -m app.main
 ```
 
+Logs are written to the server console and appended to `.venv\vae.log`. Set `VAE_LOG_LEVEL` (for example `DEBUG`, `INFO`, or `WARNING`) to control verbosity:
+
+```powershell
+$env:VAE_LOG_LEVEL = "DEBUG"
+.\.venv\Scripts\python -m app.main
+```
+
 Open:
 
 `http://127.0.0.1:31692`
@@ -114,8 +121,9 @@ Open:
 2. Adjust trim/crop/rotate/speed/resize/scene split in the UI.
 3. Click **Save State**.
 4. Click **Apply Changes** to render the modified preview.
-   - If **Scene Split** is off, the preview player shows one modified clip.
-   - If **Scene Split** is on, the preview area shows all generated clips, lets you switch between them, and lets you choose which clips to export.
+    - If **Scene Split** is off, the preview player shows one modified clip.
+    - If **Scene Split** is on, the preview area shows all generated clips, lets you switch between them, and lets you choose which clips to export.
+    - In **FFmpeg** scene split mode, turning on **Fixed Length** skips scene detection and cuts the trimmed span into equal-length clips, merging any short tail into the previous clip.
 5. Click **Export** to save an MP4, or **Export as GIF** to render a GIF after confirming the estimated file size.
    - If **Scene Split** is on, export writes the selected numbered output clips instead of one file. If no clips are selected, export writes all split clips.
 

@@ -59,6 +59,8 @@ class SceneSplitState(BaseModel):
     ai_sensitivity: float = Field(default=0.5, gt=0, le=1)
     min_clip_length: float = Field(default=2.0, gt=0)
     max_clip_length: float = Field(default=12.0, gt=0)
+    fixed_length_enabled: bool = False
+    fixed_clip_length: float = Field(default=12.0, gt=0)
     selected_clip_indexes: list[PositiveClipIndex] = Field(default_factory=list)
 
     @model_validator(mode="after")

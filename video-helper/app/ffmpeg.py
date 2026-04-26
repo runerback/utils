@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import locale
+import logging
 import math
 import re
 import subprocess
@@ -9,10 +10,13 @@ from pathlib import Path
 
 from .schemas import EditState, VideoMetadata
 
+logger = logging.getLogger(__name__)
+
 
 class FFmpegService:
     _SCENE_PTS_TIME_PATTERN = re.compile(r"pts_time:(?P<pts_time>-?\d+(?:\.\d+)?)")
     _SEGMENT_EPSILON = 1e-6
+    _FRAME_TOLERANCE_CAP = 0.1
     _GIF_ESTIMATE_BYTES_PER_PIXEL = 0.16
     _GIF_ESTIMATE_MIN_FRAME_BYTES = 2048
 
@@ -34,6 +38,9 @@ class FFmpegService:
                 continue
         return output.decode("utf-8", errors="replace")
 
+    def _command_text(self, command: list[str]) -> str:
+        return subprocess.list2cmdline([str(part) for part in command])
+
     def probe(self, source: Path) -> VideoMetadata:
         command = [
             self.ffprobe_bin,
@@ -45,7 +52,17 @@ class FFmpegService:
             "-show_format",
             str(source),
         ]
-        result = subprocess.run(command, check=True, capture_output=True)
+        try:
+            result = subprocess.run(command, check=True, capture_output=True)
+        except subprocess.CalledProcessError as exc:
+            logger.exception(
+                "ffprobe command failed for %s [command=%s, stdout=%r, stderr=%r]",
+                source,
+                self._command_text(command),
+                self._decode_process_output(exc.stdout).strip(),
+                self._decode_process_output(exc.stderr).strip(),
+            )
+            raise
         stdout_text = self._decode_process_output(result.stdout).strip()
         stderr_text = self._decode_process_output(result.stderr).strip()
         if not stdout_text:
@@ -87,6 +104,7 @@ class FFmpegService:
 
     def validate_state(self, metadata: VideoMetadata, state: EditState) -> None:
         trim_end = state.trim.end or metadata.duration
+        trim_duration = trim_end - state.trim.start
         if state.trim.start >= trim_end:
             raise ValueError("Trim start must be less than trim end")
         if trim_end > metadata.duration:
@@ -98,6 +116,33 @@ class FFmpegService:
                 raise ValueError("Crop rectangle exceeds source dimensions")
         if state.resize_max is not None and state.resize_max < 2:
             raise ValueError("resize_max must be at least 2")
+        if state.scene_split.enabled and not (state.scene_split.detector == "ffmpeg" and state.scene_split.fixed_length_enabled):
+            min_len, max_len = self.adjusted_scene_split_lengths(
+                metadata,
+                state.scene_split.min_clip_length,
+                state.scene_split.max_clip_length,
+            )
+            if not self._is_segmentable_duration(trim_duration, min_len, max_len):
+                raise ValueError("Scene split min/max clip lengths cannot segment the current trimmed duration")
+
+    def frame_interval(self, metadata: VideoMetadata) -> float:
+        if metadata.fps <= self._SEGMENT_EPSILON:
+            return 0.0
+        return 1.0 / metadata.fps
+
+    def clamp_frame_timestamp(self, metadata: VideoMetadata, timestamp: float) -> float:
+        safe_ts = max(0.0, min(timestamp, metadata.duration))
+        frame_interval = self.frame_interval(metadata)
+        if frame_interval <= self._SEGMENT_EPSILON:
+            return round(safe_ts, 6)
+        max_seek = max(0.0, metadata.duration - frame_interval)
+        return round(min(safe_ts, max_seek), 6)
+
+    def adjusted_scene_split_lengths(self, metadata: VideoMetadata, min_len: float, max_len: float) -> tuple[float, float]:
+        tolerance = min(self._FRAME_TOLERANCE_CAP, self.frame_interval(metadata))
+        adjusted_min = max(self._SEGMENT_EPSILON, min_len - tolerance)
+        adjusted_max = max_len + tolerance
+        return adjusted_min, adjusted_max
 
     def _filters(
         self,
@@ -449,9 +494,22 @@ class FFmpegService:
 
     def detect_scene_changes(self, source: Path, threshold: float) -> list[float]:
         command = self.build_scene_detection_command(source, threshold)
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        try:
+            result = subprocess.run(command, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as exc:
+            logger.exception(
+                "Scene detection command failed for %s [threshold=%s, command=%s, stdout=%r, stderr=%r]",
+                source,
+                threshold,
+                self._command_text(command),
+                (exc.stdout or "").strip(),
+                (exc.stderr or "").strip(),
+            )
+            raise
         output = "\n".join(part for part in [result.stdout, result.stderr] if part)
-        return self.parse_scene_changes(output)
+        timestamps = self.parse_scene_changes(output)
+        logger.info("Detected %s FFmpeg scene cuts for %s", len(timestamps), source)
+        return timestamps
 
     def _is_segmentable_duration(self, duration: float, min_len: float, max_len: float) -> bool:
         if abs(duration) <= self._SEGMENT_EPSILON:
@@ -537,6 +595,28 @@ class FFmpegService:
 
         return segments
 
+    def build_fixed_length_segments(self, duration: float, clip_length: float) -> list[tuple[float, float]]:
+        if duration <= 0:
+            raise ValueError("duration must be greater than 0")
+        if clip_length <= 0:
+            raise ValueError("clip_length must be greater than 0")
+
+        if duration - clip_length <= self._SEGMENT_EPSILON:
+            return [(0.0, round(duration, 6))]
+
+        segments: list[tuple[float, float]] = []
+        start = 0.0
+        while duration - start > self._SEGMENT_EPSILON:
+            end = min(duration, start + clip_length)
+            remaining = duration - end
+            if end >= duration - self._SEGMENT_EPSILON or remaining < clip_length - self._SEGMENT_EPSILON:
+                segments.append((round(start, 6), round(duration, 6)))
+                break
+            segments.append((round(start, 6), round(end, 6)))
+            start = end
+
+        return segments
+
     def estimate_gif_size(
         self,
         metadata: VideoMetadata,
@@ -559,5 +639,15 @@ class FFmpegService:
         return max(1024, total_bytes)
 
     def run(self, command: list[str]) -> None:
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        logger.debug("Running ffmpeg command: %s", self._command_text(command))
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as exc:
+            logger.exception(
+                "ffmpeg command failed [command=%s, stdout=%r, stderr=%r]",
+                self._command_text(command),
+                (exc.stdout or "").strip(),
+                (exc.stderr or "").strip(),
+            )
+            raise
 

@@ -1,3 +1,4 @@
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -177,6 +178,59 @@ class FFmpegServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.validate_state(self.metadata, EditState(resize_max=1))
 
+    def test_validate_state_accepts_scene_split_duration_within_one_frame_tolerance(self) -> None:
+        metadata = VideoMetadata(
+            width=832,
+            height=480,
+            duration=5.0625,
+            fps=16.0,
+            frame_count=81,
+            video_codec="h264",
+            audio_codec=None,
+            container_format="mov,mp4,m4a,3gp,3g2,mj2",
+        )
+        state = EditState(
+            trim=TrimState(start=0.0, end=5.0625),
+            scene_split={"enabled": True, "min_clip_length": 4.0, "max_clip_length": 5.0},
+        )
+        self.service.validate_state(metadata, state)
+
+    def test_validate_state_rejects_unsegmentable_scene_split_duration(self) -> None:
+        state = EditState(
+            trim=TrimState(start=0.0, end=11.0),
+            scene_split={"enabled": True, "min_clip_length": 4.0, "max_clip_length": 5.0},
+        )
+        with self.assertRaisesRegex(ValueError, "Scene split min/max clip lengths cannot segment the current trimmed duration"):
+            self.service.validate_state(self.metadata, state)
+
+    def test_clamp_frame_timestamp_uses_last_real_frame_before_duration(self) -> None:
+        metadata = VideoMetadata(
+            width=832,
+            height=480,
+            duration=5.0625,
+            fps=16.0,
+            frame_count=81,
+            video_codec="h264",
+            audio_codec=None,
+            container_format="mov,mp4,m4a,3gp,3g2,mj2",
+        )
+        self.assertEqual(self.service.clamp_frame_timestamp(metadata, 5.0625), 5.0)
+        self.assertEqual(self.service.clamp_frame_timestamp(metadata, 4.5), 4.5)
+
+    def test_run_logs_command_failure_details(self) -> None:
+        with patch("app.ffmpeg.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                1,
+                ["ffmpeg", "-i", "in.mp4", "out.mp4"],
+                output="partial stdout",
+                stderr="ffmpeg exploded",
+            )
+            with self.assertLogs("app.ffmpeg", level="ERROR") as captured:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    self.service.run(["ffmpeg", "-i", "in.mp4", "out.mp4"])
+        self.assertIn("ffmpeg command failed", "\n".join(captured.output))
+        self.assertIn("ffmpeg exploded", "\n".join(captured.output))
+
     def test_edit_state_defaults_crop_enabled_off(self) -> None:
         self.assertFalse(EditState().crop_enabled)
 
@@ -201,6 +255,8 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertEqual(scene_split.ai_sensitivity, 0.5)
         self.assertEqual(scene_split.min_clip_length, 2.0)
         self.assertEqual(scene_split.max_clip_length, 12.0)
+        self.assertFalse(scene_split.fixed_length_enabled)
+        self.assertEqual(scene_split.fixed_clip_length, 12.0)
         self.assertEqual(scene_split.selected_clip_indexes, [])
 
     def test_edit_state_defaults_rotation_configuration(self) -> None:
@@ -225,6 +281,8 @@ class FFmpegServiceTests(unittest.TestCase):
         self.assertEqual(scene_split.ai_sensitivity, 0.5)
         self.assertEqual(scene_split.min_clip_length, 2.0)
         self.assertEqual(scene_split.max_clip_length, 12.0)
+        self.assertFalse(scene_split.fixed_length_enabled)
+        self.assertEqual(scene_split.fixed_clip_length, 12.0)
         self.assertEqual(scene_split.selected_clip_indexes, [])
 
     def test_edit_state_rejects_out_of_range_scene_split_threshold(self) -> None:
@@ -255,11 +313,20 @@ class FFmpegServiceTests(unittest.TestCase):
             EditState(scene_split={"min_clip_length": 0})
         with self.assertRaises(ValueError):
             EditState(scene_split={"max_clip_length": 0})
+        with self.assertRaises(ValueError):
+            EditState(scene_split={"fixed_clip_length": 0})
 
     def test_edit_state_accepts_scene_split_equal_min_max_lengths(self) -> None:
         scene_split = EditState(scene_split={"min_clip_length": 4.0, "max_clip_length": 4.0}).scene_split
         self.assertEqual(scene_split.min_clip_length, 4.0)
         self.assertEqual(scene_split.max_clip_length, 4.0)
+
+    def test_edit_state_accepts_fixed_length_scene_split_configuration(self) -> None:
+        scene_split = EditState(
+            scene_split={"fixed_length_enabled": True, "fixed_clip_length": 6.5}
+        ).scene_split
+        self.assertTrue(scene_split.fixed_length_enabled)
+        self.assertEqual(scene_split.fixed_clip_length, 6.5)
 
     def test_edit_state_normalizes_selected_scene_split_clip_indexes(self) -> None:
         scene_split = EditState(scene_split={"selected_clip_indexes": [3, 1, 3, 2]}).scene_split
@@ -477,6 +544,20 @@ class FFmpegServiceTests(unittest.TestCase):
     def test_build_scene_split_segments_rejects_unsegmentable_duration_range_combo(self) -> None:
         with self.assertRaises(ValueError):
             self.service.build_scene_split_segments(duration=11.0, candidate_cuts=[5.0], min_len=4.0, max_len=5.0)
+
+    def test_build_fixed_length_segments_returns_single_segment_when_duration_is_short(self) -> None:
+        segments = self.service.build_fixed_length_segments(duration=8.0, clip_length=12.0)
+        self.assertEqual(segments, [(0.0, 8.0)])
+
+    def test_build_fixed_length_segments_merges_short_tail_into_previous_clip(self) -> None:
+        segments = self.service.build_fixed_length_segments(duration=25.0, clip_length=10.0)
+        self.assertEqual(segments, [(0.0, 10.0), (10.0, 25.0)])
+
+    def test_build_fixed_length_segments_rejects_invalid_input(self) -> None:
+        with self.assertRaises(ValueError):
+            self.service.build_fixed_length_segments(duration=0.0, clip_length=10.0)
+        with self.assertRaises(ValueError):
+            self.service.build_fixed_length_segments(duration=10.0, clip_length=0.0)
 
     def test_estimate_gif_size_reflects_resize_rotation_and_duration(self) -> None:
         state = EditState(

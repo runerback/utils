@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import os
 import subprocess
@@ -17,6 +18,7 @@ _TRANSNET_CHANNELS = 3
 _TRANSNET_WINDOW = 100
 _TRANSNET_STRIDE = 50
 _TRANSNET_WINDOW_MARGIN = 25
+logger = logging.getLogger(__name__)
 
 
 class FFmpegSceneDetector:
@@ -122,7 +124,7 @@ class TransNetV2SceneDetector:
         self._output_names = [output.name for output in session.get_outputs()]
         provider_list = session.get_providers() if hasattr(session, "get_providers") else providers
         self._active_provider = provider_list[0] if provider_list else providers[0]
-        print(f"[SceneDetection] TransNetV2 provider: {self._active_provider}")
+        logger.info("TransNetV2 provider ready [provider=%s, model_path=%s]", self._active_provider, model_path)
         return session, self._input_name, self._output_names
 
     def _extract_frames(self, source: Path, np: Any) -> Any:
@@ -141,7 +143,17 @@ class TransNetV2SceneDetector:
             "rgb24",
             "-",
         ]
-        result = subprocess.run(command, check=True, capture_output=True)
+        try:
+            result = subprocess.run(command, check=True, capture_output=True)
+        except subprocess.CalledProcessError as exc:
+            logger.exception(
+                "AI frame extraction failed for %s [command=%s, stdout=%r, stderr=%r]",
+                source,
+                subprocess.list2cmdline([str(part) for part in command]),
+                (exc.stdout or b"")[:400].decode("utf-8", errors="replace"),
+                (exc.stderr or b"")[:400].decode("utf-8", errors="replace"),
+            )
+            raise
         frame_size = _TRANSNET_HEIGHT * _TRANSNET_WIDTH * _TRANSNET_CHANNELS
         if len(result.stdout) % frame_size != 0:
             raise ValueError("AI scene detector could not decode complete RGB frames from FFmpeg output.")
@@ -242,6 +254,11 @@ class SceneDetectionService:
         metadata: VideoMetadata,
         scene_split: SceneSplitState,
     ) -> list[float]:
+        logger.info(
+            "Running scene detection [source=%s, detector=%s]",
+            source,
+            scene_split.detector,
+        )
         if scene_split.detector == "ffmpeg":
             return self._ffmpeg_detector.detect_scene_changes(source, metadata, scene_split)
         if scene_split.detector == "ai":

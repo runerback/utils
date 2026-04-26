@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import tempfile
@@ -5,15 +6,21 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from fastapi import HTTPException
+
 from app.main import (
+    configure_logging,
     create_project_from_path,
     download_export,
     estimate_export_gif,
     get_project,
     get_project_original,
+    index,
     render_preview,
     render_export,
     render_export_gif,
+    resolve_log_file,
+    trim_frames,
     update_state,
     resolve_export_dir,
     resolve_uploads_dir,
@@ -27,6 +34,9 @@ class _FakeStorage:
         self._paths = paths
         self._metadata = metadata
         self._state = state
+        self.work = paths.preview_file.parent
+        self.uploads = paths.original_file.parent
+        self.exports = paths.export_file.parent
         self.saved_paths: ProjectPaths | None = None
         self.saved_metadata: VideoMetadata | None = None
         self.saved_state: EditState | None = None
@@ -72,6 +82,22 @@ class _FakeFFmpeg:
 
     def validate_state(self, metadata: VideoMetadata, state: EditState) -> None:
         return None
+
+    def frame_interval(self, metadata: VideoMetadata) -> float:
+        if metadata.fps <= 0:
+            return 0.0
+        return 1.0 / metadata.fps
+
+    def clamp_frame_timestamp(self, metadata: VideoMetadata, timestamp: float) -> float:
+        safe_ts = max(0.0, min(timestamp, metadata.duration))
+        frame_interval = self.frame_interval(metadata)
+        if frame_interval <= 0:
+            return round(safe_ts, 6)
+        return round(min(safe_ts, max(0.0, metadata.duration - frame_interval)), 6)
+
+    def adjusted_scene_split_lengths(self, metadata: VideoMetadata, min_len: float, max_len: float) -> tuple[float, float]:
+        tolerance = min(0.1, self.frame_interval(metadata))
+        return max(1e-6, min_len - tolerance), max_len + tolerance
 
     def build_export_command(
         self,
@@ -149,7 +175,15 @@ class _FakeFFmpeg:
         min_len: float,
         max_len: float,
     ) -> list[tuple[float, float]]:
+        if min_len <= duration <= max_len:
+            return [(0.0, round(duration, 6))]
         return [(0.0, 3.0), (3.0, 8.0)]
+
+    def build_fixed_length_segments(self, duration: float, clip_length: float) -> list[tuple[float, float]]:
+        return [(0.0, clip_length), (clip_length, duration)]
+
+    def build_frame_image_command(self, source: Path, output: Path, timestamp: float) -> list[str]:
+        return ["ffmpeg", "-ss", f"{timestamp:.6f}", "-frames:v", "1", str(output)]
 
     def estimate_gif_size(
         self,
@@ -177,6 +211,45 @@ class _FakeSceneDetection:
 
 
 class MainTests(unittest.TestCase):
+    def test_update_state_logs_validation_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            stored_state = EditState()
+            fake_storage = _FakeStorage(paths, metadata, stored_state)
+            fake_ffmpeg = _FakeFFmpeg(metadata=metadata)
+            fake_ffmpeg.validate_state = Mock(side_effect=ValueError("broken state"))  # type: ignore[method-assign]
+
+            with (
+                patch("app.main.storage", fake_storage),
+                patch("app.main.ffmpeg", fake_ffmpeg),
+                self.assertLogs("app.main", level="ERROR") as captured,
+            ):
+                with self.assertRaises(HTTPException) as raised:
+                    update_state(project_id, StateUpdateRequest(state=EditState()))
+
+            self.assertEqual(raised.exception.status_code, 400)
+            self.assertEqual(raised.exception.detail, "broken state")
+            self.assertIn("Failed to save project state", "\n".join(captured.output))
+
     def test_resolve_export_dir_uses_cli_flag_value(self) -> None:
         with patch.dict("os.environ", {"VAE_EXPORT_PATH": ""}, clear=False):
             with patch("sys.argv", ["python", "-m", "app.main", "--export-path", "custom_exports"]):
@@ -281,6 +354,143 @@ class MainTests(unittest.TestCase):
                 resolve_uploads_dir()
                 env_value = os.environ.get("VAE_UPLOADS_PATH")
         self.assertEqual(env_value, env_path)
+
+    def test_resolve_log_file_uses_project_venv_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with patch("app.main.ROOT", root):
+                resolved = resolve_log_file()
+        self.assertEqual(resolved, root / ".venv" / "vae.log")
+
+    def test_configure_logging_writes_app_and_uvicorn_logs_to_project_venv(self) -> None:
+        root_logger = logging.getLogger()
+        uvicorn_logger = logging.getLogger("uvicorn")
+        access_logger = logging.getLogger("uvicorn.access")
+        original_root_handlers = list(root_logger.handlers)
+        original_root_level = root_logger.level
+        original_uvicorn_handlers = list(uvicorn_logger.handlers)
+        original_uvicorn_level = uvicorn_logger.level
+        original_uvicorn_propagate = uvicorn_logger.propagate
+        original_access_handlers = list(access_logger.handlers)
+        original_access_level = access_logger.level
+        original_access_propagate = access_logger.propagate
+        temp_dir = tempfile.TemporaryDirectory()
+        new_handlers: list[logging.Handler] = []
+        try:
+            root_logger.handlers = []
+            uvicorn_logger.handlers = []
+            access_logger.handlers = []
+            uvicorn_logger.propagate = False
+            access_logger.propagate = False
+            root = Path(temp_dir.name)
+            with patch("app.main.ROOT", root), patch.dict("os.environ", {"VAE_LOG_LEVEL": "INFO"}, clear=False):
+                log_file = configure_logging()
+                new_handlers = list(root_logger.handlers) + list(uvicorn_logger.handlers) + list(access_logger.handlers)
+                logging.getLogger("app.main").info("app log entry")
+                uvicorn_logger.info("uvicorn log entry")
+                access_logger.info("access log entry")
+                for handler in new_handlers:
+                    handler.flush()
+                content = log_file.read_text(encoding="utf-8")
+            self.assertEqual(log_file, root / ".venv" / "vae.log")
+            self.assertIn("app log entry", content)
+            self.assertIn("uvicorn log entry", content)
+            self.assertIn("access log entry", content)
+        finally:
+            for handler in new_handlers:
+                try:
+                    handler.close()
+                except Exception:
+                    pass
+            root_logger.handlers = original_root_handlers
+            root_logger.setLevel(original_root_level)
+            uvicorn_logger.handlers = original_uvicorn_handlers
+            uvicorn_logger.setLevel(original_uvicorn_level)
+            uvicorn_logger.propagate = original_uvicorn_propagate
+            access_logger.handlers = original_access_handlers
+            access_logger.setLevel(original_access_level)
+            access_logger.propagate = original_access_propagate
+            temp_dir.cleanup()
+
+    def test_trim_frames_uses_last_available_frame_for_end_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=832,
+                height=480,
+                duration=5.0625,
+                fps=16.0,
+                frame_count=81,
+                video_codec="h264",
+                audio_codec=None,
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState()
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg(metadata=metadata)
+
+            with patch("app.main.storage", fake_storage), patch("app.main.ffmpeg", fake_ffmpeg):
+                response = trim_frames(project_id, start=0.0, end=metadata.duration)
+
+            self.assertEqual(response.start_url, f"/work/{project_id}_trim_start.jpg")
+            self.assertEqual(response.end_url, f"/work/{project_id}_trim_end.jpg")
+            self.assertEqual(fake_ffmpeg.ran_commands[0][2], "0.000000")
+            self.assertEqual(fake_ffmpeg.ran_commands[1][2], "5.000000")
+
+    def test_render_preview_scene_split_tolerates_one_frame_over_max_length(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=832,
+                height=480,
+                duration=5.0625,
+                fps=16.0,
+                frame_count=81,
+                video_codec="h264",
+                audio_codec=None,
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState(
+                trim={"start": 0.0, "end": 5.0625},
+                scene_split={"enabled": True, "threshold": 0.4, "min_clip_length": 4.0, "max_clip_length": 5.0},
+            )
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg(metadata=metadata)
+            fake_scene_detection = _FakeSceneDetection([])
+
+            with (
+                patch("app.main.storage", fake_storage),
+                patch("app.main.ffmpeg", fake_ffmpeg),
+                patch("app.main.scene_detection", fake_scene_detection),
+            ):
+                response = render_preview(project_id)
+
+            self.assertIsNone(response.output_url)
+            self.assertEqual(len(response.parts), 1)
+            self.assertEqual(response.parts[0].start, 0.0)
+            self.assertEqual(response.parts[0].end, 5.0625)
+            self.assertEqual(
+                fake_ffmpeg.ran_commands,
+                [["ffmpeg", "-ss", "0.0", "-to", "5.0625", str(root / "work" / f"{project_id}_preview_part001.mp4")]],
+            )
 
     def test_render_export_includes_saved_output_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -430,6 +640,8 @@ class MainTests(unittest.TestCase):
             self.assertEqual(response.state.scene_split.threshold, 0.4)
             self.assertEqual(response.state.scene_split.min_clip_length, 2.0)
             self.assertEqual(response.state.scene_split.max_clip_length, 12.0)
+            self.assertFalse(response.state.scene_split.fixed_length_enabled)
+            self.assertEqual(response.state.scene_split.fixed_clip_length, 12.0)
 
     def test_create_project_from_path_accepts_unicode_absolute_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -640,6 +852,8 @@ class MainTests(unittest.TestCase):
                     "ai_sensitivity": 0.72,
                     "min_clip_length": 3.0,
                     "max_clip_length": 9.0,
+                    "fixed_length_enabled": True,
+                    "fixed_clip_length": 6.0,
                     "selected_clip_indexes": [3, 1, 3],
                 }
             )
@@ -657,11 +871,15 @@ class MainTests(unittest.TestCase):
             self.assertEqual(fake_storage.saved_state.scene_split.ai_sensitivity, 0.72)
             self.assertEqual(fake_storage.saved_state.scene_split.min_clip_length, 3.0)
             self.assertEqual(fake_storage.saved_state.scene_split.max_clip_length, 9.0)
+            self.assertTrue(fake_storage.saved_state.scene_split.fixed_length_enabled)
+            self.assertEqual(fake_storage.saved_state.scene_split.fixed_clip_length, 6.0)
             self.assertEqual(fake_storage.saved_state.scene_split.selected_clip_indexes, [1, 3])
             self.assertEqual(response.state.rotation.quarter_turns, 3)
             self.assertTrue(response.state.scene_split.enabled)
             self.assertEqual(response.state.scene_split.detector, "ai")
             self.assertEqual(response.state.scene_split.threshold, 0.55)
+            self.assertTrue(response.state.scene_split.fixed_length_enabled)
+            self.assertEqual(response.state.scene_split.fixed_clip_length, 6.0)
             self.assertEqual(response.state.scene_split.selected_clip_indexes, [1, 3])
 
     def test_rotate_ui_exposes_buttons_and_fixed_order_hint(self) -> None:
@@ -848,8 +1066,8 @@ class MainTests(unittest.TestCase):
             fake_ffmpeg.build_scene_split_segments.assert_called_once_with(
                 duration=6.0,
                 candidate_cuts=[2.0, 5.0],
-                min_len=2.0,
-                max_len=4.5,
+                min_len=2.0 - (1.0 / 30.0),
+                max_len=4.5 + (1.0 / 30.0),
             )
             self.assertEqual(
                 fake_ffmpeg.ran_commands,
@@ -859,6 +1077,55 @@ class MainTests(unittest.TestCase):
                 ],
             )
             self.assertIsNone(response.output_url)
+            self.assertEqual(len(response.parts), 2)
+
+    def test_render_preview_fixed_length_scene_split_skips_scene_detection_and_offsets_trim(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=root / "uploads" / f"{project_id}.mp4",
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=12.0,
+                fps=30.0,
+                frame_count=360,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState(
+                trim={"start": 2.0, "end": 11.0},
+                scene_split={"enabled": True, "detector": "ffmpeg", "fixed_length_enabled": True, "fixed_clip_length": 4.0},
+            )
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg()
+            fake_scene_detection = _FakeSceneDetection()
+            fake_ffmpeg.build_fixed_length_segments = Mock(return_value=[(0.0, 4.0), (4.0, 9.0)])  # type: ignore[method-assign]
+
+            with (
+                patch("app.main.storage", fake_storage),
+                patch("app.main.ffmpeg", fake_ffmpeg),
+                patch("app.main.scene_detection", fake_scene_detection),
+            ):
+                response = render_preview(project_id)
+
+            fake_ffmpeg.build_fixed_length_segments.assert_called_once_with(duration=9.0, clip_length=4.0)
+            self.assertEqual(fake_scene_detection.calls, [])
+            self.assertEqual(
+                fake_ffmpeg.ran_commands,
+                [
+                    ["ffmpeg", "-ss", "2.0", "-to", "6.0", str(root / "work" / f"{project_id}_preview_part001.mp4")],
+                    ["ffmpeg", "-ss", "6.0", "-to", "11.0", str(root / "work" / f"{project_id}_preview_part002.mp4")],
+                ],
+            )
             self.assertEqual(len(response.parts), 2)
 
     def test_render_preview_scene_split_removes_stale_single_preview_and_old_parts(self) -> None:
@@ -948,6 +1215,13 @@ class MainTests(unittest.TestCase):
         self.assertIn("Apply Changes", html)
         self.assertNotIn("Apply Scene Split", html)
 
+    def test_index_renders_versioned_static_assets(self) -> None:
+        response = index()
+        html = response.body.decode("utf-8")
+        self.assertRegex(html, r'/static/styles\.css\?v=\d+')
+        self.assertRegex(html, r'/static/app\.js\?v=\d+')
+        self.assertEqual(response.headers["cache-control"], "no-cache")
+
     def test_scene_split_ui_exposes_threshold_slider_and_browser_memory_hint(self) -> None:
         html = (Path(__file__).resolve().parent.parent / "static" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="uploadProgress"', html)
@@ -955,6 +1229,9 @@ class MainTests(unittest.TestCase):
         self.assertIn('id="sceneSplitDetector"', html)
         self.assertIn('id="sceneSplitThresholdRange"', html)
         self.assertIn('id="sceneSplitAiSensitivityRange"', html)
+        self.assertIn('id="sceneSplitFixedLengthEnabled"', html)
+        self.assertIn('id="sceneSplitFixedClip"', html)
+        self.assertIn('id="sceneSplitFixedClipRange"', html)
         self.assertIn('id="sceneSplitResetBtn"', html)
         self.assertIn('id="previewSelectAllBtn"', html)
         self.assertIn('id="previewClearSelectionBtn"', html)
@@ -962,6 +1239,7 @@ class MainTests(unittest.TestCase):
         self.assertIn("Lower threshold finds more cuts. Higher threshold finds fewer. Higher AI sensitivity finds more cuts.", html)
         self.assertIn("This browser remembers your latest scene split values for new projects.", html)
         self.assertIn("AI mode uses a local TransNetV2 ONNX model", html)
+        self.assertIn("the last short remainder is merged into the previous clip", html)
         self.assertIn("If none are selected, Export keeps the current behavior and writes all split clips.", html)
 
     def test_scene_split_preferences_are_persisted_in_browser_storage(self) -> None:
@@ -975,6 +1253,10 @@ class MainTests(unittest.TestCase):
         self.assertIn("setProjectFromPayload(payload, { useRememberedSceneSplit: true })", script)
         self.assertIn('detector: "ffmpeg"', script)
         self.assertIn("sceneSplitAiSensitivityRange", script)
+        self.assertIn("fixed_length_enabled", script)
+        self.assertIn("fixed_clip_length", script)
+        self.assertIn("sceneSplitFixedClipRange", script)
+        self.assertIn("usesFixedLengthSceneSplit", script)
         self.assertIn("selected_clip_indexes", script)
         self.assertIn("togglePreviewPartSelection", script)
         self.assertIn("function buildGifExportConfirmationMessage(estimate)", script)

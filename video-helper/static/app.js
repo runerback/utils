@@ -7,13 +7,17 @@ const MIN_SPEED = 0.25;
 const MAX_SPEED = 2;
 const EXTRA_SPEED_BUTTON_VALUES = [5, 10];
 const DEFAULT_SPEED = 1;
+const MIN_SCENE_SPLIT_CLIP_LENGTH = 0.1;
+const DEFAULT_FIXED_CLIP_LENGTH = 12;
 const DEFAULT_SCENE_SPLIT = {
   enabled: false,
   detector: "ffmpeg",
   threshold: 0.4,
   ai_sensitivity: 0.5,
   min_clip_length: 2,
-  max_clip_length: 12,
+  max_clip_length: DEFAULT_FIXED_CLIP_LENGTH,
+  fixed_length_enabled: false,
+  fixed_clip_length: DEFAULT_FIXED_CLIP_LENGTH,
   selected_clip_indexes: []
 };
 
@@ -32,6 +36,7 @@ function normalizeSceneSplitConfig(sceneSplit) {
   const aiSensitivity = toFiniteNumber(next.ai_sensitivity, DEFAULT_SCENE_SPLIT.ai_sensitivity);
   const minClip = toFiniteNumber(next.min_clip_length, DEFAULT_SCENE_SPLIT.min_clip_length);
   const maxClip = toFiniteNumber(next.max_clip_length, DEFAULT_SCENE_SPLIT.max_clip_length);
+  const fixedClipLength = toFiniteNumber(next.fixed_clip_length, maxClip);
   const selectedClipIndexes = Array.from(
     new Set(
       (Array.isArray(next.selected_clip_indexes) ? next.selected_clip_indexes : [])
@@ -44,8 +49,10 @@ function normalizeSceneSplitConfig(sceneSplit) {
     detector: detector === "ai" ? "ai" : "ffmpeg",
     threshold: Math.max(0.01, Math.min(1, threshold)),
     ai_sensitivity: Math.max(0.01, Math.min(1, aiSensitivity)),
-    min_clip_length: Math.max(0.1, minClip),
-    max_clip_length: Math.max(0.1, maxClip),
+    min_clip_length: Math.max(MIN_SCENE_SPLIT_CLIP_LENGTH, minClip),
+    max_clip_length: Math.max(MIN_SCENE_SPLIT_CLIP_LENGTH, maxClip),
+    fixed_length_enabled: Boolean(next.fixed_length_enabled),
+    fixed_clip_length: Math.max(MIN_SCENE_SPLIT_CLIP_LENGTH, fixedClipLength),
     selected_clip_indexes: selectedClipIndexes
   };
   if (normalized.min_clip_length > normalized.max_clip_length) {
@@ -211,8 +218,13 @@ const el = {
   sceneSplitAiSensitivity: document.getElementById("sceneSplitAiSensitivity"),
   sceneSplitAiSensitivityRange: document.getElementById("sceneSplitAiSensitivityRange"),
   sceneSplitAiSensitivityValue: document.getElementById("sceneSplitAiSensitivityValue"),
+  sceneSplitFixedLengthEnabled: document.getElementById("sceneSplitFixedLengthEnabled"),
   sceneSplitMinClip: document.getElementById("sceneSplitMinClip"),
   sceneSplitMaxClip: document.getElementById("sceneSplitMaxClip"),
+  sceneSplitClipRangeRow: document.getElementById("sceneSplitClipRangeRow"),
+  sceneSplitFixedClipRow: document.getElementById("sceneSplitFixedClipRow"),
+  sceneSplitFixedClip: document.getElementById("sceneSplitFixedClip"),
+  sceneSplitFixedClipRange: document.getElementById("sceneSplitFixedClipRange"),
   sceneSplitResetBtn: document.getElementById("sceneSplitResetBtn"),
   sceneSplitDetectorSections: document.querySelectorAll("[data-scene-detector]"),
   originalDims: document.getElementById("originalDims"),
@@ -405,6 +417,11 @@ function scheduleTrimFramesRefresh() {
 function withCacheBust(url) {
   const separator = url.includes("?") ? "&" : "?";
   return `${url}${separator}t=${Date.now()}`;
+}
+
+function usesFixedLengthSceneSplit(sceneSplit = state.edit.scene_split) {
+  const split = normalizeSceneSplitConfig(sceneSplit);
+  return Boolean(split.enabled && split.detector === "ffmpeg" && split.fixed_length_enabled);
 }
 
 function normalizedPathname(url) {
@@ -753,6 +770,7 @@ function updateTrimUI() {
   el.startInput.value = state.edit.trim.start.toFixed(3);
   el.endInput.value = (state.edit.trim.end || duration).toFixed(3);
   updateClipLengthUI();
+  updateSceneSplitFixedClipControl(state.edit.scene_split);
 }
 
 function formatSeconds(seconds) {
@@ -964,9 +982,12 @@ function updateSceneSplitUI() {
   el.sceneSplitAiSensitivity.value = aiSensitivityText;
   el.sceneSplitAiSensitivityRange.value = aiSensitivityText;
   el.sceneSplitAiSensitivityValue.textContent = aiSensitivityText;
+  el.sceneSplitFixedLengthEnabled.checked = Boolean(split.fixed_length_enabled);
   el.sceneSplitMinClip.value = split.min_clip_length;
   el.sceneSplitMaxClip.value = split.max_clip_length;
+  updateSceneSplitFixedClipControl(split);
   updateSceneDetectorControls(split.detector);
+  updateSceneSplitLengthModeControls(split);
   updatePreviewPartsVisibility();
 }
 
@@ -976,8 +997,34 @@ function updateSceneDetectorControls(detector) {
   });
 }
 
+function sceneSplitTrimDuration() {
+  if (!state.metadata) {
+    return DEFAULT_SCENE_SPLIT.fixed_clip_length;
+  }
+  const trimEnd = state.edit.trim.end || state.metadata.duration;
+  return Math.max(MIN_SCENE_SPLIT_CLIP_LENGTH, trimEnd - state.edit.trim.start);
+}
+
+function updateSceneSplitFixedClipControl(sceneSplit = state.edit.scene_split) {
+  const split = normalizeSceneSplitConfig(sceneSplit);
+  const rangeMax = Math.max(sceneSplitTrimDuration(), split.fixed_clip_length, DEFAULT_SCENE_SPLIT.fixed_clip_length);
+  const rangeMaxText = rangeMax.toFixed(1);
+  const fixedClipText = String(split.fixed_clip_length);
+  el.sceneSplitFixedClip.min = String(MIN_SCENE_SPLIT_CLIP_LENGTH);
+  el.sceneSplitFixedClipRange.min = String(MIN_SCENE_SPLIT_CLIP_LENGTH);
+  el.sceneSplitFixedClipRange.max = rangeMaxText;
+  el.sceneSplitFixedClip.value = fixedClipText;
+  el.sceneSplitFixedClipRange.value = fixedClipText;
+}
+
+function updateSceneSplitLengthModeControls(sceneSplit) {
+  const fixedLengthMode = sceneSplit.detector === "ffmpeg" && sceneSplit.fixed_length_enabled;
+  el.sceneSplitClipRangeRow.classList.toggle("hidden", fixedLengthMode);
+  el.sceneSplitFixedClipRow.classList.toggle("hidden", !fixedLengthMode);
+}
+
 function syncSceneSplitFromInputs(options = {}) {
-  const { persist = false, thresholdSource = null, aiSensitivitySource = null } = options;
+  const { persist = false, thresholdSource = null, aiSensitivitySource = null, fixedClipSource = null } = options;
   let threshold = toFiniteNumber(
     el.sceneSplitThreshold.value,
     toFiniteNumber(el.sceneSplitThresholdRange.value, DEFAULT_SCENE_SPLIT.threshold)
@@ -985,6 +1032,10 @@ function syncSceneSplitFromInputs(options = {}) {
   let aiSensitivity = toFiniteNumber(
     el.sceneSplitAiSensitivity.value,
     toFiniteNumber(el.sceneSplitAiSensitivityRange.value, DEFAULT_SCENE_SPLIT.ai_sensitivity)
+  );
+  let fixedClipLength = toFiniteNumber(
+    el.sceneSplitFixedClip.value,
+    toFiniteNumber(el.sceneSplitFixedClipRange.value, DEFAULT_SCENE_SPLIT.fixed_clip_length)
   );
   if (thresholdSource) {
     threshold = toFiniteNumber(
@@ -1006,11 +1057,22 @@ function syncSceneSplitFromInputs(options = {}) {
       )
     );
   }
+  if (fixedClipSource) {
+    fixedClipLength = toFiniteNumber(
+      fixedClipSource.value,
+      toFiniteNumber(
+        fixedClipSource === el.sceneSplitFixedClipRange ? el.sceneSplitFixedClip.value : el.sceneSplitFixedClipRange.value,
+        DEFAULT_SCENE_SPLIT.fixed_clip_length
+      )
+    );
+  }
   const next = normalizeSceneSplitConfig({
     enabled: Boolean(el.sceneSplitEnabled.checked),
     detector: el.sceneSplitDetector.value,
     threshold,
     ai_sensitivity: aiSensitivity,
+    fixed_length_enabled: Boolean(el.sceneSplitFixedLengthEnabled.checked),
+    fixed_clip_length: fixedClipLength,
     min_clip_length: toFiniteNumber(el.sceneSplitMinClip.value, DEFAULT_SCENE_SPLIT.min_clip_length),
     max_clip_length: toFiniteNumber(el.sceneSplitMaxClip.value, DEFAULT_SCENE_SPLIT.max_clip_length),
     selected_clip_indexes: selectedClipIndexes()
@@ -1324,14 +1386,22 @@ async function runPreviewRender() {
     closeCropIndicator();
     setPreviewProgress(15);
     const splitEnabled = Boolean(state.edit.scene_split.enabled);
-    setPreviewStatus(splitEnabled ? "Rendering split preview..." : "Rendering preview...");
-    setStatus(splitEnabled ? "Rendering split preview..." : "Rendering preview...");
+    const fixedLengthMode = usesFixedLengthSceneSplit();
+    const previewStatus = !splitEnabled
+      ? "Rendering preview..."
+      : fixedLengthMode
+        ? "Rendering fixed-length preview..."
+        : "Rendering split preview...";
+    setPreviewStatus(previewStatus);
+    setStatus(previewStatus);
     if (state.edit.scene_split.enabled) {
       showPreviewPartsProgress(
         15,
         state.edit.scene_split.detector === "ai"
           ? "Analyzing frames with AI scene detector..."
-          : "Analyzing frames for scene changes..."
+          : fixedLengthMode
+            ? "Splitting trimmed clip by fixed length..."
+            : "Analyzing frames for scene changes..."
       );
     } else {
       hidePreviewPartsProgress();
@@ -1568,8 +1638,15 @@ el.sceneSplitAiSensitivity.addEventListener("change", () =>
 el.sceneSplitAiSensitivityRange.addEventListener("input", () =>
   syncSceneSplitFromInputs({ persist: true, aiSensitivitySource: el.sceneSplitAiSensitivityRange })
 );
+el.sceneSplitFixedLengthEnabled.addEventListener("change", () => syncSceneSplitFromInputs({ persist: true }));
 el.sceneSplitMinClip.addEventListener("change", () => syncSceneSplitFromInputs({ persist: true }));
 el.sceneSplitMaxClip.addEventListener("change", () => syncSceneSplitFromInputs({ persist: true }));
+el.sceneSplitFixedClip.addEventListener("change", () =>
+  syncSceneSplitFromInputs({ persist: true, fixedClipSource: el.sceneSplitFixedClip })
+);
+el.sceneSplitFixedClipRange.addEventListener("input", () =>
+  syncSceneSplitFromInputs({ persist: true, fixedClipSource: el.sceneSplitFixedClipRange })
+);
 el.sceneSplitResetBtn.addEventListener("click", () => {
   state.edit.scene_split = { ...DEFAULT_SCENE_SPLIT };
   persistSceneSplitPreferences(state.edit.scene_split);
