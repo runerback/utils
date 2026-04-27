@@ -1,0 +1,2 @@
+"""Bird video stabilization package."""
+

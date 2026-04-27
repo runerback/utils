@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+instance/uploads/
+*.pyc
+models/
+output/
+samples/
+logs/

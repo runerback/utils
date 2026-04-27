@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>stable-bird Web UI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <h1>stable-bird</h1>
+        <p class="muted">Upload a video, start processing, and reopen earlier projects.</p>
+
+        <section class="card">
+          <label for="project-select">Previous projects</label>
+          <select id="project-select" size="10"></select>
+          <button id="refresh-projects" type="button">Refresh list</button>
+        </section>
+
+        <section class="card">
+          <form id="upload-form">
+            <label for="source-file">Source video</label>
+            <input id="source-file" name="source" type="file" accept="video/*">
+            <button id="upload-button" type="submit">Upload source</button>
+          </form>
+          <button id="start-button" type="button" disabled>Begin video handling</button>
+          <p id="action-message" class="muted"></p>
+        </section>
+      </aside>
+
+      <main class="content">
+        <section class="card">
+          <div class="status-row">
+            <div>
+              <h2 id="project-title">No project selected</h2>
+              <p id="project-status" class="muted">Upload a source video or pick a previous project.</p>
+            </div>
+            <div class="progress-summary">
+              <span id="progress-label">0%</span>
+            </div>
+          </div>
+          <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+          <p id="error-message" class="error hidden"></p>
+        </section>
+
+        <section class="grid">
+          <section class="card">
+            <h3>Source file</h3>
+            <video id="source-player" controls preload="metadata"></video>
+            <p id="source-empty" class="muted">No source file available for this project.</p>
+          </section>
+
+          <section class="card">
+            <h3>Debug view</h3>
+            <video id="debug-player" controls preload="metadata"></video>
+            <p id="debug-empty" class="muted">No debug preview available yet.</p>
+            <div class="debug-panels">
+              <div>
+                <h4>Manifest</h4>
+                <pre id="manifest-view">No manifest loaded.</pre>
+              </div>
+              <div>
+                <h4>Trace log</h4>
+                <pre id="trace-view">No trace log loaded.</pre>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section class="card">
+          <h3>Finished clips</h3>
+          <div id="clips-list" class="clips-list"></div>
+          <p id="clips-empty" class="muted">No finished clips available yet.</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
