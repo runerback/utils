@@ -22,6 +22,7 @@ ALLOWED_FILE_EXTENSIONS = {
     ".pdf",
     ".ppt",
     ".pptx",
+    ".pt",
     ".rtf",
     ".txt",
     ".xls",
