@@ -26,6 +26,8 @@ from src.config import (
     DEFAULT_MODEL_PATH,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_SMOOTHING_ALPHA,
+    DEFAULT_TRACKING_ANCHOR_X_PERCENT,
+    DEFAULT_TRACKING_ANCHOR_Y_PERCENT,
     DEFAULT_TRACE_EVERY_N_FRAMES,
     VIDEO_EXTENSIONS,
     RuntimeConfig,
@@ -517,7 +519,10 @@ class ProjectStore:
         manifest_path = project_dir / "manifest.json"
         if not manifest_path.exists():
             return None
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return None
 
     def _resolve_recorded_path(self, path_value: object, project_dir: Path) -> Path | None:
         if not isinstance(path_value, str) or not path_value:
@@ -638,6 +643,8 @@ def _build_runtime_config(source_path: Path, output_dir: Path) -> RuntimeConfig:
         inference_image_size=DEFAULT_INFERENCE_IMAGE_SIZE,
         trace_every_n_frames=DEFAULT_TRACE_EVERY_N_FRAMES,
         crop_margin_percent=DEFAULT_CROP_MARGIN_PERCENT,
+        tracking_anchor_x_percent=DEFAULT_TRACKING_ANCHOR_X_PERCENT,
+        tracking_anchor_y_percent=DEFAULT_TRACKING_ANCHOR_Y_PERCENT,
         debug_preview=True,
     )
 

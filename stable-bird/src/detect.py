@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -72,6 +73,37 @@ class BirdDetector:
         return detections
 
 
+def apply_tracking_anchor(
+    detection: Detection,
+    anchor_x_percent: float,
+    anchor_y_percent: float,
+) -> Detection:
+    x1, y1, x2, y2 = detection.bbox
+    width = x2 - x1
+    height = y2 - y1
+    if width <= 0.0 or height <= 0.0 or not all(math.isfinite(value) for value in (x1, y1, x2, y2)):
+        return _fallback_to_bbox_center(detection)
+
+    anchor_x = x1 + (width * (anchor_x_percent / 100.0))
+    anchor_y = y1 + (height * (anchor_y_percent / 100.0))
+    if not math.isfinite(anchor_x) or not math.isfinite(anchor_y):
+        return _fallback_to_bbox_center(detection)
+
+    detection.tracking_anchor_x = anchor_x
+    detection.tracking_anchor_y = anchor_y
+    detection.tracking_anchor_source = (
+        "bbox_center" if anchor_x_percent == 50.0 and anchor_y_percent == 50.0 else "bbox_relative"
+    )
+    return detection
+
+
+def _fallback_to_bbox_center(detection: Detection) -> Detection:
+    detection.tracking_anchor_x = detection.center_x
+    detection.tracking_anchor_y = detection.center_y
+    detection.tracking_anchor_source = "bbox_center_fallback"
+    return detection
+
+
 def select_primary_detection(
     detections: list[Detection],
     frame_width: int,
@@ -86,8 +118,8 @@ def select_primary_detection(
     half_height = frame_height / 2.0
 
     def score(detection: Detection) -> float:
-        dx = abs(detection.center_x - frame_center_x) / half_width
-        dy = abs(detection.center_y - frame_center_y) / half_height
+        dx = abs(detection.tracking_x - frame_center_x) / half_width
+        dy = abs(detection.tracking_y - frame_center_y) / half_height
         distance_penalty = (dx + dy) / 2.0
         return detection.confidence - (distance_penalty * 0.35)
 

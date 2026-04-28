@@ -19,6 +19,11 @@ Download the default detector weights manually and place them at `models\yolov8s
 
 ## Run
 
+Supported public module entrypoints:
+
+- `python -m stable_bird.cli` for console processing
+- `python -m stable_bird.web` for the local web UI
+
 Process every supported video in `samples\`:
 
 ```powershell
@@ -39,6 +44,12 @@ Use a JSON config file for repeated tuning:
 
 ```powershell
 .\.venv\Scripts\python -m stable_bird.cli --config .\bird-config.json
+```
+
+Bias the tracking point upward within the detected bird box to reduce shake from tail or wing motion:
+
+```powershell
+.\.venv\Scripts\python -m stable_bird.cli --input .\samples\long_tailed_strike_sample.mp4 --tracking-anchor-y-percent 35
 ```
 
 Process a single file:
@@ -73,5 +84,6 @@ Run-level tracing is also written to:
 - Default detection resizes frames to 640 pixels for inference to keep CPU runs practical.
 - Default clip export requires at least 10 tracked frames per accepted segment. If a video finishes with no clips, try lowering `--min-segment-frames` or relaxing the detection thresholds.
 - The final clips are cropped directly from the original source video, and `crop_margin_percent` lets you shrink the solved crop slightly to avoid edge artifacts or black borders.
+- `tracking_anchor_x_percent` / `tracking_anchor_y_percent` let you move the tracked point within the detected bird box; `50/50` keeps the current midpoint behavior, while a lower Y value can bias tracking toward the head or neck.
 - The web UI is local-first, processes one uploaded job at a time, and lets you reopen previously processed projects from the output directory.
 - The web debug view uses generated artifacts: source video, debug preview, `manifest.json`, and `trace.log`.

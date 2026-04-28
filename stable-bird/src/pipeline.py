@@ -7,7 +7,7 @@ import cv2
 
 from src.config import RuntimeConfig, resolve_input_videos
 from src.crop import solve_crop_window
-from src.detect import BirdDetector, select_primary_detection
+from src.detect import BirdDetector, apply_tracking_anchor, select_primary_detection
 from src.logging_utils import attach_video_trace, detach_handler
 from src.progress import ProcessingEvent, ProgressReporter
 from src.quality import evaluate_detection
@@ -113,6 +113,12 @@ def process_video(
 
             timestamp = frame_index / video_info.fps
             detections = detector.detect(frame)
+            for detection in detections:
+                apply_tracking_anchor(
+                    detection,
+                    config.tracking_anchor_x_percent,
+                    config.tracking_anchor_y_percent,
+                )
             primary_detection = select_primary_detection(detections, video_info.width, video_info.height)
             is_good, reason, evaluated_detection = evaluate_detection(
                 frame=frame,
@@ -124,7 +130,7 @@ def process_video(
 
             tracked_center = tracker.current_center
             if is_good and evaluated_detection is not None:
-                tracked_center = tracker.update((evaluated_detection.center_x, evaluated_detection.center_y))
+                tracked_center = tracker.update(evaluated_detection.tracking_point)
                 planner.push_good(
                     frame_index=frame_index,
                     timestamp_seconds=timestamp,

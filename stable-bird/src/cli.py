@@ -20,6 +20,8 @@ from src.config import (
     DEFAULT_MODEL_PATH,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_SMOOTHING_ALPHA,
+    DEFAULT_TRACKING_ANCHOR_X_PERCENT,
+    DEFAULT_TRACKING_ANCHOR_Y_PERCENT,
     DEFAULT_TRACE_EVERY_N_FRAMES,
     RuntimeConfig,
     YOLOV8S_DOWNLOAD_URL,
@@ -101,6 +103,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Shrink the solved crop window by this percentage to avoid edge artifacts.",
     )
     parser.add_argument(
+        "--tracking-anchor-x-percent",
+        type=float,
+        default=None,
+        help="Horizontal anchor position inside the bird box. 50 tracks the box midpoint.",
+    )
+    parser.add_argument(
+        "--tracking-anchor-y-percent",
+        type=float,
+        default=None,
+        help="Vertical anchor position inside the bird box. Lower values bias tracking toward the head and neck.",
+    )
+    parser.add_argument(
         "--no-debug-preview",
         action="store_true",
         help="Disable the full-length annotated debug preview output.",
@@ -135,11 +149,39 @@ def resolve_setting(
     return config_data.get(key, default)
 
 
+def validate_percent(name: str, value: float) -> float:
+    if value < 0.0 or value > 100.0:
+        raise ValueError(f"{name} must be between 0 and 100")
+    return value
+
+
 def build_config(args: argparse.Namespace) -> RuntimeConfig:
     config_data = load_config_data(args.config)
     device = str(resolve_setting(args.device, config_data, "device", DEFAULT_DEVICE))
     if device not in {"auto", "cpu", "cuda"}:
         raise ValueError("device must be one of: auto, cpu, cuda")
+    tracking_anchor_x_percent = validate_percent(
+        "tracking_anchor_x_percent",
+        float(
+            resolve_setting(
+                args.tracking_anchor_x_percent,
+                config_data,
+                "tracking_anchor_x_percent",
+                DEFAULT_TRACKING_ANCHOR_X_PERCENT,
+            )
+        ),
+    )
+    tracking_anchor_y_percent = validate_percent(
+        "tracking_anchor_y_percent",
+        float(
+            resolve_setting(
+                args.tracking_anchor_y_percent,
+                config_data,
+                "tracking_anchor_y_percent",
+                DEFAULT_TRACKING_ANCHOR_Y_PERCENT,
+            )
+        ),
+    )
 
     return RuntimeConfig(
         input_path=Path(str(resolve_setting(args.input, config_data, "input_path", DEFAULT_INPUT_PATH))),
@@ -174,6 +216,8 @@ def build_config(args: argparse.Namespace) -> RuntimeConfig:
         crop_margin_percent=float(
             resolve_setting(args.crop_margin_percent, config_data, "crop_margin_percent", DEFAULT_CROP_MARGIN_PERCENT)
         ),
+        tracking_anchor_x_percent=tracking_anchor_x_percent,
+        tracking_anchor_y_percent=tracking_anchor_y_percent,
         debug_preview=(not args.no_debug_preview)
         if args.no_debug_preview
         else bool(resolve_setting(None, config_data, "debug_preview", True)),

@@ -42,11 +42,11 @@ def evaluate_detection(
     half_height = frame_height / 2.0
 
     detection.blur_score = measure_blur(frame, detection.bbox)
-    detection.center_offset_x = (detection.center_x - frame_center_x) / frame_width
-    detection.center_offset_y = (detection.center_y - frame_center_y) / frame_height
+    detection.center_offset_x = (detection.tracking_x - frame_center_x) / frame_width
+    detection.center_offset_y = (detection.tracking_y - frame_center_y) / frame_height
     detection.normalized_center_distance = math.sqrt(
-        ((detection.center_x - frame_center_x) / half_width) ** 2
-        + ((detection.center_y - frame_center_y) / half_height) ** 2
+        ((detection.tracking_x - frame_center_x) / half_width) ** 2
+        + ((detection.tracking_y - frame_center_y) / half_height) ** 2
     ) / math.sqrt(2.0)
 
     max_offset_x = config.center_zone_fraction / 2.0

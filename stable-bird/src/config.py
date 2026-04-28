@@ -21,6 +21,8 @@ DEFAULT_INFERENCE_IMAGE_SIZE = 640
 DEFAULT_TRACE_EVERY_N_FRAMES = 120
 DEFAULT_INFERENCE_CONFIDENCE = 0.05
 DEFAULT_CROP_MARGIN_PERCENT = 2.0
+DEFAULT_TRACKING_ANCHOR_X_PERCENT = 50.0
+DEFAULT_TRACKING_ANCHOR_Y_PERCENT = 50.0
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,8 @@ class RuntimeConfig:
     inference_image_size: int
     trace_every_n_frames: int
     crop_margin_percent: float
+    tracking_anchor_x_percent: float
+    tracking_anchor_y_percent: float
     debug_preview: bool
 
     @property

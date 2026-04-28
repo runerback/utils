@@ -19,10 +19,25 @@ class Detection:
     confidence: float
     center_x: float
     center_y: float
+    tracking_anchor_x: float | None = None
+    tracking_anchor_y: float | None = None
+    tracking_anchor_source: str = "bbox_center"
     blur_score: float = 0.0
     center_offset_x: float = 0.0
     center_offset_y: float = 0.0
     normalized_center_distance: float = 0.0
+
+    @property
+    def tracking_x(self) -> float:
+        return self.center_x if self.tracking_anchor_x is None else self.tracking_anchor_x
+
+    @property
+    def tracking_y(self) -> float:
+        return self.center_y if self.tracking_anchor_y is None else self.tracking_anchor_y
+
+    @property
+    def tracking_point(self) -> tuple[float, float]:
+        return (self.tracking_x, self.tracking_y)
 
 
 @dataclass(frozen=True)

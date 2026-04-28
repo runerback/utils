@@ -36,6 +36,14 @@ def draw_debug_frame(
         x1, y1, x2, y2 = [int(value) for value in evaluation.detection.bbox]
         color = (0, 200, 0) if evaluation.is_good else (0, 0, 255)
         cv2.rectangle(overlay, (x1, y1), (x2, y2), color, 2)
+        cv2.drawMarker(
+            overlay,
+            (int(round(evaluation.detection.tracking_x)), int(round(evaluation.detection.tracking_y))),
+            (255, 255, 0),
+            markerType=cv2.MARKER_DIAMOND,
+            markerSize=16,
+            thickness=2,
+        )
         label = (
             f"bird conf={evaluation.detection.confidence:.2f} "
             f"blur={evaluation.detection.blur_score:.1f}"
@@ -93,6 +101,8 @@ def write_manifest(
             "inference_image_size": config.inference_image_size,
             "trace_every_n_frames": config.trace_every_n_frames,
             "crop_margin_percent": config.crop_margin_percent,
+            "tracking_anchor_x_percent": config.tracking_anchor_x_percent,
+            "tracking_anchor_y_percent": config.tracking_anchor_y_percent,
             "debug_preview": config.debug_preview,
         },
         "accepted_segments": [serialize_segment(segment) for segment in summary.accepted_segments],
