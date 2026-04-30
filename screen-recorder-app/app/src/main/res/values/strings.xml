@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Screen Recorder</string>
+    <string name="notification_channel_name">Screen recording</string>
+    <string name="notification_channel_description">Controls and status for active screen recordings.</string>
+    <string name="notification_title">Screen Recorder</string>
+    <string name="notification_text_preparing">Preparing screen capture</string>
+    <string name="notification_text_recording">Recording is active</string>
+    <string name="notification_text_stopped">Recording stopped</string>
+    <string name="notification_action_stop">Stop</string>
+</resources>
