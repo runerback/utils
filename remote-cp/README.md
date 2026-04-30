@@ -24,7 +24,7 @@ Small Flask + Socket.IO chat room for anonymous text, picture, video, and file s
 - Uploaded images and files are stored in `instance\uploads` for the current app run only.
 - Total upload payloads are capped at 500 MB per request.
 - Video uploads support `.mp4` and appear inline in the room with muted autoplay and playback controls.
-- General file uploads are limited to document-style formats: `.7z`, `.csv`, `.doc`, `.docx`, `.json`, `.md`, `.pdf`, `.ppt`, `.pptx`, `.pt`, `.rtf`, `.txt`, `.xls`, `.xlsx`, and `.zip`.
+- General file uploads are limited to document-style formats: `.7z`, `.apk`, `.csv`, `.doc`, `.docx`, `.json`, `.md`, `.pdf`, `.ppt`, `.pptx`, `.pt`, `.rtf`, `.txt`, `.xls`, `.xlsx`, and `.zip`.
 - Uploaded non-image files appear in the feed with download links for everyone in the room.
 - Uploaded videos appear in the feed as playable cards for everyone in the room.
 - The message box no longer has a fixed input cap. `Send text` posts inline messages up to 4,000 characters and automatically sends longer content to the room as a generated `.txt` file attachment.

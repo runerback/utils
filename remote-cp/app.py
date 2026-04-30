@@ -14,6 +14,7 @@ ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 ALLOWED_VIDEO_EXTENSIONS = {".mp4"}
 ALLOWED_FILE_EXTENSIONS = {
     ".7z",
+    ".apk",
     ".csv",
     ".doc",
     ".docx",
@@ -29,6 +30,7 @@ ALLOWED_FILE_EXTENSIONS = {
     ".xlsx",
     ".zip",
 }
+FILE_INPUT_ACCEPT = ",".join(sorted(ALLOWED_FILE_EXTENSIONS))
 MAX_UPLOAD_SIZE_MB = 500
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 MESSAGE_STORE: list[dict] = []
@@ -37,8 +39,12 @@ STORE_LOCK = Lock()
 socketio = SocketIO(cors_allowed_origins="*", async_mode="threading")
 
 
-def create_app() -> Flask:
-    app = Flask(__name__, instance_relative_config=True)
+def create_app(instance_path: str | Path | None = None) -> Flask:
+    flask_kwargs = {"instance_relative_config": True}
+    if instance_path is not None:
+        flask_kwargs["instance_path"] = str(Path(instance_path).resolve())
+
+    app = Flask(__name__, **flask_kwargs)
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_SIZE_BYTES
     app.config["UPLOAD_FOLDER"] = Path(app.instance_path) / "uploads"
 
@@ -50,7 +56,11 @@ def create_app() -> Flask:
     def index() -> str:
         with STORE_LOCK:
             existing_messages = list(MESSAGE_STORE)
-        return render_template("index.html", existing_messages=existing_messages)
+        return render_template(
+            "index.html",
+            existing_messages=existing_messages,
+            file_input_accept=FILE_INPUT_ACCEPT,
+        )
 
     @app.get("/health")
     def health() -> dict[str, str]:
