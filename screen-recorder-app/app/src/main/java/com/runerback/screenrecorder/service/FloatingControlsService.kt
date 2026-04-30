@@ -16,6 +16,7 @@ import android.widget.TextView
 import com.runerback.screenrecorder.MainActivity
 import com.runerback.screenrecorder.data.RecordingStateRepository
 import com.runerback.screenrecorder.data.RecordingStatus
+import com.runerback.screenrecorder.util.formatElapsedClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +28,7 @@ import kotlin.math.roundToInt
 class FloatingControlsService : Service() {
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
+    private var isOverlayAttached = false
     private lateinit var layoutParams: WindowManager.LayoutParams
     private lateinit var statusTextView: TextView
     private lateinit var startButton: Button
@@ -36,6 +38,8 @@ class FloatingControlsService : Service() {
     private var pendingResultCode: Int? = null
     private var pendingResultData: Intent? = null
     private var exitAfterStop = false
+    private var isAwaitingCapturePermission = false
+    private var isStartingRecording = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -53,21 +57,27 @@ class FloatingControlsService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_SECURE,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = 24
             y = 96
         }
-        windowManager?.addView(overlayView, layoutParams)
+        showOverlay()
         RecordingStateRepository.setToolboxVisible(true)
         serviceScope.launch {
             RecordingStateRepository.uiState.collectLatest { uiState ->
+                if (uiState.status != RecordingStatus.IDLE) {
+                    isStartingRecording = false
+                    isAwaitingCapturePermission = false
+                }
                 statusTextView.text = when (uiState.status) {
                     RecordingStatus.IDLE -> "Ready"
                     RecordingStatus.PREPARING -> "Preparing"
-                    RecordingStatus.RECORDING -> "Recording"
+                    RecordingStatus.RECORDING -> "Recording ${formatElapsedClock(uiState.recordingElapsedMillis)}"
                     RecordingStatus.STOPPING -> "Stopping"
                 }
                 startButton.isEnabled = uiState.status == RecordingStatus.IDLE
@@ -75,8 +85,11 @@ class FloatingControlsService : Service() {
                     uiState.status == RecordingStatus.RECORDING
                 exitButton.isEnabled = uiState.status != RecordingStatus.STOPPING
                 if (exitAfterStop && uiState.status == RecordingStatus.IDLE) {
+                    hideOverlay()
                     stopSelf()
+                    return@collectLatest
                 }
+                syncOverlayVisibility(uiState)
             }
         }
     }
@@ -91,6 +104,9 @@ class FloatingControlsService : Service() {
                     pendingResultData = resultData
                 }
                 exitAfterStop = false
+                isAwaitingCapturePermission = false
+                isStartingRecording = false
+                showOverlay()
                 RecordingStateRepository.setToolboxVisible(true)
             }
 
@@ -101,13 +117,13 @@ class FloatingControlsService : Service() {
 
     override fun onDestroy() {
         serviceScope.cancel()
-        overlayView?.let { view ->
-            windowManager?.removeView(view)
-        }
+        hideOverlay()
         overlayView = null
         pendingResultCode = null
         pendingResultData = null
         exitAfterStop = false
+        isAwaitingCapturePermission = false
+        isStartingRecording = false
         RecordingStateRepository.setToolboxVisible(false)
         super.onDestroy()
     }
@@ -164,10 +180,12 @@ class FloatingControlsService : Service() {
                 val resultCode = pendingResultCode
                 val resultData = pendingResultData
                 if (resultCode != null && resultData != null) {
+                    hideForRecording(awaitPermission = false)
                     pendingResultCode = null
                     pendingResultData = null
                     RecordingCommands.start(this, resultCode, resultData)
                 } else {
+                    hideForRecording(awaitPermission = true)
                     startActivity(
                         Intent(this, MainActivity::class.java).apply {
                             action = MainActivity.ACTION_REQUEST_CAPTURE
@@ -180,10 +198,56 @@ class FloatingControlsService : Service() {
         }
     }
 
+    private fun hideForRecording(awaitPermission: Boolean) {
+        isAwaitingCapturePermission = awaitPermission
+        isStartingRecording = true
+        hideOverlay()
+        RecordingStateRepository.setToolboxVisible(false)
+    }
+
+    private fun syncOverlayVisibility(uiState: com.runerback.screenrecorder.data.RecorderUiState) {
+        val shouldShowOverlay = uiState.status == RecordingStatus.IDLE &&
+            !exitAfterStop &&
+            !isAwaitingCapturePermission &&
+            !isStartingRecording
+        if (shouldShowOverlay) {
+            showOverlay()
+            if (!uiState.isToolboxVisible) {
+                RecordingStateRepository.setToolboxVisible(true)
+            }
+        } else {
+            hideOverlay()
+            if (uiState.isToolboxVisible) {
+                RecordingStateRepository.setToolboxVisible(false)
+            }
+        }
+    }
+
+    private fun showOverlay() {
+        val view = overlayView ?: return
+        if (isOverlayAttached) {
+            return
+        }
+        windowManager?.addView(view, layoutParams)
+        isOverlayAttached = true
+    }
+
+    private fun hideOverlay() {
+        if (!isOverlayAttached) {
+            return
+        }
+        overlayView?.let { view ->
+            windowManager?.removeView(view)
+        }
+        isOverlayAttached = false
+    }
+
     private fun handleExit() {
         val status = RecordingStateRepository.uiState.value.status
         pendingResultCode = null
         pendingResultData = null
+        isAwaitingCapturePermission = false
+        isStartingRecording = false
         if (status == RecordingStatus.IDLE) {
             stopSelf()
         } else {
@@ -210,7 +274,9 @@ class FloatingControlsService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     layoutParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
                     layoutParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
-                    windowManager?.updateViewLayout(overlayView, layoutParams)
+                    overlayView?.takeIf { isOverlayAttached }?.let { view ->
+                        windowManager?.updateViewLayout(view, layoutParams)
+                    }
                     true
                 }
 

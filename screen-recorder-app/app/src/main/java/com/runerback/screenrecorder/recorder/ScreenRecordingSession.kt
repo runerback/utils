@@ -53,6 +53,8 @@ class ScreenRecordingSession(
     private var failureMessage: String? = null
     private var display: VirtualDisplay? = null
     private var startTimeNanos = 0L
+    private val videoTimestampNormalizer = TrackTimestampNormalizer()
+    private val audioTimestampNormalizer = TrackTimestampNormalizer()
 
     private val stopRequested = AtomicBoolean(false)
     private val stopInProgress = AtomicBoolean(false)
@@ -221,6 +223,9 @@ class ScreenRecordingSession(
                         }
 
                         if (bufferInfo.size > 0 && awaitMuxerStart()) {
+                            bufferInfo.presentationTimeUs = videoTimestampNormalizer.normalize(
+                                bufferInfo.presentationTimeUs,
+                            )
                             outputBuffer.position(bufferInfo.offset)
                             outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
                             synchronized(muxerLock) {
@@ -315,6 +320,9 @@ class ScreenRecordingSession(
                         }
 
                         if (bufferInfo.size > 0 && awaitMuxerStart()) {
+                            bufferInfo.presentationTimeUs = audioTimestampNormalizer.normalize(
+                                bufferInfo.presentationTimeUs,
+                            )
                             outputBuffer.position(bufferInfo.offset)
                             outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
                             synchronized(muxerLock) {
@@ -519,6 +527,30 @@ class ScreenRecordingSession(
         val height: Int,
         val densityDpi: Int,
     )
+
+    private class TrackTimestampNormalizer {
+        private var firstPresentationTimeUs: Long? = null
+        private var lastPresentationTimeUs = -1L
+
+        fun normalize(presentationTimeUs: Long): Long {
+            val basePresentationTimeUs = firstPresentationTimeUs ?: presentationTimeUs.also {
+                firstPresentationTimeUs = it
+            }
+            val normalizedPresentationTimeUs =
+                (presentationTimeUs - basePresentationTimeUs).coerceAtLeast(0L)
+            val monotonicPresentationTimeUs = if (
+                lastPresentationTimeUs >= 0L &&
+                normalizedPresentationTimeUs <= lastPresentationTimeUs
+            ) {
+                lastPresentationTimeUs + 1L
+            } else {
+                normalizedPresentationTimeUs
+            }
+
+            lastPresentationTimeUs = monotonicPresentationTimeUs
+            return monotonicPresentationTimeUs
+        }
+    }
 
     companion object {
         private const val CODEC_TIMEOUT_US = 10_000L

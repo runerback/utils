@@ -46,6 +46,8 @@ import com.runerback.screenrecorder.data.RecorderUiState
 import com.runerback.screenrecorder.data.RecordingStatus
 import com.runerback.screenrecorder.data.RecordingStore
 import com.runerback.screenrecorder.data.ResolutionPreset
+import com.runerback.screenrecorder.util.formatDurationText
+import com.runerback.screenrecorder.util.formatElapsedClock
 import java.io.IOException
 import java.text.DateFormat
 import java.util.Date
@@ -75,7 +77,8 @@ fun RecorderScreen(
         uiState.status == RecordingStatus.IDLE && uiState.isToolboxVisible -> "Toolbox is ready"
         uiState.status == RecordingStatus.IDLE -> "Ready"
         uiState.status == RecordingStatus.PREPARING -> "Preparing the recorder"
-        uiState.status == RecordingStatus.RECORDING -> "Recording is active"
+        uiState.status == RecordingStatus.RECORDING ->
+            "Recording is active (${formatElapsedClock(uiState.recordingElapsedMillis)})"
         else -> "Stopping the recorder"
     }
 
@@ -177,12 +180,17 @@ fun RecorderScreen(
                             ) {
                                 Text(text = "Enter Recording")
                             }
-                            if (uiState.isToolboxVisible) {
-                                Text(
-                                    text = "Use the floating toolbox to start, stop, or exit recording.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
+                            Text(
+                                text = when {
+                                    uiState.status != RecordingStatus.IDLE ->
+                                        "The floating toolbox hides while recording so it does not appear in the saved video. Use the recording notification to stop."
+                                    uiState.isToolboxVisible ->
+                                        "Use the floating toolbox to start recording. Once capture begins it hides automatically; use the recording notification to stop."
+                                    else ->
+                                        "Open the floating toolbox to begin recording."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         } else {
                             Text(
                                 text = "Enable overlay permission to use the floating recording toolbox.",
@@ -299,7 +307,7 @@ private fun RecordingItemCard(
             Text(text = "Captured: ${formatDate(item.dateAddedMillis)}")
             Text(text = "Size: ${formatBytes(item.sizeBytes)}")
             item.durationMillis?.let { duration ->
-                Text(text = "Duration: ${formatDuration(duration)}")
+                Text(text = "Duration: ${formatDurationText(duration)}")
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(onClick = onOpenRecording) {
@@ -363,16 +371,4 @@ private fun formatDate(timestampMillis: Long): String {
 private fun formatBytes(sizeBytes: Long): String {
     val megabytes = sizeBytes / 1024f / 1024f
     return String.format("%.1f MB", megabytes)
-}
-
-private fun formatDuration(durationMillis: Long): String {
-    val totalSeconds = durationMillis / 1000
-    val hours = totalSeconds / 3600
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return when {
-        hours > 0 -> String.format("%d hr %02d min %02d sec", hours, minutes % 60, seconds)
-        minutes > 0 -> String.format("%d min %02d sec", minutes, seconds)
-        else -> String.format("%d sec", seconds)
-    }
 }

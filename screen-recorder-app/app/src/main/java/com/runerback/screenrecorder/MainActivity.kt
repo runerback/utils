@@ -133,6 +133,9 @@ class MainActivity : ComponentActivity() {
                 }
             } else {
                 viewModel.reportError("Screen capture permission was cancelled.")
+                if (launchedFromToolbox) {
+                    viewModel.showRecordingToolbox(this)
+                }
             }
             autoStartAfterCapturePermission = false
             if (launchedFromToolbox) {
@@ -151,6 +154,9 @@ class MainActivity : ComponentActivity() {
                 viewModel.reportError(
                     message = "Recording needs these permissions: ${deniedPermissions.joinToString()}",
                 )
+                if (launchedFromToolbox) {
+                    viewModel.showRecordingToolbox(this)
+                }
                 autoStartAfterCapturePermission = false
                 if (launchedFromToolbox) {
                     moveTaskToBack(true)

@@ -56,7 +56,11 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         RecordingCommands.stop(context)
     }
 
-    fun showRecordingToolbox(context: Context, resultCode: Int, resultData: Intent) {
+    fun showRecordingToolbox(
+        context: Context,
+        resultCode: Int? = null,
+        resultData: Intent? = null,
+    ) {
         FloatingControlsCommands.show(context, resultCode, resultData)
     }
 
