@@ -6,7 +6,6 @@
 #include <mfapi.h>
 #include <mferror.h>
 #include <mfidl.h>
-#include <mfvirtualcamera.h>
 
 #include <string>
 #include <string_view>
@@ -29,5 +28,3 @@
 #pragma comment(lib, "mfuuid")
 #pragma comment(lib, "mfplat")
 #pragma comment(lib, "mf")
-#pragma comment(lib, "Mfsensorgroup")
-

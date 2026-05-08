@@ -4,6 +4,7 @@
 
 #include "pch.h"
 
+#include "VirtualCameraBackend.h"
 #include "../VirtualCameraMediaSource/VirtualCameraMediaSource.h"
 
 #include <array>
@@ -14,8 +15,6 @@ using namespace winrt::Windows::Media::Devices;
 namespace
 {
 constexpr wchar_t kDefaultFriendlyName[] = L"Static Image Camera";
-constexpr MFVirtualCameraLifetime kDefaultLifetime = MFVirtualCameraLifetime_System;
-constexpr MFVirtualCameraAccess kDefaultAccess = MFVirtualCameraAccess_CurrentUser;
 
 enum class Action
 {
@@ -226,76 +225,23 @@ HRESULT ParseArguments(int argc, wchar_t* argv[], Options& options)
     return S_OK;
 }
 
-HRESULT OpenVirtualCamera(const std::wstring& friendlyName, wil::com_ptr_nothrow<IMFVirtualCamera>& virtualCamera)
+std::unique_ptr<IVirtualCameraBackend> CreateBackendForCommand()
 {
-    RETURN_IF_FAILED(MFCreateVirtualCamera(
-        MFVirtualCameraType_SoftwareCameraSource,
-        kDefaultLifetime,
-        kDefaultAccess,
-        friendlyName.c_str(),
-        VIRTUALCAMERAMEDIASOURCE_CLSID,
-        nullptr,
-        0,
-        virtualCamera.put()));
-
-    return S_OK;
+    auto backend = CreateVirtualCameraBackend();
+    std::wcout << L"Using virtual camera backend: " << backend->GetDisplayName() << L"\n";
+    return backend;
 }
 
 HRESULT CreateVirtualCamera(const std::wstring& friendlyName, const std::wstring& imagePath)
 {
-    wil::com_ptr_nothrow<IMFVirtualCamera> virtualCamera;
-    std::wcout << L"Creating virtual camera object...\n";
-    HRESULT hr = OpenVirtualCamera(friendlyName, virtualCamera);
-    if (FAILED(hr))
-    {
-        std::wcerr << L"MFCreateVirtualCamera failed: 0x" << std::hex << static_cast<unsigned long>(hr) << L"\n";
-        return hr;
-    }
-
-    std::wcout << L"Setting synthetic camera kind...\n";
-    hr = virtualCamera->SetUINT32(VCAM_KIND, static_cast<UINT32>(VirtualCameraKind::Synthetic));
-    if (FAILED(hr))
-    {
-        std::wcerr << L"SetUINT32(VCAM_KIND) failed: 0x" << std::hex << static_cast<unsigned long>(hr) << L"\n";
-        return hr;
-    }
-
-    if (!imagePath.empty())
-    {
-        std::wcout << L"Setting image path attribute...\n";
-        hr = virtualCamera->SetString(VCAM_IMAGE_PATH, imagePath.c_str());
-        if (FAILED(hr))
-        {
-            std::wcerr << L"SetString(VCAM_IMAGE_PATH) failed: 0x" << std::hex << static_cast<unsigned long>(hr) << L"\n";
-            return hr;
-        }
-    }
-
-    std::wcout << L"Starting virtual camera registration...\n";
-    hr = virtualCamera->Start(nullptr);
-    if (FAILED(hr))
-    {
-        std::wcerr << L"IMFVirtualCamera::Start failed: 0x" << std::hex << static_cast<unsigned long>(hr) << L"\n";
-        return hr;
-    }
-
-    std::wcout << L"Created virtual camera: " << friendlyName << L"\n";
-    if (!imagePath.empty())
-    {
-        std::wcout << L"Image source: " << imagePath << L"\n";
-    }
-    return S_OK;
+    auto backend = CreateBackendForCommand();
+    return backend->CreateVirtualCamera(friendlyName, imagePath);
 }
 
 HRESULT RemoveVirtualCamera(const std::wstring& friendlyName)
 {
-    wil::com_ptr_nothrow<IMFVirtualCamera> virtualCamera;
-    RETURN_IF_FAILED(OpenVirtualCamera(friendlyName, virtualCamera));
-    RETURN_IF_FAILED(virtualCamera->Remove());
-    RETURN_IF_FAILED(virtualCamera->Shutdown());
-
-    std::wcout << L"Removed virtual camera: " << friendlyName << L"\n";
-    return S_OK;
+    auto backend = CreateBackendForCommand();
+    return backend->RemoveVirtualCamera(friendlyName);
 }
 
 HRESULT ListVideoCaptureDevices()
