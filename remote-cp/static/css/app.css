@@ -21,6 +21,7 @@ body {
   margin: 0;
   background: radial-gradient(circle at top, #172554 0, var(--bg) 45%);
   color: var(--text);
+  overscroll-behavior-y: contain;
 }
 
 button,
@@ -358,4 +359,14 @@ button:disabled {
 .empty-state {
   text-align: center;
   padding: 2rem 1rem;
+}
+
+.ptr--ptr {
+  background: var(--panel) !important;
+  box-shadow: none !important;
+}
+
+.ptr--text,
+.ptr--icon {
+  color: var(--accent) !important;
 }

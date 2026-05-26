@@ -22,6 +22,7 @@ let resizeSyncTimer = null;
 renderFeed(bootstrapMessages);
 bindSocketEvents();
 bindComposerEvents();
+initPullToRefresh();
 
 function bindSocketEvents() {
   socket.on("connect", () => updateConnectionState(true));
@@ -817,4 +818,17 @@ function setTextBlockExpanded(textBlock, isExpanded) {
   textBlock.dataset.expanded = String(isExpanded);
   text.classList.toggle("message-text--collapsed", !isExpanded);
   toggle.textContent = isExpanded ? "Show less" : "Show more";
+}
+
+function initPullToRefresh() {
+  if (typeof PullToRefresh === "undefined") {
+    return;
+  }
+
+  PullToRefresh.init({
+    mainElement: "body",
+    onRefresh() {
+      window.location.reload();
+    },
+  });
 }

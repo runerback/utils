@@ -91,6 +91,7 @@
 
     <script id="bootstrap-messages" type="application/json">{{ existing_messages | tojson }}</script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pulltorefreshjs@0.1.22/dist/index.umd.min.js" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
   </body>
 </html>
