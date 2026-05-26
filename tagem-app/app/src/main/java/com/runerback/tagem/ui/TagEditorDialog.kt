@@ -107,7 +107,7 @@ fun TagEditorDialog(
 
                 Text("Add from existing:", style = MaterialTheme.typography.labelMedium)
 
-                Box(modifier = Modifier.height(160.dp)) {
+                Box(modifier = Modifier.height(280.dp)) {
                     TagSelector(
                         tags = allTags.filter { it.id !in currentTagIds },
                         searchQuery = searchText,
@@ -118,6 +118,7 @@ fun TagEditorDialog(
                         },
                         emptyMessage = if (searchText.isBlank()) "All tags already added" else "No matching tags",
                         modifier = Modifier.fillMaxWidth(),
+                        listMaxHeight = 280.dp,
                     )
                 }
 

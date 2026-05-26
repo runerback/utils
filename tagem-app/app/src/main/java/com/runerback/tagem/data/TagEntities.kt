@@ -56,3 +56,8 @@ data class TagCount(
     @ColumnInfo(name = "media_uri") val mediaUri: String,
     @ColumnInfo(name = "count") val count: Int,
 )
+
+data class AssociationEntry(
+    val mediaUri: String,
+    val tagName: String,
+)

@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.runerback.tagem.ui.GalleryViewModel
 import com.runerback.tagem.ui.MainScreen
 import com.runerback.tagem.ui.theme.TagEmTheme
+import com.runerback.tagem.utils.AppLogger
 
 class MainActivity : ComponentActivity() {
 
@@ -28,6 +29,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val exportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        uri?.let { viewModel.exportTags(it) }
+    }
+
+    private val importLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri?.let { viewModel.importTags(it) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -35,10 +48,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val logs by AppLogger.logs.collectAsStateWithLifecycle()
 
             TagEmTheme {
                 MainScreen(
                     uiState = uiState,
+                    logs = logs,
                     onToggleTagPanel = viewModel::toggleTagPanel,
                     onSelectTag = viewModel::selectTag,
                     onSearchQueryChange = viewModel::setSearchQuery,
@@ -49,6 +64,9 @@ class MainActivity : ComponentActivity() {
                     onShareImage = { uri -> shareImage(uri) },
                     onRefresh = viewModel::loadImages,
                     onToggleGifsOnly = viewModel::toggleShowGifsOnly,
+                    onExport = { exportLauncher.launch("tags-backup.json") },
+                    onImport = { importLauncher.launch(arrayOf("application/json")) },
+                    onClearLogs = { AppLogger.clear() },
                 )
             }
         }

@@ -60,4 +60,32 @@ interface TagDao {
 
     @Query("SELECT media_uri, COUNT(*) as count FROM media_tag_cross_ref GROUP BY media_uri")
     fun getTagCounts(): Flow<List<TagCount>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT tagged_media.media_uri as mediaUri, tags.name as tagName
+        FROM tagged_media
+        INNER JOIN media_tag_cross_ref ON tagged_media.media_uri = media_tag_cross_ref.media_uri
+        INNER JOIN tags ON media_tag_cross_ref.tag_id = tags.id
+        ORDER BY tagged_media.media_uri, tags.name
+        """,
+    )
+    suspend fun getAllAssociations(): List<AssociationEntry>
+
+    @Query("DELETE FROM media_tag_cross_ref")
+    suspend fun clearCrossRefs()
+
+    @Query("DELETE FROM tagged_media")
+    suspend fun clearTaggedMedia()
+
+    @Query("DELETE FROM tags")
+    suspend fun clearTags()
+
+    @Transaction
+    suspend fun clearAll() {
+        clearCrossRefs()
+        clearTaggedMedia()
+        clearTags()
+    }
 }

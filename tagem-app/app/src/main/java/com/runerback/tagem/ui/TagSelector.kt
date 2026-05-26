@@ -26,6 +26,7 @@ fun TagSelector(
     modifier: Modifier = Modifier,
     selectedTagIds: Set<Long> = emptySet(),
     emptyMessage: String = "No tags",
+    listMaxHeight: androidx.compose.ui.unit.Dp = 200.dp,
 ) {
     Column(
         modifier = modifier,
@@ -48,7 +49,7 @@ fun TagSelector(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 contentPadding = PaddingValues(vertical = 4.dp),
-                modifier = Modifier.heightIn(max = 200.dp),
+                modifier = Modifier.heightIn(max = listMaxHeight),
             ) {
                 items(tags, key = { it.id }) { tag ->
                     FilterChip(
