@@ -238,6 +238,10 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.device-icon {
+  flex-shrink: 0;
+}
+
 .message-text {
   white-space: pre-wrap;
   line-height: 1.5;
@@ -306,6 +310,22 @@ button:disabled {
 .file-name {
   margin-bottom: 0;
   word-break: break-word;
+}
+
+.file-name--download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.file-name--download:hover {
+  color: var(--accent);
+}
+
+.file-icon {
+  flex-shrink: 0;
 }
 
 .image-card {

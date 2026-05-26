@@ -161,7 +161,13 @@ function renderMessage(message, options = {}) {
 
   const badge = document.createElement("div");
   badge.className = "message-badge";
-  badge.textContent = `${deviceIcon(message.deviceType)} ${message.deviceType}`;
+
+  const deviceIconImg = document.createElement("img");
+  deviceIconImg.src = deviceIconPath(message.deviceType);
+  deviceIconImg.className = "device-icon";
+  deviceIconImg.alt = "";
+
+  badge.append(deviceIconImg, message.deviceType);
 
   const meta = document.createElement("p");
   meta.className = "message-meta";
@@ -267,17 +273,18 @@ function renderMessage(message, options = {}) {
       const fileCard = document.createElement("section");
       fileCard.className = "file-card";
 
-      const fileName = document.createElement("p");
-      fileName.className = "file-name";
-      fileName.textContent = file.name;
+      const fileName = document.createElement("a");
+      fileName.className = "file-name file-name--download";
+      fileName.href = file.downloadUrl || file.url;
+      fileName.download = file.name;
+      const icon = document.createElement("img");
+      icon.src = "/static/icons/download.svg";
+      icon.className = "file-icon";
+      icon.alt = "";
 
-      const fileActions = document.createElement("div");
-      fileActions.className = "message-actions";
-      fileActions.append(
-        buildLinkButton("Download file", file.downloadUrl || file.url, { downloadName: file.name }),
-      );
+      fileName.append(icon, document.createTextNode(file.name));
 
-      fileCard.append(fileName, fileActions);
+      fileCard.append(fileName);
       fileList.append(fileCard);
     });
 
@@ -347,16 +354,16 @@ function detectDeviceType() {
   return "Computer";
 }
 
-function deviceIcon(deviceType) {
+function deviceIconPath(deviceType) {
   if (deviceType === "Phone") {
-    return "[PHONE]";
+    return "/static/icons/phone.svg";
   }
 
   if (deviceType === "Tablet") {
-    return "[TABLET]";
+    return "/static/icons/tablet.svg";
   }
 
-  return "[PC]";
+  return "/static/icons/computer.svg";
 }
 
 function formatTimestamp(date) {
