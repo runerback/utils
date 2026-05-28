@@ -17,22 +17,32 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.runerback.remotecp.data.model.ImageAttachment
+import com.runerback.remotecp.data.model.VideoAttachment
 import com.runerback.remotecp.ui.components.Composer
 import com.runerback.remotecp.ui.components.Feed
+import com.runerback.remotecp.ui.components.ImagePreviewDialog
 import com.runerback.remotecp.ui.components.SettingsDialog
+import com.runerback.remotecp.ui.components.VideoPreviewDialog
 import com.runerback.remotecp.ui.viewmodel.RoomViewModel
+import com.runerback.remotecp.util.saveToDownloads
+import kotlinx.coroutines.launch
 
 @Composable
 fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var showSettings by remember { mutableStateOf(false) }
+    var previewingImage by remember { mutableStateOf<ImageAttachment?>(null) }
+    var previewingVideo by remember { mutableStateOf<VideoAttachment?>(null) }
 
     LaunchedEffect(uiState.statusMessage, uiState.error) {
         uiState.statusMessage?.let {
@@ -65,6 +75,22 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                 )
             }
 
+            previewingImage?.let { image ->
+                ImagePreviewDialog(
+                    image = image,
+                    backendUrl = uiState.backendUrl,
+                    onDismiss = { previewingImage = null }
+                )
+            }
+
+            previewingVideo?.let { video ->
+                VideoPreviewDialog(
+                    video = video,
+                    backendUrl = uiState.backendUrl,
+                    onDismiss = { previewingVideo = null }
+                )
+            }
+
             // Two-panel layout on large screens, stacked on small
             Box(modifier = Modifier.weight(1f)) {
                 Feed(
@@ -72,10 +98,16 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     isConnected = uiState.isConnected,
                     backendUrl = uiState.backendUrl,
                     error = uiState.error,
-                    onStatus = { _ ->
-                        // Show status in snackbar
+                    onStatus = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
                     },
-                    onOpenSettings = { showSettings = true }
+                    onOpenSettings = { showSettings = true },
+                    onImageClick = { previewingImage = it },
+                    onVideoClick = { previewingVideo = it },
+                    onFileClick = { file ->
+                        context.saveToDownloads("${uiState.backendUrl}${file.downloadUrl}", file.name)
+                        scope.launch { snackbarHostState.showSnackbar("Downloading ${file.name}...") }
+                    }
                 )
             }
 

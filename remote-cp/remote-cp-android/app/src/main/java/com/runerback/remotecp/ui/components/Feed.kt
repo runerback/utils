@@ -19,7 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.runerback.remotecp.data.model.FileAttachment
+import com.runerback.remotecp.data.model.ImageAttachment
 import com.runerback.remotecp.data.model.Message
+import com.runerback.remotecp.data.model.VideoAttachment
 
 @Composable
 fun Feed(
@@ -28,7 +31,10 @@ fun Feed(
     backendUrl: String,
     error: String?,
     onStatus: (String) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onImageClick: (ImageAttachment) -> Unit = {},
+    onVideoClick: (VideoAttachment) -> Unit = {},
+    onFileClick: (FileAttachment) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -106,7 +112,10 @@ fun Feed(
                     MessageCard(
                         message = message,
                         backendUrl = backendUrl,
-                        onStatus = onStatus
+                        onStatus = onStatus,
+                        onImageClick = onImageClick,
+                        onVideoClick = onVideoClick,
+                        onFileClick = onFileClick
                     )
                 }
             }

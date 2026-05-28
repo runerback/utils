@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -90,20 +91,26 @@ fun Composer(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Remote Copy/Paste",
-                style = MaterialTheme.typography.headlineSmall
-            )
-            Row {
-                IconButton(onClick = { isExpanded = !isExpanded }) {
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                        contentDescription = if (isExpanded) "Collapse" else "Expand"
-                    )
-                }
-                IconButton(onClick = onOpenSettings) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings")
-                }
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { isExpanded = !isExpanded }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Remote Copy/Paste",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "Settings")
             }
         }
 

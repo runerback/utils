@@ -4,7 +4,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,7 +39,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.runerback.remotecp.R
+import com.runerback.remotecp.data.model.FileAttachment
+import com.runerback.remotecp.data.model.ImageAttachment
 import com.runerback.remotecp.data.model.Message
+import com.runerback.remotecp.data.model.VideoAttachment
 
 private fun deviceIcon(deviceType: String): Int {
     return when (deviceType) {
@@ -50,7 +56,10 @@ private fun deviceIcon(deviceType: String): Int {
 fun MessageCard(
     message: Message,
     backendUrl: String,
-    onStatus: (String) -> Unit
+    onStatus: (String) -> Unit,
+    onImageClick: (ImageAttachment) -> Unit = {},
+    onVideoClick: (VideoAttachment) -> Unit = {},
+    onFileClick: (FileAttachment) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -120,15 +129,19 @@ fun MessageCard(
 
             message.images.forEach { image ->
                 Spacer(modifier = Modifier.height(12.dp))
-                AsyncImage(
-                    model = "$backendUrl${image.url}",
-                    contentDescription = image.name,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(4f / 3f)
-                        .padding(vertical = 4.dp),
-                    contentScale = ContentScale.Crop
-                )
+                        .clickable { onImageClick(image) }
+                ) {
+                    AsyncImage(
+                        model = "$backendUrl${image.url}",
+                        contentDescription = image.name,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
                 Text(
                     text = image.name,
                     color = Color(0xFFe5e7eb),
@@ -140,17 +153,34 @@ fun MessageCard(
 
             message.videos.forEach { video ->
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = video.name,
-                    color = Color(0xFFe5e7eb),
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onVideoClick(video) }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideoLibrary,
+                        contentDescription = null,
+                        tint = Color(0xFFe5e7eb),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = video.name,
+                        color = Color(0xFFe5e7eb),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             message.files.forEach { file ->
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
-                    onClick = { /* Download handled by browser intent */ },
+                    onClick = { onFileClick(file) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = Color(0xFFe5e7eb)

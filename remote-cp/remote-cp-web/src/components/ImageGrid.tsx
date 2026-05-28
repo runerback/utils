@@ -1,6 +1,8 @@
+import { useState } from "preact/hooks";
 import { copyImageToClipboard } from "../utils/clipboard";
 import { resolveUrl } from "../utils/api";
 import type { ImageAttachment } from "../types";
+import { ImagePreview } from "./ImagePreview";
 
 interface ImageGridProps {
   images: ImageAttachment[];
@@ -8,11 +10,19 @@ interface ImageGridProps {
 }
 
 export function ImageGrid({ images, onStatus }: ImageGridProps) {
+  const [previewImage, setPreviewImage] = useState<ImageAttachment | null>(null);
+
   return (
     <div class="image-grid">
       {images.map((image) => (
         <section class="image-card" key={image.url}>
-          <img src={resolveUrl(image.url)} alt={image.name} loading="lazy" />
+          <img
+            src={resolveUrl(image.url)}
+            alt={image.name}
+            loading="lazy"
+            onClick={() => setPreviewImage(image)}
+            style={{ cursor: "pointer" }}
+          />
           <p>{image.name}</p>
           <footer>
             <button
@@ -40,6 +50,13 @@ export function ImageGrid({ images, onStatus }: ImageGridProps) {
           </footer>
         </section>
       ))}
+
+      {previewImage && (
+        <ImagePreview
+          image={previewImage}
+          onClose={() => setPreviewImage(null)}
+        />
+      )}
     </div>
   );
 }
