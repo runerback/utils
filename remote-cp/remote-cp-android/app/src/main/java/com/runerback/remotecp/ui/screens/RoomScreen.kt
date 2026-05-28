@@ -31,6 +31,7 @@ import com.runerback.remotecp.ui.components.ImagePreviewDialog
 import com.runerback.remotecp.ui.components.SettingsDialog
 import com.runerback.remotecp.ui.components.VideoPreviewDialog
 import com.runerback.remotecp.ui.viewmodel.RoomViewModel
+import com.runerback.remotecp.util.openDownload
 import com.runerback.remotecp.util.saveToDownloads
 import kotlinx.coroutines.launch
 
@@ -96,17 +97,30 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                 Feed(
                     messages = uiState.messages,
                     isConnected = uiState.isConnected,
+                    isLoading = uiState.isLoading,
                     backendUrl = uiState.backendUrl,
                     error = uiState.error,
                     onStatus = { msg ->
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     },
                     onOpenSettings = { showSettings = true },
+                    onRefresh = { viewModel.loadMessages() },
                     onImageClick = { previewingImage = it },
                     onVideoClick = { previewingVideo = it },
                     onFileClick = { file ->
-                        context.saveToDownloads("${uiState.backendUrl}${file.downloadUrl}", file.name)
-                        scope.launch { snackbarHostState.showSnackbar("Downloading ${file.name}...") }
+                        val downloadId = context.saveToDownloads("${uiState.backendUrl}${file.downloadUrl}", file.name)
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Downloading ${file.name}...",
+                                actionLabel = "Open"
+                            )
+                            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                                val opened = context.openDownload(downloadId)
+                                if (!opened) {
+                                    snackbarHostState.showSnackbar("Download not ready yet.")
+                                }
+                            }
+                        }
                     }
                 )
             }

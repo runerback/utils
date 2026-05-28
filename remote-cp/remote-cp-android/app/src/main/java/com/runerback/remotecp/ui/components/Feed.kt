@@ -10,7 +10,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,10 +33,12 @@ import com.runerback.remotecp.data.model.VideoAttachment
 fun Feed(
     messages: List<Message>,
     isConnected: Boolean,
+    isLoading: Boolean,
     backendUrl: String,
     error: String?,
     onStatus: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onRefresh: () -> Unit = {},
     onImageClick: (ImageAttachment) -> Unit = {},
     onVideoClick: (VideoAttachment) -> Unit = {},
     onFileClick: (FileAttachment) -> Unit = {}
@@ -52,7 +59,23 @@ fun Feed(
                     style = MaterialTheme.typography.headlineSmall
                 )
             }
-            ConnectionPill(isConnected = isConnected)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(end = 8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
+                    )
+                }
+                IconButton(onClick = onRefresh, enabled = !isLoading) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Refresh",
+                        tint = if (isLoading) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                ConnectionPill(isConnected = isConnected)
+            }
         }
 
         Text(
