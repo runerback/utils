@@ -70,10 +70,13 @@ fun MainScreen(
                             }
                             else -> "All Photos"
                         }
-                        Text(
-                            text = "TagEm — $subtitle",
-                            modifier = Modifier.clickable(onClick = onToggleTagPanel),
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onToggleTagPanel),
+                        ) {
+                            Text(text = "TagEm — $subtitle")
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = onToggleTagPanel) {
