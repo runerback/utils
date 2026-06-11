@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -58,17 +57,17 @@ fun Composer(
     var isExpanded by remember { mutableStateOf(false) }
 
     val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
+        ActivityResultContracts.GetMultipleContents()
     ) { uris ->
-        if (uris.isNotEmpty()) {
+        if (uris != null && uris.isNotEmpty()) {
             onSendMedia(uris, null, null)
         }
     }
 
     val videoPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
+        ActivityResultContracts.GetMultipleContents()
     ) { uris ->
-        if (uris.isNotEmpty()) {
+        if (uris != null && uris.isNotEmpty()) {
             onSendMedia(null, uris, null)
         }
     }
@@ -171,7 +170,7 @@ fun Composer(
             Column {
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
-                    onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    onClick = { imagePicker.launch("image/*") },
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -183,7 +182,7 @@ fun Composer(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
-                    onClick = { videoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
+                    onClick = { videoPicker.launch("video/*") },
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {

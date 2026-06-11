@@ -80,7 +80,21 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                 ImagePreviewDialog(
                     image = image,
                     backendUrl = uiState.backendUrl,
-                    onDismiss = { previewingImage = null }
+                    onDismiss = { previewingImage = null },
+                    onSave = { downloadId ->
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Downloading ${image.name}...",
+                                actionLabel = "Open"
+                            )
+                            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                                val opened = context.openDownload(downloadId)
+                                if (!opened) {
+                                    snackbarHostState.showSnackbar("Download not ready yet.")
+                                }
+                            }
+                        }
+                    }
                 )
             }
 
@@ -88,7 +102,21 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                 VideoPreviewDialog(
                     video = video,
                     backendUrl = uiState.backendUrl,
-                    onDismiss = { previewingVideo = null }
+                    onDismiss = { previewingVideo = null },
+                    onSave = { downloadId ->
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Downloading ${video.name}...",
+                                actionLabel = "Open"
+                            )
+                            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                                val opened = context.openDownload(downloadId)
+                                if (!opened) {
+                                    snackbarHostState.showSnackbar("Download not ready yet.")
+                                }
+                            }
+                        }
+                    }
                 )
             }
 

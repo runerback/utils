@@ -29,7 +29,8 @@ import com.runerback.remotecp.util.saveToDownloads
 fun ImagePreviewDialog(
     image: ImageAttachment,
     backendUrl: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSave: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val imageUrl = "$backendUrl${image.url}"
@@ -75,7 +76,8 @@ fun ImagePreviewDialog(
 
                 OutlinedButton(
                     onClick = {
-                        context.saveToDownloads(imageUrl, image.name)
+                        val downloadId = context.saveToDownloads(imageUrl, image.name)
+                        onSave(downloadId)
                         onDismiss()
                     },
                     modifier = Modifier.align(Alignment.TopEnd)

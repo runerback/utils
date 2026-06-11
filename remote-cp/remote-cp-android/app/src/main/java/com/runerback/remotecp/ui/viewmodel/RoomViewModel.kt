@@ -113,6 +113,29 @@ class RoomViewModel @Inject constructor(
         }
     }
 
+    fun sendSharedMedia(uris: List<Uri>, context: Context) {
+        val images = mutableListOf<Uri>()
+        val videos = mutableListOf<Uri>()
+        val files = mutableListOf<Uri>()
+
+        val contentResolver = context.contentResolver
+        for (uri in uris) {
+            val mimeType = contentResolver.getType(uri)
+            when {
+                mimeType?.startsWith("image/") == true -> images.add(uri)
+                mimeType?.startsWith("video/") == true -> videos.add(uri)
+                else -> files.add(uri)
+            }
+        }
+
+        sendMedia(
+            images = images.ifEmpty { null },
+            videos = videos.ifEmpty { null },
+            files = files.ifEmpty { null },
+            context = context
+        )
+    }
+
     fun sendMedia(
         images: List<Uri>?,
         videos: List<Uri>?,

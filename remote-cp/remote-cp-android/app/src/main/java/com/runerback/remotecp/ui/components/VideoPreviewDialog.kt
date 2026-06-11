@@ -32,7 +32,8 @@ import com.runerback.remotecp.util.saveToDownloads
 fun VideoPreviewDialog(
     video: VideoAttachment,
     backendUrl: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSave: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val videoUrl = "$backendUrl${video.url}"
@@ -93,7 +94,8 @@ fun VideoPreviewDialog(
 
                 OutlinedButton(
                     onClick = {
-                        context.saveToDownloads(videoUrl, video.name)
+                        val downloadId = context.saveToDownloads(videoUrl, video.name)
+                        onSave(downloadId)
                         onDismiss()
                     },
                     modifier = Modifier.align(Alignment.TopEnd)
