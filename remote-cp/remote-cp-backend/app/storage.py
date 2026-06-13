@@ -2,8 +2,6 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
-from werkzeug.utils import secure_filename
-
 
 def prepare_upload_folder(upload_folder: Path) -> None:
     upload_folder.mkdir(parents=True, exist_ok=True)
@@ -67,15 +65,18 @@ def _save_uploads(
         if not uploaded_file or not uploaded_file.filename:
             continue
 
-        original_name = secure_filename(uploaded_file.filename)
-
-        if not original_name:
-            raise ValueError(f"Uploaded {upload_kind} names must include letters or numbers.")
-
-        extension = Path(original_name).suffix.lower()
+        raw_name = uploaded_file.filename
+        extension = Path(raw_name).suffix.lower()
 
         if extension not in allowed_extensions:
-            raise ValueError(f"Unsupported {upload_kind} type for '{original_name}'.")
+            raise ValueError(
+                f"Unsupported {upload_kind} type '{extension or '(none)'}' for '{raw_name}'."
+            )
+
+        original_name = Path(raw_name).name.replace("\x00", "")
+        original_name = original_name.replace("/", "").replace("\\", "")
+        if not original_name or original_name in (".", ".."):
+            original_name = f"file{extension}"
 
         mimetype = (uploaded_file.mimetype or "").lower()
 
