@@ -36,6 +36,8 @@ fun Feed(
     isLoading: Boolean,
     backendUrl: String,
     error: String?,
+    markdownMode: Map<String, Boolean> = emptyMap(),
+    onToggleMarkdown: (String) -> Unit = {},
     onStatus: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onRefresh: () -> Unit = {},
@@ -132,9 +134,12 @@ fun Feed(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(messages) { message ->
+                    val isMarkdown = markdownMode[message.id] ?: false
                     MessageCard(
                         message = message,
                         backendUrl = backendUrl,
+                        isMarkdown = isMarkdown,
+                        onToggleMarkdown = { onToggleMarkdown(message.id) },
                         onStatus = onStatus,
                         onImageClick = onImageClick,
                         onVideoClick = onVideoClick,

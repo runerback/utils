@@ -26,7 +26,8 @@ data class UiState(
     val isConnected: Boolean = false,
     val error: String? = null,
     val statusMessage: String? = null,
-    val backendUrl: String = ""
+    val backendUrl: String = "",
+    val markdownMode: Map<String, Boolean> = emptyMap()
 )
 
 @HiltViewModel
@@ -179,6 +180,13 @@ class RoomViewModel @Inject constructor(
 
     fun clearStatus() {
         _uiState.update { it.copy(statusMessage = null, error = null) }
+    }
+
+    fun toggleMarkdownMode(messageId: String) {
+        _uiState.update { state ->
+            val current = state.markdownMode[messageId] ?: false
+            state.copy(markdownMode = state.markdownMode + (messageId to !current))
+        }
     }
 
     override fun onCleared() {

@@ -128,6 +128,8 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     isLoading = uiState.isLoading,
                     backendUrl = uiState.backendUrl,
                     error = uiState.error,
+                    markdownMode = uiState.markdownMode,
+                    onToggleMarkdown = { viewModel.toggleMarkdownMode(it) },
                     onStatus = { msg ->
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     },

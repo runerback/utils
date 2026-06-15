@@ -17,8 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -56,6 +59,8 @@ private fun deviceIcon(deviceType: String): Int {
 fun MessageCard(
     message: Message,
     backendUrl: String,
+    isMarkdown: Boolean = false,
+    onToggleMarkdown: () -> Unit,
     onStatus: (String) -> Unit,
     onImageClick: (ImageAttachment) -> Unit = {},
     onVideoClick: (VideoAttachment) -> Unit = {},
@@ -105,25 +110,53 @@ fun MessageCard(
 
             if (message.text.isNotBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = message.text,
-                    color = Color(0xFFe5e7eb),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("text", message.text))
-                        onStatus("Text copied.")
-                    },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFe5e7eb)
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Copy text")
+                    OutlinedButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("text", message.text))
+                            onStatus("Text copied.")
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFe5e7eb)
+                        )
+                    ) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy text")
+                    }
+                    OutlinedButton(
+                        onClick = onToggleMarkdown,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFe5e7eb)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (isMarkdown) Icons.Default.TextFields else Icons.Default.Code,
+                            contentDescription = if (isMarkdown) "Render as plain text" else "Render as markdown"
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (isMarkdown) "Plain" else "Markdown")
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                SelectionContainer {
+                    if (isMarkdown) {
+                        MarkdownText(
+                            markdown = message.text,
+                            color = Color(0xFFe5e7eb),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    } else {
+                        Text(
+                            text = message.text,
+                            color = Color(0xFFe5e7eb),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
                 }
             }
 
