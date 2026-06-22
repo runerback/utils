@@ -24,7 +24,7 @@ export const publishSvnInfoStream = (source: SvnInfoStream) => {
   stream$.next(source);
 };
 
-const maxFetchInfoTaskCount = window.CLIENT_TASK_PARALLEL ?? 2;
+const maxFetchInfoTaskCount = window.CLIENT_TASK_PARALLEL ?? 4;
 if (maxFetchInfoTaskCount < 1) {
   console.warn(`wrong env('CLIENT_TASK_PARALLEL')`);
 } else {

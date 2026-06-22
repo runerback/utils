@@ -10,6 +10,7 @@ import { filter } from "rxjs";
 import SvnDiffCardContent from "../diffs/SvnDiffCardContent";
 import { useSignals } from "@preact/signals-react/runtime";
 import Refresh from "../assets/Refresh.svg?react";
+import SwapIcon from "../components/icons/SwapIcon";
 
 export type SvnLogsDiffCardProps = {
   status: SvnStatusItem;
@@ -24,6 +25,7 @@ export default function (
     settings: ReadonlySignal<Settings | undefined>;
     compareStarted: (e: SvnLogsDiffCardProps) => void;
     compareFinished: (e: SvnLogsDiffCardProps) => void;
+    onSwap?: () => void;
   }
 ) {
   useSignals();
@@ -36,7 +38,7 @@ export default function (
   const unversioned = useSignal(Array<string>());
   const key = useMemo(
     () => [props.revisions.left, props.revisions.right].join("-"),
-    []
+    [props.revisions.left, props.revisions.right]
   );
   useSignalEffect(() => {
     svnLogDiffsContext.stream$
@@ -99,6 +101,20 @@ export default function (
             ),
             extra: (
               <Space>
+                <Button
+                  loading={fetching.value}
+                  icon={
+                    <SwapIcon
+                      className={fetching.value ? "icon spin" : "icon"}
+                    />
+                  }
+                  title="Swap compare order"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    props.onSwap?.();
+                  }}
+                />
                 <Button
                   loading={fetching.value}
                   icon={

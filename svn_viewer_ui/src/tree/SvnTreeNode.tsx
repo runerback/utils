@@ -8,7 +8,7 @@ import {
   useSignalEffect,
   useSignals,
 } from "@preact/signals-react/runtime";
-import { useCallback, useContext } from "preact/hooks";
+import { useCallback, useContext, useRef } from "preact/hooks";
 import { SvnInfoContext } from "../context/svnInfoContext";
 import { filter } from "rxjs";
 import SvnLogTitle from "../logs/SvnLogTitle";
@@ -32,28 +32,15 @@ export default (props: {
   const statusContext = useContext(StatusContext);
   const svnInfoContext = useContext(SvnInfoContext);
   const notifyContext = useContext(NotifyContext);
+  const keyboardContext = useContext(KeyboardContext);
+
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const isVisible = useSignal(false);
   const fetching = useSignal(false);
-  useSignalEffect(() => {
-    console.log({
-      key: props.node.key,
-      fetching: fetching.value,
-    });
-  });
   const fetched = useSignal(false);
-  useSignalEffect(() => {
-    console.log({
-      key: props.node.key,
-      fetched: fetched.value,
-    });
-  });
   const fetchId = useSignal("");
-  useSignalEffect(() => {
-    console.log({
-      key: props.node.key,
-      fetchId: fetchId.value,
-    });
-  });
   const info = useSignal<SvnTreeNodeInfo>();
+
   const log = useComputed<(SvnLog & { status?: string }) | undefined>(() => {
     const currentInfo = info.value;
     if (!currentInfo || !currentInfo.lastChangedRev) {
@@ -66,6 +53,7 @@ export default (props: {
       status: currentInfo.status,
     };
   });
+
   const canFetchLogs = useComputed(() => {
     if (!!log.value?.revision && parseInt(log.value.revision) > 0) {
       if (props.node.data.kind === "FILE" && !!log.value.status) {
@@ -76,6 +64,7 @@ export default (props: {
     }
     return false;
   });
+
   useSignalEffect(() => {
     svnInfoContext.stream$
       .pipe(filter((it) => !!it && !!it.id && it.job === "FETCH_INFO"))
@@ -94,7 +83,7 @@ export default (props: {
         }
       });
   });
-  const keyboardContext = useContext(KeyboardContext);
+
   const fetchSubTree = useCallback(() => {
     if (!fetching.value) {
       fetching.value = true;
@@ -113,7 +102,8 @@ export default (props: {
           }
         });
     }
-  }, []);
+  }, [props.node.key, props.node.data.kind, keyboardContext.ctrl$.value]);
+
   const fetchLogs = useCallback(() => {
     const source = props.node.key as string;
     if (!source) {
@@ -128,18 +118,38 @@ export default (props: {
     } else if (props.node.data.kind === "DIR") {
       props.fetchRevLogs(props.node.key as string);
     }
-  }, []);
+  }, [props.node, log.value, props.fetchLogs, props.fetchRevLogs]);
+
   useSignalEffect(() => {
     if (
-      !svnInfoContext.reachMaxFetchInfoTaskCount.value &&
+      isVisible.value &&
       !fetched.value &&
-      !fetching.value
+      !fetching.value &&
+      !svnInfoContext.reachMaxFetchInfoTaskCount.value
     ) {
       fetchSubTree();
     }
   });
+
+  useSignalEffect(() => {
+    const element = nodeRef.current;
+    if (!element) {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          isVisible.value = true;
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  });
+
   return (
-    <div className="title">
+    <div className="title" ref={nodeRef}>
       <div className="name">
         <SvnTreeNodeIcon node={props.node.data} opened={props.openned} />
         {props.node.data.name}

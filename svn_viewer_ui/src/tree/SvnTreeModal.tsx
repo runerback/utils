@@ -1,14 +1,14 @@
 import {
+  useComputed,
   useSignal,
   useSignalEffect,
   useSignals,
 } from "@preact/signals-react/runtime";
 import { Modal, Skeleton, Tree } from "antd";
 import DOM from "../assets/DOM.svg?react";
-import { useCallback, useContext } from "preact/hooks";
+import { useCallback, useContext, useEffect } from "preact/hooks";
 import "./tree.css";
-import type { EventDataNode, FieldDataNode } from "rc-tree/lib/interface";
-import type { Key } from "readline";
+import type { EventDataNode, FieldDataNode, Key } from "rc-tree/lib/interface";
 import Up from "../assets/CaretUpSolid8.svg?react";
 import Down from "../assets/CaretDown8.svg?react";
 import { SignalPromiseContext } from "../context/signalPromiseContext";
@@ -21,14 +21,17 @@ import { KeyboardContext } from "../context/keyboardContext";
 import { provideSvnLogs } from "../context/svnLogsContext";
 import CloseIcon from "../components/icons/CloseIcon";
 
-const treeNodesLookup: Record<string, SvnTreeNode[]> = {};
 export type TreeDataNode = FieldDataNode<{
   key: Key;
   data: SvnTreeNode;
   title?: React.ReactNode;
 }>;
-const buildTree = (root: string): TreeDataNode[] => {
-  const nodes = treeNodesLookup[root];
+
+const buildTree = (
+  root: string,
+  map: Map<string, SvnTreeNode[]>
+): TreeDataNode[] => {
+  const nodes = map.get(root);
   if (!nodes || nodes.length === 0) {
     return [];
   }
@@ -48,94 +51,136 @@ const buildTree = (root: string): TreeDataNode[] => {
         title: node.name,
         data: node,
         isLeaf: !node.expandable,
-        children: node.kind === "DIR" ? buildTree(next) : [],
+        children: node.kind === "DIR" ? buildTree(next, map) : [],
       } as TreeDataNode;
     });
 };
 
+const TREE_HEIGHT_RATIO = 0.65;
+
 export default (props: { fetchRevLogs: (dir: string) => void }) => {
   useSignals();
   const statusContext = useContext(StatusContext);
-  const treeNodes = useSignal(Array<TreeDataNode>());
+  const svnTreeContext = useContext(SvnTreeContext);
+  const signalPromiseContext = useContext(SignalPromiseContext);
+  const keyboard = useContext(KeyboardContext);
+
+  const treeNodesMap = useSignal<Map<string, SvnTreeNode[]>>(new Map());
+  const treeNodes = useComputed(() => buildTree("/", treeNodesMap.value));
   const loadingRoot = useSignal("/");
-  const expandedKeys = useSignal(Array<string>());
+  const expandedKeys = useSignal<Array<string>>([]);
+  const loadedKeys = useSignal<Set<string>>(new Set());
+  const fetching = useSignal(false);
+  const fetchId = useSignal("");
+  const treeHeight = useSignal(window.innerHeight * TREE_HEIGHT_RATIO);
+
+  useEffect(() => {
+    const update = () => {
+      treeHeight.value = window.innerHeight * TREE_HEIGHT_RATIO;
+    };
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useSignalEffect(() => {
+    if (svnTreeContext.show$.value && treeNodesMap.value.size === 0) {
+      loadingRoot.value = "/";
+      fetching.value = true;
+    }
+  });
+
+  useSignalEffect(() => {
+    if (!fetching.value) {
+      return;
+    }
+    svnTreeContext.provide(loadingRoot.value).then((id) => {
+      fetchId.value = id ?? "";
+    });
+  });
+
+  useSignalEffect(() => {
+    svnTreeContext.stream$
+      .pipe(filter((it) => !!it && !!it.id && it.job === "FETCH_TREE"))
+      .subscribe((e) => {
+        if (!svnTreeContext.show$.value) {
+          return;
+        }
+        if (e.id !== fetchId.value) {
+          return;
+        }
+        if (!!e.nodes && e.nodes.length > 0) {
+          const next = new Map(treeNodesMap.value);
+          next.set(loadingRoot.value, e.nodes);
+          treeNodesMap.value = next;
+        }
+        if (!!e.finished) {
+          const nextLoaded = new Set(loadedKeys.value);
+          nextLoaded.add(loadingRoot.value);
+          loadedKeys.value = nextLoaded;
+          fetching.value = false;
+        }
+      });
+  });
+
   const handleNodeClick = useCallback(
     (
       _: React.MouseEvent<HTMLSpanElement>,
       node: EventDataNode<TreeDataNode>
     ) => {
-      if (node.data.kind === "DIR") {
-        if (node.expanded) {
-          const next = expandedKeys.peek();
-          next.splice(next.indexOf(node.key), 1);
-          expandedKeys.value = [...next];
-        } else {
-          expandedKeys.value = [...expandedKeys.value, node.key];
-          if (!node.loaded) {
-            node.loading = true;
-            setTimeout(() => {
-              node.loading = false;
-              node.loaded = true;
-            }, 1000);
-          }
-        }
+      if (node.data.kind !== "DIR") {
+        return;
       }
+      const key = node.key as string;
+      const current = new Set(expandedKeys.value);
+      if (node.expanded) {
+        current.delete(key);
+      } else {
+        current.add(key);
+      }
+      expandedKeys.value = Array.from(current);
     },
     []
   );
-  const svnTreeContext = useContext(SvnTreeContext);
-  const fetching = useSignal(false);
-  const fetchId = useSignal("");
-  useSignalEffect(() => {
-    svnTreeContext.stream$
-      .pipe(filter((it) => !!it && !!it.id && it.job === "FETCH_TREE"))
-      .subscribe((e) => {
-        if (svnTreeContext.show$.value) {
-          if (e.id === fetchId.value) {
-            if (!!e.nodes && e.nodes.length > 0) {
-              treeNodesLookup[loadingRoot.value] = e.nodes;
-              treeNodes.value = buildTree("/");
-            }
-            if (!!e.finished) {
-              fetching.value = false;
-            }
-          }
-        }
-      });
-  });
-  useSignalEffect(() => {
-    if (svnTreeContext.show$.value) {
-      svnTreeContext.provide(loadingRoot.value).then((id) => {
-        if (!!id) {
-          fetchId.value = id;
-        } else {
-          fetchId.value = "";
-        }
-      });
-    }
-  });
-  const signalPromiseContext = useContext(SignalPromiseContext);
-  const loadSubNodes = useCallback(async (e: EventDataNode<TreeDataNode>) => {
-    if (!fetching.value) {
-      loadingRoot.value = e.key;
+
+  const handleExpand = useCallback((keys: Key[]) => {
+    expandedKeys.value = keys as string[];
+  }, []);
+
+  const loadSubNodes = useCallback(
+    async (e: EventDataNode<TreeDataNode>) => {
+      const key = e.key as string;
+      if (loadedKeys.value.has(key) || fetching.value) {
+        return;
+      }
+      loadingRoot.value = key;
       fetching.value = true;
       try {
         await signalPromiseContext.provide(fetching, (value) => !value);
       } catch (message) {
         console.error(message);
       }
-    }
-  }, []);
+    },
+    []
+  );
 
   const close = useCallback(() => {
     svnTreeContext.close();
-    treeNodes.value = [];
+    treeNodesMap.value = new Map();
+    expandedKeys.value = [];
+    loadedKeys.value = new Set();
+    loadingRoot.value = "/";
+    fetching.value = false;
+    fetchId.value = "";
   }, []);
 
-  const keyboard = useContext(KeyboardContext);
-  const fetchLogs = useCallback((status: SvnStatusItem) => {
-    provideSvnLogs(status, keyboard.ctrl$.value);
-  }, []);
+  const fetchLogs = useCallback(
+    (status: SvnStatusItem) => {
+      provideSvnLogs(status, keyboard.ctrl$.value);
+    },
+    [keyboard.ctrl$.value]
+  );
+
+  const isEmpty = treeNodes.value.length === 0;
 
   return (
     <Modal
@@ -156,11 +201,15 @@ export default (props: { fetchRevLogs: (dir: string) => void }) => {
       okButtonProps={{ style: { display: "none" } }}
       footer={null}
     >
-      {treeNodes.value.length === 0 && <Skeleton loading />}
+      {isEmpty && <Skeleton loading />}
       <Tree
         rootClassName="tree"
         treeData={treeNodes.value}
         expandedKeys={expandedKeys.value}
+        loadedKeys={Array.from(loadedKeys.value)}
+        height={treeHeight.value}
+        virtual
+        itemHeight={32}
         switcherIcon={(node) => (
           <div className="switcher">
             {node.expanded ? (
@@ -171,6 +220,7 @@ export default (props: { fetchRevLogs: (dir: string) => void }) => {
           </div>
         )}
         onClick={handleNodeClick}
+        onExpand={handleExpand}
         loadData={(e) => loadSubNodes(e)}
         titleRender={(node) => (
           <SvnTreeNode

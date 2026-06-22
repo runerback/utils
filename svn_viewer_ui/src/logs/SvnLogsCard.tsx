@@ -82,6 +82,40 @@ export default function (props: {
       }
     }
   }, []);
+  const swapRevisions = useCallback((left: string, right: string) => {
+    const snapshot = { ...comparedRevisions.value };
+    const oldLeftEntries = snapshot[left];
+    if (!oldLeftEntries) {
+      return;
+    }
+
+    const filteredOldLeft = oldLeftEntries.filter(
+      (it) => it.revisionR !== right
+    );
+
+    if (snapshot[right]?.some((it) => it.revisionR === left)) {
+      if (filteredOldLeft.length > 0) {
+        snapshot[left] = filteredOldLeft;
+      } else {
+        delete snapshot[left];
+      }
+      comparedRevisions.value = snapshot;
+      return;
+    }
+
+    if (filteredOldLeft.length > 0) {
+      snapshot[left] = filteredOldLeft;
+    } else {
+      delete snapshot[left];
+    }
+
+    snapshot[right] = [
+      ...(snapshot[right] ?? []),
+      { revisionR: left, timestamp: moment() },
+    ];
+
+    comparedRevisions.value = snapshot;
+  }, []);
   const logsDiffCardSource = useComputed(() =>
     Object.entries(comparedRevisions.value)
       .flatMap(([revisionL, revisionRs]) =>
@@ -156,11 +190,13 @@ export default function (props: {
       )}
       {logsDiffCardSource.value.map(({ left, right }) => (
         <SvnLogsDiffCard
+          key={`${left}-${right}`}
           status={props.log.status!}
           settings={props.settings}
           revisions={{ left, right }}
           compareStarted={(e) => compareStatusChanged(e, "STARTED")}
           compareFinished={(e) => compareStatusChanged(e, "FINISHED")}
+          onSwap={() => swapRevisions(left, right)}
         />
       ))}
     </Card>
