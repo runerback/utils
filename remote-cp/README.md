@@ -1,36 +1,74 @@
-# Remote Copy/Paste app
+# Remote Copy/Paste
 
-Small Flask + Socket.IO chat room for anonymous text, picture, video, and file sharing.
+Ephemeral cross-device text, picture, video, and file sharing.
 
-## Setup
+This repo contains three projects:
 
-1. Create a virtual environment:
-   - `py -3 -m venv .venv`
-2. Activate it:
-   - PowerShell: `.\.venv\Scripts\Activate.ps1`
-3. Install dependencies:
-   - `python -m pip install -r requirements.txt`
+- **`remote-cp-backend/`** — Flask + Socket.IO API server
+- **`remote-cp-web/`** — Vite + Preact + TypeScript web app
+- **`remote-cp-android/`** — Native Android app (Kotlin + Jetpack Compose)
 
-## Run
+## Quick Start
 
-1. Start the app:
-   - `python app.py`
-2. Open `http://localhost:5000`
-3. If other devices should join, browse to `http://<your-computer-ip>:5000`
+### Backend
 
-## Notes
+```bash
+cd remote-cp-backend
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python run.py
+```
 
-- Chat messages are kept in memory only and disappear when the app stops.
-- Uploaded images and files are stored in `instance\uploads` for the current app run only.
-- Total upload payloads are capped at 500 MB per request.
-- Video uploads support `.mp4` and appear inline in the room with muted autoplay and playback controls.
-- General file uploads are limited to document-style formats: `.7z`, `.apk`, `.csv`, `.doc`, `.docx`, `.json`, `.md`, `.pdf`, `.ppt`, `.pptx`, `.pt`, `.rtf`, `.txt`, `.xls`, `.xlsx`, and `.zip`.
-- Uploaded non-image files appear in the feed with download links for everyone in the room.
-- Uploaded videos appear in the feed as playable cards for everyone in the room.
-- The message box no longer has a fixed input cap. `Send text` posts inline messages up to 4,000 characters and automatically sends longer content to the room as a generated `.txt` file attachment.
-- Room messages show newest first.
-- Long text posts collapse after 8 visible lines and can be expanded inline.
-- `Copy text` first uses the async Clipboard API, then falls back to a browser-compatible selection copy path so it can still work in many Chrome LAN/HTTP sessions.
-- `Paste as file` reads clipboard text and saves it locally. Browsers with the File System Access API show a native save dialog; other supported browsers fall back to downloading a generated `.txt` file. If direct clipboard read is blocked, the app falls back to a manual paste dialog.
-- `Paste picture` reads an image from the clipboard and posts it straight into the room using the existing picture upload flow. Browsers that block direct clipboard image reads should use `Send pictures` instead.
-- Direct clipboard image copy still needs a secure browser context. It works on `localhost`; for other devices, use HTTPS if the browser blocks clipboard image writes on plain HTTP.
+Server runs on `http://localhost:5000`.
+
+### Web App
+
+```bash
+cd remote-cp-web
+npm install
+npm run dev
+```
+
+Web app runs on `http://localhost:5180`.
+
+### Android App
+
+Open `remote-cp-android/` in Android Studio, sync Gradle, and run on an emulator or device.
+
+Default backend URL for emulator: `http://10.0.2.2:5000`. Use the settings icon to change it.
+
+## LAN Access
+
+To use the web app from other devices on your local network:
+
+1. **Find your machine's LAN IP** (e.g. `192.168.1.100`)
+2. **Update the web app's backend URL** in `remote-cp-web/.env`:
+   ```
+   VITE_BACKEND_URL=http://192.168.1.100:5000
+   ```
+3. **Allow CORS on the backend** by setting the environment variable:
+   ```bash
+   # Windows PowerShell
+   $env:CORS_ALLOWED_ORIGINS="*"
+   python run.py
+   
+   # Or restrict to your LAN IP only
+   $env:CORS_ALLOWED_ORIGINS="http://192.168.1.100:5180"
+   python run.py
+   ```
+4. **Access from other devices** at `http://192.168.1.100:5180`
+
+The web dev server already binds to `0.0.0.0` (all interfaces), so no additional config is needed there.
+
+## Architecture
+
+All three clients talk to the same Flask backend:
+
+- `GET /api/messages` — fetch existing messages
+- `POST /api/messages` — send a new message (multipart/form-data)
+- `GET /uploads/<filename>` — serve media inline
+- `GET /downloads/<stored>/<name>` — download a file
+- Socket.IO `message:new` — real-time message broadcast
+
+Messages are stored in memory only and disappear when the server restarts.
