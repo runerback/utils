@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Android
+.gradle/
+local.properties
+*.iml
+.idea/
+.DS_Store
+/app/build
+/*/build
+captures/
+.externalNativeBuild
+
+# Misc
+*.log
