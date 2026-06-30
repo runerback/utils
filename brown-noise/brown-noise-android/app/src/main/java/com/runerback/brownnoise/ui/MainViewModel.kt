@@ -30,10 +30,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             port = prefs.getString(PREF_PORT, "54545") ?: "54545",
             volume = prefs.getFloat(PREF_VOLUME, 1.0f),
             noiseType = prefs.getString(PREF_NOISE_TYPE, "brown") ?: "brown",
-            gain = prefs.getFloat(PREF_GAIN, 0.8f),
+            gain = prefs.getFloat(PREF_GAIN, 0.5f),
             surround = prefs.getFloat(PREF_SURROUND, 0.0f),
             reverb = prefs.getFloat(PREF_REVERB, 0.0f),
-            softness = prefs.getFloat(PREF_SOFTNESS, 0.0f),
+            softness = prefs.getFloat(PREF_SOFTNESS, 0.6f),
             wave = prefs.getBoolean(PREF_WAVE, false),
             waveRate = prefs.getFloat(PREF_WAVE_RATE, 0.5f)
         )
@@ -236,10 +236,10 @@ data class StreamUiState(
     val volume: Float = 1.0f,
     val error: String? = null,
     val noiseType: String = "brown",
-    val gain: Float = 0.8f,
+    val gain: Float = 0.5f,
     val surround: Float = 0.0f,
     val reverb: Float = 0.0f,
-    val softness: Float = 0.0f,
+    val softness: Float = 0.6f,
     val wave: Boolean = false,
     val waveRate: Float = 0.5f
 )

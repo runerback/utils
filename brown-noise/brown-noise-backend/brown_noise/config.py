@@ -9,12 +9,12 @@ class AudioConfig:
     sample_rate: int = 44100
     channels: int = 2
     chunk_size: int = 1024
-    gain: float = 0.8
+    gain: float = 0.5
     noise_type: str = "brown"
     leak: float = 0.99
     seed: int | None = None
     surround: float = 0.0
     reverb: float = 0.0
-    softness: float = 0.0
+    softness: float = 0.6
     wave: bool = False
     wave_rate: float = 0.5

@@ -5,7 +5,7 @@ import time
 import numpy as np
 
 from .config import AudioConfig
-from .effects import LowPassFilter, SimpleReverb, apply_gain, apply_widening
+from .effects import ButterworthLowPass, DCBlocker, SimpleReverb, apply_gain, apply_saturation, apply_widening
 from .sources import BrownNoiseSource, NoiseSource, PinkNoiseSource, TuneSource, WhiteNoiseSource
 
 
@@ -20,16 +20,19 @@ class AudioGenerator:
         self._running = False
         self._thread: threading.Thread | None = None
         self._reverb: SimpleReverb | None = None
-        self._lowpass: LowPassFilter | None = None
+        self._lowpass: ButterworthLowPass | None = None
+        self._dcblocker: DCBlocker | None = None
         self._source: NoiseSource = BrownNoiseSource()
         self._wave_time = 0.0
+        self._saturation = 0.3
         self._apply_config()
 
     def _cutoff_for_softness(self, softness: float) -> float:
         # softness 0 = no filtering, 1 = very soft (200 Hz cutoff)
         if softness <= 0:
             return self.config.sample_rate / 2.0
-        return max(200.0, 20000.0 * (1.0 - softness))
+        # Exponential curve: 0.5 already rolls off to ~2 kHz for sleep-friendly sound
+        return max(200.0, 20000.0 * (0.01 ** softness))
 
     def _apply_config(self) -> None:
         with self._lock:
@@ -50,7 +53,8 @@ class AudioGenerator:
                 self.config.sample_rate, self.config.channels, self.config.reverb
             ) if self.config.reverb > 0 else None
             cutoff = self._cutoff_for_softness(self.config.softness)
-            self._lowpass = LowPassFilter(self.config.sample_rate, self.config.channels, cutoff)
+            self._lowpass = ButterworthLowPass(self.config.sample_rate, self.config.channels, cutoff)
+            self._dcblocker = DCBlocker(self.config.sample_rate, self.config.channels)
 
     def update_config(
         self,
@@ -119,6 +123,7 @@ class AudioGenerator:
                 source = self._source
                 reverb = self._reverb
                 lowpass = self._lowpass
+                dcblocker = self._dcblocker
                 gain = self.config.gain
                 surround = self.config.surround
                 sample_rate = self.config.sample_rate
@@ -133,6 +138,9 @@ class AudioGenerator:
                 raw = reverb.process(raw)
             if lowpass is not None:
                 raw = lowpass.process(raw)
+            if dcblocker is not None:
+                raw = dcblocker.process(raw)
+            raw = apply_saturation(raw, self._saturation)
             if wave:
                 t = np.arange(frames_per_chunk, dtype=np.float32) / sample_rate + self._wave_time
                 lfo = 0.5 + 0.5 * np.sin(2 * np.pi * wave_rate * t)

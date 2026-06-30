@@ -33,7 +33,9 @@ class BrownNoiseSource(NoiseSource):
         for i in range(frames):
             self._state = self._state * self.leak + white[i]
             out[i] = self._state
-        return out
+        # Normalize so the integrated signal stays roughly unit variance
+        scale = np.sqrt(1.0 - self.leak * self.leak)
+        return out * scale
 
 
 class PinkNoiseSource(NoiseSource):
@@ -57,7 +59,7 @@ class PinkNoiseSource(NoiseSource):
                 self._index = 1
                 row = 0
             self._vals[row] = self.rng.standard_normal(channels).astype(np.float32)
-            out[i] = self._vals.sum(axis=0)
+            out[i] = self._vals.sum(axis=0) / np.sqrt(self._rows)
         return out
 
 
