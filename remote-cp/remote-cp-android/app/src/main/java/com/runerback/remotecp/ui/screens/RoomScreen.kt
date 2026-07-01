@@ -1,5 +1,10 @@
 package com.runerback.remotecp.ui.screens
 
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,10 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,6 +52,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
     var showSettings by remember { mutableStateOf(false) }
     var previewingImage by remember { mutableStateOf<ImageAttachment?>(null) }
     var previewingVideo by remember { mutableStateOf<VideoAttachment?>(null) }
+    var pendingDownloads by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
 
     LaunchedEffect(uiState.statusMessage, uiState.error) {
         uiState.statusMessage?.let {
@@ -53,6 +62,47 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearStatus()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                if (intent.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
+                val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+                val fileName = pendingDownloads[id] ?: return
+                pendingDownloads = pendingDownloads - id
+                scope.launch {
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Downloaded $fileName",
+                        actionLabel = "Open",
+                        duration = SnackbarDuration.Long
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        val opened = ctx.openDownload(id)
+                        if (!opened) {
+                            snackbarHostState.showSnackbar("Download not ready yet.")
+                        }
+                    }
+                }
+            }
+        }
+        context.registerReceiver(
+            receiver,
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+            Context.RECEIVER_NOT_EXPORTED
+        )
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+
+    fun startDownload(fileName: String, url: String) {
+        val downloadId = context.saveToDownloads(url, fileName)
+        pendingDownloads = pendingDownloads + (downloadId to fileName)
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                message = "Downloading $fileName...",
+                duration = SnackbarDuration.Short
+            )
         }
     }
 
@@ -81,20 +131,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     image = image,
                     backendUrl = uiState.backendUrl,
                     onDismiss = { previewingImage = null },
-                    onSave = { downloadId ->
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "Downloading ${image.name}...",
-                                actionLabel = "Open"
-                            )
-                            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                                val opened = context.openDownload(downloadId)
-                                if (!opened) {
-                                    snackbarHostState.showSnackbar("Download not ready yet.")
-                                }
-                            }
-                        }
-                    }
+                    onSave = { startDownload(image.name, "${uiState.backendUrl}${image.url}") }
                 )
             }
 
@@ -103,20 +140,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     video = video,
                     backendUrl = uiState.backendUrl,
                     onDismiss = { previewingVideo = null },
-                    onSave = { downloadId ->
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "Downloading ${video.name}...",
-                                actionLabel = "Open"
-                            )
-                            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                                val opened = context.openDownload(downloadId)
-                                if (!opened) {
-                                    snackbarHostState.showSnackbar("Download not ready yet.")
-                                }
-                            }
-                        }
-                    }
+                    onSave = { startDownload(video.name, "${uiState.backendUrl}${video.url}") }
                 )
             }
 
@@ -138,19 +162,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     onImageClick = { previewingImage = it },
                     onVideoClick = { previewingVideo = it },
                     onFileClick = { file ->
-                        val downloadId = context.saveToDownloads("${uiState.backendUrl}${file.downloadUrl}", file.name)
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "Downloading ${file.name}...",
-                                actionLabel = "Open"
-                            )
-                            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                                val opened = context.openDownload(downloadId)
-                                if (!opened) {
-                                    snackbarHostState.showSnackbar("Download not ready yet.")
-                                }
-                            }
-                        }
+                        startDownload(file.name, "${uiState.backendUrl}${file.downloadUrl}")
                     }
                 )
             }
