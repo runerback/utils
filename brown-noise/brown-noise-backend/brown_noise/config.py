@@ -18,3 +18,12 @@ class AudioConfig:
     softness: float = 0.6
     wave: bool = False
     wave_rate: float = 0.5
+    bypass_source: bool = False
+    bypass_widening: bool = False
+    bypass_reverb: bool = False
+    bypass_lowpass: bool = False
+    bypass_dcblocker: bool = False
+    bypass_saturation: bool = False
+    bypass_wave: bool = False
+    bypass_gain: bool = False
+    web_port: int = 8080

@@ -85,5 +85,13 @@ class ControlServer:
             softness=cmd.get("softness"),
             wave=cmd.get("wave"),
             wave_rate=cmd.get("wave_rate"),
+            bypass_source=cmd.get("bypass_source"),
+            bypass_widening=cmd.get("bypass_widening"),
+            bypass_reverb=cmd.get("bypass_reverb"),
+            bypass_lowpass=cmd.get("bypass_lowpass"),
+            bypass_dcblocker=cmd.get("bypass_dcblocker"),
+            bypass_saturation=cmd.get("bypass_saturation"),
+            bypass_wave=cmd.get("bypass_wave"),
+            bypass_gain=cmd.get("bypass_gain"),
         )
         print(f"Updated config: {cmd}")

@@ -2,7 +2,7 @@ import argparse
 import socket
 import threading
 
-from brown_noise import AudioConfig, AudioGenerator, ControlServer, LocalAudioPlayer, TcpAudioServer
+from brown_noise import AudioConfig, AudioGenerator, ControlServer, LocalAudioPlayer, TcpAudioServer, WebServer
 
 
 def local_ipv4_addresses():
@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=54545)
     parser.add_argument("--control-port", type=int, default=54546)
+    parser.add_argument("--web-port", type=int, default=8080)
     parser.add_argument("--sample-rate", type=int, default=44100)
     parser.add_argument("--channels", type=int, default=2)
     parser.add_argument("--chunk-size", type=int, default=1024)
@@ -47,6 +48,7 @@ def main():
         host=args.host,
         port=args.port,
         control_port=args.control_port,
+        web_port=args.web_port,
         sample_rate=args.sample_rate,
         channels=args.channels,
         chunk_size=args.chunk_size,
@@ -65,11 +67,13 @@ def main():
     player = LocalAudioPlayer(config, generator)
     server = TcpAudioServer(config, generator)
     control_server = ControlServer(config, generator)
+    web_server = WebServer(config, generator)
 
     generator.start()
     player.start()
     server.start()
     control_server.start()
+    web_server.start()
 
     print(
         f"Streaming {config.noise_type} noise: "
@@ -100,6 +104,7 @@ def main():
         server.stop()
         player.stop()
         generator.stop()
+        web_server.stop()
         stats_thread.join(timeout=2.0)
 
 

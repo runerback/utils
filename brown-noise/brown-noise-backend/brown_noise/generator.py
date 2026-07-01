@@ -9,6 +9,16 @@ from .effects import ButterworthLowPass, DCBlocker, SimpleReverb, apply_gain, ap
 from .sources import BrownNoiseSource, NoiseSource, PinkNoiseSource, TuneSource, WhiteNoiseSource
 
 
+def _downsample_waveform(buffer: np.ndarray, points: int = 200) -> list[float]:
+    if buffer.size == 0:
+        return [0.0] * points
+    mono = np.mean(buffer, axis=1)
+    if len(mono) <= points:
+        return mono.tolist()
+    bins = np.array_split(mono, points)
+    return [float(np.mean(b)) for b in bins]
+
+
 class AudioGenerator:
     def __init__(self, config: AudioConfig):
         self.config = config
@@ -27,6 +37,7 @@ class AudioGenerator:
         self._source: NoiseSource = BrownNoiseSource()
         self._wave_time = 0.0
         self._saturation = 0.3
+        self._node_waveforms: dict[str, list[float]] = {}
         self._apply_config()
 
     def _cutoff_for_softness(self, softness: float) -> float:
@@ -69,6 +80,14 @@ class AudioGenerator:
         softness: float | None = None,
         wave: bool | None = None,
         wave_rate: float | None = None,
+        bypass_source: bool | None = None,
+        bypass_widening: bool | None = None,
+        bypass_reverb: bool | None = None,
+        bypass_lowpass: bool | None = None,
+        bypass_dcblocker: bool | None = None,
+        bypass_saturation: bool | None = None,
+        bypass_wave: bool | None = None,
+        bypass_gain: bool | None = None,
     ) -> None:
         with self._lock:
             if noise_type is not None:
@@ -87,6 +106,22 @@ class AudioGenerator:
                 self.config.wave = wave
             if wave_rate is not None:
                 self.config.wave_rate = wave_rate
+            if bypass_source is not None:
+                self.config.bypass_source = bypass_source
+            if bypass_widening is not None:
+                self.config.bypass_widening = bypass_widening
+            if bypass_reverb is not None:
+                self.config.bypass_reverb = bypass_reverb
+            if bypass_lowpass is not None:
+                self.config.bypass_lowpass = bypass_lowpass
+            if bypass_dcblocker is not None:
+                self.config.bypass_dcblocker = bypass_dcblocker
+            if bypass_saturation is not None:
+                self.config.bypass_saturation = bypass_saturation
+            if bypass_wave is not None:
+                self.config.bypass_wave = bypass_wave
+            if bypass_gain is not None:
+                self.config.bypass_gain = bypass_gain
         self._apply_config()
 
     def register_client(self) -> queue.Queue[bytes]:
@@ -146,23 +181,45 @@ class AudioGenerator:
                 channels = self.config.channels
                 wave = self.config.wave
                 wave_rate = self.config.wave_rate
+                bypass_source = self.config.bypass_source
+                bypass_widening = self.config.bypass_widening
+                bypass_reverb = self.config.bypass_reverb
+                bypass_lowpass = self.config.bypass_lowpass
+                bypass_dcblocker = self.config.bypass_dcblocker
+                bypass_saturation = self.config.bypass_saturation
+                bypass_wave = self.config.bypass_wave
+                bypass_gain = self.config.bypass_gain
 
-            raw = source.generate(frames_per_chunk, channels)
-            if surround > 0:
+            raw = source.generate(frames_per_chunk, channels) if not bypass_source else np.zeros((frames_per_chunk, channels), dtype=np.float32)
+            waveforms: dict[str, list[float]] = {}
+            waveforms["source"] = _downsample_waveform(raw)
+            if surround > 0 and not bypass_widening:
                 raw = apply_widening(raw, surround, sample_rate)
-            if reverb is not None:
+            waveforms["widening"] = _downsample_waveform(raw)
+            if reverb is not None and not bypass_reverb:
                 raw = reverb.process(raw)
-            if lowpass is not None:
+            waveforms["reverb"] = _downsample_waveform(raw)
+            if lowpass is not None and not bypass_lowpass:
                 raw = lowpass.process(raw)
-            if dcblocker is not None:
+            waveforms["lowpass"] = _downsample_waveform(raw)
+            if dcblocker is not None and not bypass_dcblocker:
                 raw = dcblocker.process(raw)
-            raw = apply_saturation(raw, self._saturation)
-            if wave:
+            waveforms["dcblocker"] = _downsample_waveform(raw)
+            if not bypass_saturation:
+                raw = apply_saturation(raw, self._saturation)
+            waveforms["saturation"] = _downsample_waveform(raw)
+            if wave and not bypass_wave:
                 t = np.arange(frames_per_chunk, dtype=np.float32) / sample_rate + self._wave_time
                 lfo = 0.5 + 0.5 * np.sin(2 * np.pi * wave_rate * t)
                 raw = raw * lfo[:, np.newaxis]
                 self._wave_time = float(t[-1]) + 1.0 / sample_rate
-            raw = apply_gain(raw, gain)
+            waveforms["wave"] = _downsample_waveform(raw)
+            if not bypass_gain:
+                raw = apply_gain(raw, gain)
+            waveforms["gain"] = _downsample_waveform(raw)
+
+            with self._lock:
+                self._node_waveforms = waveforms
 
             pcm = (raw * int16_max).astype(np.int16)
             interleaved = pcm.reshape(-1)
@@ -207,6 +264,15 @@ class AudioGenerator:
                 "clients": len(self._clients),
                 "audio_queue": self.audio_queue.qsize(),
             }
+
+    def get_node_waveforms(self) -> dict[str, list[float]]:
+        with self._lock:
+            return dict(self._node_waveforms)
+
+    def get_visible_waveforms(self) -> dict[str, list[float]]:
+        with self._lock:
+            gain = self._node_waveforms.get("gain")
+            return {"gain": gain} if gain else {}
 
     def wait_for_stats_change(self, timeout: float | None = None) -> bool:
         if self._stats_event.wait(timeout):
