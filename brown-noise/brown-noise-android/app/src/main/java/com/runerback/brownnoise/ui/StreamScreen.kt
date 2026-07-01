@@ -1,13 +1,16 @@
 package com.runerback.brownnoise.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -24,14 +27,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.runerback.brownnoise.ui.settings.SettingsRepository
 
 @Composable
-fun StreamScreen(viewModel: MainViewModel = viewModel()) {
+fun StreamScreen(
+    onNavigateToSettings: () -> Unit,
+    onNavigateToLogs: () -> Unit,
+    viewModel: MainViewModel = viewModel()
+) {
     val state by viewModel.uiState.collectAsState()
-    var showSettings by remember { mutableStateOf(false) }
+    val settings by SettingsRepository.settings.collectAsState()
 
     Column(
         modifier = Modifier
@@ -49,8 +60,13 @@ fun StreamScreen(viewModel: MainViewModel = viewModel()) {
                 text = "Brown Noise Stream",
                 style = MaterialTheme.typography.headlineMedium
             )
-            IconButton(onClick = { showSettings = true }) {
-                Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings")
+            Row {
+                IconButton(onClick = onNavigateToLogs) {
+                    Icon(imageVector = Icons.Default.List, contentDescription = "Logs")
+                }
+                IconButton(onClick = onNavigateToSettings) {
+                    Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings")
+                }
             }
         }
 
@@ -99,6 +115,10 @@ fun StreamScreen(viewModel: MainViewModel = viewModel()) {
             )
         }
 
+        if (state.isPlaying && settings.waveformEnabled && state.waveformPoints.size >= 2) {
+            Waveform(points = state.waveformPoints)
+        }
+
         Column(modifier = Modifier.fillMaxWidth()) {
             Text("Volume")
             Slider(
@@ -108,22 +128,31 @@ fun StreamScreen(viewModel: MainViewModel = viewModel()) {
             )
         }
     }
+}
 
-    if (showSettings) {
-        SettingsDialog(
-            state = state,
-            onDismiss = { showSettings = false },
-            onApply = {
-                viewModel.applySettings()
-                showSettings = false
-            },
-            onNoiseTypeChange = viewModel::onNoiseTypeChange,
-            onGainChange = viewModel::onGainChange,
-            onSurroundChange = viewModel::onSurroundChange,
-            onReverbChange = viewModel::onReverbChange,
-            onSoftnessChange = viewModel::onSoftnessChange,
-            onWaveChange = viewModel::onWaveChange,
-            onWaveRateChange = viewModel::onWaveRateChange
+@Composable
+private fun Waveform(points: List<Float>) {
+    val density = LocalDensity.current
+    val color = MaterialTheme.colorScheme.primary
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+    ) {
+        val width = size.width
+        val height = size.height
+        val midY = height / 2
+        val stepX = width / (points.size - 1)
+        val path = Path()
+        path.moveTo(0f, midY - points[0] * midY)
+        for (i in 1 until points.size) {
+            path.lineTo(i * stepX, midY - points[i] * midY)
+        }
+        val strokeWidth = with(density) { 2.dp.toPx() }
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(width = strokeWidth)
         )
     }
 }

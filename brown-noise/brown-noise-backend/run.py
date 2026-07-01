@@ -1,6 +1,6 @@
 import argparse
 import socket
-import time
+import threading
 
 from brown_noise import AudioConfig, AudioGenerator, ControlServer, LocalAudioPlayer, TcpAudioServer
 
@@ -12,6 +12,16 @@ def local_ipv4_addresses():
         return sorted({info[4][0] for info in infos})
     except Exception:
         return []
+
+
+def print_stats_loop(generator: AudioGenerator, shutdown_event: threading.Event) -> None:
+    last_clients = 0
+    while not shutdown_event.is_set():
+        stats = generator.get_stats()
+        if stats["clients"] != last_clients:
+            print(f"Clients: {stats['clients']}, audio queue: {stats['audio_queue']}")
+            last_clients = stats["clients"]
+        generator.wait_for_stats_change()
 
 
 def main():
@@ -72,18 +82,25 @@ def main():
     else:
         print(f"Server listening on port {config.port}")
 
+    shutdown_event = threading.Event()
+    stats_thread = threading.Thread(
+        target=print_stats_loop,
+        args=(generator, shutdown_event),
+        daemon=True,
+    )
+    stats_thread.start()
+
     try:
-        while True:
-            time.sleep(5)
-            stats = generator.get_stats()
-            print(f"Clients: {stats['clients']}, audio queue: {stats['audio_queue']}")
-    except KeyboardInterrupt:
+        input()
+    except (KeyboardInterrupt, EOFError):
         print("\nShutting down...")
     finally:
+        shutdown_event.set()
         control_server.stop()
         server.stop()
         player.stop()
         generator.stop()
+        stats_thread.join(timeout=2.0)
 
 
 if __name__ == "__main__":

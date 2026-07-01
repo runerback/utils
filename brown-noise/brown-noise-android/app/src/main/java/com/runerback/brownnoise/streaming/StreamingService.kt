@@ -27,6 +27,7 @@ class StreamingService : Service() {
     private val binder = LocalBinder()
     private var audioStreamer: AudioStreamer? = null
     private var onStateChange: ((StreamState) -> Unit)? = null
+    private var onWaveform: ((FloatArray) -> Unit)? = null
 
     inner class LocalBinder : Binder() {
         fun getService(): StreamingService = this@StreamingService
@@ -51,9 +52,10 @@ class StreamingService : Service() {
         val volume = intent.getFloatExtra(EXTRA_VOLUME, 1.0f)
 
         if (audioStreamer == null) {
-            audioStreamer = AudioStreamer { state ->
-                onStateChange?.invoke(state)
-            }
+            audioStreamer = AudioStreamer(
+                onStateChange = { state -> onStateChange?.invoke(state) },
+                onAudioData = { frame -> onWaveform?.invoke(frame) }
+            )
         }
 
         startForeground(NOTIFICATION_ID, buildNotification())
@@ -63,6 +65,10 @@ class StreamingService : Service() {
 
     fun setStateListener(listener: ((StreamState) -> Unit)?) {
         onStateChange = listener
+    }
+
+    fun setWaveformListener(listener: ((FloatArray) -> Unit)?) {
+        onWaveform = listener
     }
 
     fun setVolume(volume: Float) {

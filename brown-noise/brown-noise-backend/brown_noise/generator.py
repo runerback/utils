@@ -15,6 +15,8 @@ class AudioGenerator:
         self.audio_queue: queue.Queue[bytes] = queue.Queue(maxsize=5)
         self._clients: dict[int, queue.Queue[bytes]] = {}
         self._client_lock = threading.Lock()
+        self._client_event = threading.Event()
+        self._stats_event = threading.Event()
         self._lock = threading.Lock()
         self._next_client_id = 0
         self._running = False
@@ -93,6 +95,8 @@ class AudioGenerator:
             self._next_client_id += 1
             client_queue: queue.Queue[bytes] = queue.Queue(maxsize=10)
             self._clients[client_id] = client_queue
+        self._client_event.set()
+        self._stats_event.set()
         return client_queue
 
     def unregister_client(self, client_queue: queue.Queue[bytes]) -> None:
@@ -101,6 +105,7 @@ class AudioGenerator:
                 if q is client_queue:
                     del self._clients[cid]
                     break
+        self._stats_event.set()
 
     def start(self) -> None:
         self._running = True
@@ -109,6 +114,8 @@ class AudioGenerator:
 
     def stop(self) -> None:
         self._running = False
+        self._client_event.set()
+        self._stats_event.set()
         if self._thread:
             self._thread.join(timeout=2.0)
 
@@ -119,6 +126,15 @@ class AudioGenerator:
         int16_max = np.float32(32767.0)
 
         while self._running:
+            with self._client_lock:
+                has_clients = bool(self._clients)
+                if not has_clients:
+                    self._client_event.clear()
+            if not has_clients:
+                self._client_event.wait()
+                next_time = time.perf_counter()
+                continue
+
             with self._lock:
                 source = self._source
                 reverb = self._reverb
@@ -191,3 +207,9 @@ class AudioGenerator:
                 "clients": len(self._clients),
                 "audio_queue": self.audio_queue.qsize(),
             }
+
+    def wait_for_stats_change(self, timeout: float | None = None) -> bool:
+        if self._stats_event.wait(timeout):
+            self._stats_event.clear()
+            return True
+        return False

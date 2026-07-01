@@ -10,9 +10,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.runerback.brownnoise.ui.StreamScreen
+import com.runerback.brownnoise.ui.logs.LogsScreen
+import com.runerback.brownnoise.ui.settings.SettingsScreen
 import com.runerback.brownnoise.ui.theme.BrownNoiseTheme
 
 class MainActivity : ComponentActivity() {
@@ -30,7 +34,19 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    StreamScreen()
+                    val currentScreen = remember { mutableStateOf(Screen.Stream) }
+                    when (currentScreen.value) {
+                        Screen.Stream -> StreamScreen(
+                            onNavigateToSettings = { currentScreen.value = Screen.Settings },
+                            onNavigateToLogs = { currentScreen.value = Screen.Logs }
+                        )
+                        Screen.Settings -> SettingsScreen(
+                            onNavigateBack = { currentScreen.value = Screen.Stream }
+                        )
+                        Screen.Logs -> LogsScreen(
+                            onNavigateBack = { currentScreen.value = Screen.Stream }
+                        )
+                    }
                 }
             }
         }
@@ -43,5 +59,11 @@ class MainActivity : ComponentActivity() {
                 notificationPermissionLauncher.launch(permission)
             }
         }
+    }
+
+    private enum class Screen {
+        Stream,
+        Settings,
+        Logs
     }
 }

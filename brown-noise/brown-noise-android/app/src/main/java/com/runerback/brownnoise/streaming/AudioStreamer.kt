@@ -8,12 +8,16 @@ import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-class AudioStreamer(private val onStateChange: (StreamState) -> Unit) {
+class AudioStreamer(
+    private val onStateChange: (StreamState) -> Unit,
+    private val onAudioData: ((FloatArray) -> Unit)? = null
+) {
 
     companion object {
         const val DEFAULT_SAMPLE_RATE = 44100
         const val DEFAULT_CHANNELS = 2
         const val DEFAULT_BITS = 16
+        const val WAVEFORM_SAMPLES_PER_PACKET = 64
     }
 
     @Volatile
@@ -96,6 +100,7 @@ class AudioStreamer(private val onStateChange: (StreamState) -> Unit) {
                         }
                         val data = ByteArray(length)
                         input.readFully(data)
+                        onAudioData?.invoke(extractWaveform(data))
                         audioTrack?.write(data, 0, data.size)
                     }
                 }
@@ -108,6 +113,22 @@ class AudioStreamer(private val onStateChange: (StreamState) -> Unit) {
             releaseAudioTrack()
             socket = null
         }
+    }
+
+    private fun extractWaveform(data: ByteArray): FloatArray {
+        val samples = ShortArray(data.size / 2)
+        ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(samples)
+        val frames = samples.size / DEFAULT_CHANNELS
+        val step = (frames / WAVEFORM_SAMPLES_PER_PACKET).coerceAtLeast(1)
+        val out = FloatArray(WAVEFORM_SAMPLES_PER_PACKET)
+        for (i in out.indices) {
+            val frameIndex = (i * step).coerceAtMost(frames - 1)
+            val base = frameIndex * DEFAULT_CHANNELS
+            val left = samples.getOrElse(base) { 0 }.toInt()
+            val right = samples.getOrElse(base + 1) { 0 }.toInt()
+            out[i] = ((left + right) / 2) / 32768f
+        }
+        return out
     }
 
     private fun createAudioTrack(sampleRate: Int, channels: Int) {
