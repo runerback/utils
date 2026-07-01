@@ -14,6 +14,7 @@ ALLOWED_FILE_EXTENSIONS = {
     ".ppt",
     ".pptx",
     ".pt",
+    ".py",
     ".rtf",
     ".txt",
     ".xls",

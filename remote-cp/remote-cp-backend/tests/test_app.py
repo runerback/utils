@@ -71,6 +71,27 @@ class RemoteCopyPasteAppTests(unittest.TestCase):
         self.assertEqual(len(uploaded_files), 1)
         self.assertEqual(uploaded_files[0].suffix, ".md")
 
+    def test_py_upload_is_accepted_as_generic_file_attachment(self) -> None:
+        response = self.client.post(
+            "/api/messages",
+            data={
+                "device_type": "Test device",
+                "client_timestamp": "2026-04-30 13:17",
+                "files": (io.BytesIO(b"python payload"), "script.py", "text/x-python"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["text"], "")
+        self.assertEqual(len(payload["files"]), 1)
+        self.assertEqual(payload["files"][0]["name"], "script.py")
+        self.assertTrue(payload["files"][0]["downloadUrl"].endswith("/script.py"))
+
+        uploaded_files = list((Path(self.app.instance_path) / "uploads").iterdir())
+        self.assertEqual(len(uploaded_files), 1)
+        self.assertEqual(uploaded_files[0].suffix, ".py")
+
     def test_non_ascii_md_upload_preserves_original_name(self) -> None:
         response = self.client.post(
             "/api/messages",
