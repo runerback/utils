@@ -1,6 +1,8 @@
 package com.runerback.remotecp.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.runerback.remotecp.util.AppLog
 
 @Composable
 fun SettingsDialog(
@@ -25,6 +28,16 @@ fun SettingsDialog(
     onSave: (String) -> Unit
 ) {
     var url by remember { mutableStateOf(currentUrl) }
+    var showLogs by remember { mutableStateOf(false) }
+    val logs = remember { AppLog.getLines() }
+
+    if (showLogs) {
+        LogViewerDialog(
+            logs = logs,
+            onDismiss = { showLogs = false }
+        )
+        return
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -40,6 +53,15 @@ fun SettingsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { showLogs = true }) {
+                        Text("View logs")
+                    }
+                }
             }
         },
         confirmButton = {

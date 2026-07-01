@@ -36,9 +36,11 @@ import com.runerback.remotecp.data.model.VideoAttachment
 import com.runerback.remotecp.ui.components.Composer
 import com.runerback.remotecp.ui.components.Feed
 import com.runerback.remotecp.ui.components.ImagePreviewDialog
+import com.runerback.remotecp.ui.components.LogViewerDialog
 import com.runerback.remotecp.ui.components.SettingsDialog
 import com.runerback.remotecp.ui.components.VideoPreviewDialog
 import com.runerback.remotecp.ui.viewmodel.RoomViewModel
+import com.runerback.remotecp.util.AppLog
 import com.runerback.remotecp.util.openDownload
 import com.runerback.remotecp.util.saveToDownloads
 import kotlinx.coroutines.launch
@@ -50,6 +52,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var showSettings by remember { mutableStateOf(false) }
+    var showLogs by remember { mutableStateOf(false) }
     var previewingImage by remember { mutableStateOf<ImageAttachment?>(null) }
     var previewingVideo by remember { mutableStateOf<VideoAttachment?>(null) }
     var pendingDownloads by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
@@ -73,6 +76,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                 val fileName = pendingDownloads[id] ?: return
                 pendingDownloads = pendingDownloads - id
                 scope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
                     val result = snackbarHostState.showSnackbar(
                         message = "Downloaded $fileName",
                         actionLabel = "Open",
@@ -90,7 +94,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
         context.registerReceiver(
             receiver,
             IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-            Context.RECEIVER_NOT_EXPORTED
+            Context.RECEIVER_EXPORTED
         )
         onDispose { context.unregisterReceiver(receiver) }
     }
@@ -123,6 +127,13 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                         viewModel.updateBackendUrl(url)
                         showSettings = false
                     }
+                )
+            }
+
+            if (showLogs) {
+                LogViewerDialog(
+                    logs = AppLog.getLines(),
+                    onDismiss = { showLogs = false }
                 )
             }
 
@@ -178,7 +189,8 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     onSendMedia = { images, videos, files ->
                         viewModel.sendMedia(images, videos, files, context)
                     },
-                    onOpenSettings = { showSettings = true }
+                    onOpenSettings = { showSettings = true },
+                    onOpenLogs = { showLogs = true }
                 )
             }
         }

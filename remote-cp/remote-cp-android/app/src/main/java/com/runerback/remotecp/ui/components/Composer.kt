@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -50,7 +51,8 @@ fun Composer(
     isLoading: Boolean,
     onSendText: (String) -> Unit,
     onSendMedia: (images: List<Uri>?, videos: List<Uri>?, files: List<Uri>?) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenLogs: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var text by remember { mutableStateOf("") }
@@ -107,6 +109,9 @@ fun Composer(
                     contentDescription = if (isExpanded) "Collapse" else "Expand",
                     tint = MaterialTheme.colorScheme.onSurface
                 )
+            }
+            IconButton(onClick = onOpenLogs) {
+                Icon(Icons.Default.List, contentDescription = "Logs")
             }
             IconButton(onClick = onOpenSettings) {
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
