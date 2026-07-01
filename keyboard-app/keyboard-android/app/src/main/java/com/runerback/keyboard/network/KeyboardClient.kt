@@ -7,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,8 +21,6 @@ import java.net.Socket
 object KeyboardClient {
 
     private const val TAG = "KeyboardClient"
-    private const val INITIAL_RECONNECT_DELAY_MS = 1000L
-    private const val MAX_RECONNECT_DELAY_MS = 30000L
 
     sealed class State {
         object Disconnected : State()
@@ -66,12 +63,36 @@ object KeyboardClient {
 
     private var sendJob: Job? = null
     private var receiveJob: Job? = null
-    private var reconnectJob: Job? = null
     private var lastHost: String = ""
     private var lastPort: Int = 50051
     private var lastDeviceToken: String = ""
     private var lastInterceptRealKeyboard: Boolean = false
-    private var reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+
+    private const val MAX_PENDING_KEYS = 64
+    private val pendingKeys = mutableListOf<OutgoingMessage.Key>()
+    private var pendingConfig = false
+
+    private fun isAuthenticated(): Boolean = _authState.value is AuthState.Authenticated
+
+    private fun clearPending() {
+        synchronized(pendingKeys) {
+            pendingKeys.clear()
+        }
+        pendingConfig = false
+    }
+
+    private fun flushPending() {
+        if (pendingConfig) {
+            pendingConfig = false
+            sendConfig(lastInterceptRealKeyboard)
+        }
+        val keys: List<OutgoingMessage.Key>
+        synchronized(pendingKeys) {
+            keys = pendingKeys.toList()
+            pendingKeys.clear()
+        }
+        keys.forEach { sendKey(it.vk, it.action) }
+    }
 
     init {
         startSendLoop()
@@ -81,8 +102,6 @@ object KeyboardClient {
         lastHost = host
         lastPort = port
         lastDeviceToken = deviceToken
-        reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
-        cancelReconnect()
 
         if (_state.value is State.Connecting || _state.value is State.Connected) {
             disconnect()
@@ -92,13 +111,22 @@ object KeyboardClient {
     }
 
     fun disconnect() {
-        cancelReconnect()
         closeSocket()
         _state.value = State.Disconnected
         _authState.value = AuthState.Unknown
+        clearPending()
     }
 
     fun sendKey(vk: Int, action: String) {
+        if (!isAuthenticated()) {
+            synchronized(pendingKeys) {
+                if (pendingKeys.size >= MAX_PENDING_KEYS) {
+                    pendingKeys.removeFirst()
+                }
+                pendingKeys.add(OutgoingMessage.Key(vk, action))
+            }
+            return
+        }
         val result = eventChannel.trySend(OutgoingMessage.Key(vk, action))
         if (result.isFailure) {
             Log.w(TAG, "Dropped key event: $vk $action")
@@ -107,6 +135,10 @@ object KeyboardClient {
 
     fun sendConfig(interceptRealKeyboard: Boolean) {
         lastInterceptRealKeyboard = interceptRealKeyboard
+        if (!isAuthenticated()) {
+            pendingConfig = true
+            return
+        }
         val result = eventChannel.trySend(OutgoingMessage.Config(interceptRealKeyboard))
         if (result.isFailure) {
             Log.w(TAG, "Dropped config event: interceptRealKeyboard=$interceptRealKeyboard")
@@ -144,7 +176,6 @@ object KeyboardClient {
                 socket = newSocket
                 writer = newSocket.getOutputStream().bufferedWriter()
                 reader = BufferedReader(InputStreamReader(newSocket.getInputStream()))
-                reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
                 _state.value = State.Connected(host, port)
                 Log.i(TAG, "Connected to $host:$port")
 
@@ -158,8 +189,8 @@ object KeyboardClient {
                 val message = throwable.message ?: throwable.javaClass.simpleName
                 _state.value = State.Error(message)
                 _authState.value = AuthState.Unknown
+                clearPending()
                 Log.e(TAG, "Failed to connect to $host:$port", throwable)
-                scheduleReconnect()
             }
         }
     }
@@ -173,22 +204,6 @@ object KeyboardClient {
                 Log.e(TAG, "Receive loop failed", throwable)
             }
         }
-    }
-
-    private fun scheduleReconnect() {
-        if (lastHost.isBlank()) return
-        cancelReconnect()
-        reconnectJob = scope.launch {
-            Log.i(TAG, "Reconnecting in ${reconnectDelayMs}ms...")
-            delay(reconnectDelayMs)
-            reconnectDelayMs = (reconnectDelayMs * 2).coerceAtMost(MAX_RECONNECT_DELAY_MS)
-            attemptConnect(lastHost, lastPort)
-        }
-    }
-
-    private fun cancelReconnect() {
-        reconnectJob?.cancel()
-        reconnectJob = null
     }
 
     private fun closeSocket() {
@@ -249,7 +264,7 @@ object KeyboardClient {
                     closeSocket()
                     _state.value = State.Error(throwable.message ?: throwable.javaClass.simpleName)
                     _authState.value = AuthState.Unknown
-                    scheduleReconnect()
+                    clearPending()
                 }
             }
         }
@@ -267,7 +282,7 @@ object KeyboardClient {
                 closeSocket()
                 _state.value = State.Error(e.message ?: e.javaClass.simpleName)
                 _authState.value = AuthState.Unknown
-                scheduleReconnect()
+                clearPending()
                 break
             } ?: break
 
@@ -278,6 +293,7 @@ object KeyboardClient {
                 when (json.optString("type")) {
                     "auth_ok" -> {
                         _authState.value = AuthState.Authenticated
+                        flushPending()
                         Log.i(TAG, "Authenticated")
                     }
                     "auth_required" -> {
@@ -286,6 +302,7 @@ object KeyboardClient {
                     }
                     "auth_failed" -> {
                         _authState.value = AuthState.Failed
+                        clearPending()
                         Log.w(TAG, "Authentication failed")
                     }
                     "token" -> {
