@@ -32,7 +32,17 @@ cmake --build build --config Release
 build\Release\keyboard-windows.exe --port 50051
 ```
 
+The app runs as a Windows GUI application. There is no console window; instead:
+
+- A tray icon appears in the system tray.
+- Right-click the tray icon and choose **Show / hide logs** (or double-click the icon) to open the built-in log window.
+- Choose **Exit** to close the app.
+
 The server listens on all interfaces. Enter the PC's LAN IP and port in the Android app and connect.
+
+## Log window
+
+All output that previously went to the console is now captured in the log window. It uses a dark background and monospace font to look like a terminal. Closing the log window hides it; the app keeps running in the tray.
 
 ## Protocol
 

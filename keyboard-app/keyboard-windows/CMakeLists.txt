@@ -10,12 +10,16 @@ add_library(interception STATIC
 target_include_directories(interception PUBLIC third_party/interception)
 target_compile_definitions(interception PRIVATE INTERCEPTION_STATIC)
 
-add_executable(keyboard-windows
+add_executable(keyboard-windows WIN32
     src/main.cpp
     src/KeyboardServer.cpp
     src/InterceptionInput.cpp
     src/JsonProtocol.cpp
+    src/TrayIcon.cpp
+    src/LogWindow.cpp
+    src/ConsoleStreambuf.cpp
 )
 
-target_link_libraries(keyboard-windows PRIVATE interception ws2_32)
+target_link_libraries(keyboard-windows PRIVATE interception ws2_32 shell32 gdi32)
+
 target_compile_definitions(keyboard-windows PRIVATE INTERCEPTION_STATIC)
