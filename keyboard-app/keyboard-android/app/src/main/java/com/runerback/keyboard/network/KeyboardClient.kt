@@ -103,10 +103,7 @@ object KeyboardClient {
         lastPort = port
         lastDeviceToken = deviceToken
 
-        if (_state.value is State.Connecting || _state.value is State.Connected) {
-            disconnect()
-        }
-
+        disconnect()
         attemptConnect(host, port)
     }
 
@@ -179,7 +176,7 @@ object KeyboardClient {
                 _state.value = State.Connected(host, port)
                 Log.i(TAG, "Connected to $host:$port")
 
-                startReceiveLoop()
+                startReceiveLoop(newSocket)
 
                 if (lastDeviceToken.isNotBlank()) {
                     sendAuth(lastDeviceToken)
@@ -195,22 +192,32 @@ object KeyboardClient {
         }
     }
 
-    private fun startReceiveLoop() {
+    private fun startReceiveLoop(socket: Socket) {
+        val currentReader = reader ?: return
         receiveJob?.cancel()
         receiveJob = scope.launch {
             runCatching {
-                receiveLoop()
+                receiveLoop(socket, currentReader)
             }.onFailure { throwable ->
                 Log.e(TAG, "Receive loop failed", throwable)
             }
         }
     }
 
-    private fun closeSocket() {
+    private fun closeSocket(expectedSocket: Socket? = null) {
         receiveJob?.cancel()
         receiveJob = null
 
         val oldSocket = socket
+        if (expectedSocket != null && oldSocket !== expectedSocket) {
+            // The connection that failed is no longer the active one. Close only
+            // the stale socket and leave the new connection untouched.
+            scope.launch {
+                runCatching { expectedSocket.close() }
+            }
+            return
+        }
+
         socket = null
         writer = null
         reader = null
@@ -232,7 +239,8 @@ object KeyboardClient {
             }
 
             val currentWriter = writer
-            if (currentWriter == null) continue
+            val currentSocket = socket
+            if (currentWriter == null || currentSocket == null) continue
 
             val payload = when (event) {
                 is OutgoingMessage.Key -> JSONObject().apply {
@@ -260,29 +268,33 @@ object KeyboardClient {
                 currentWriter.flush()
             }.onFailure { throwable ->
                 Log.e(TAG, "Failed to send event", throwable)
-                if (throwable is IOException) {
-                    closeSocket()
+                if (throwable is IOException && this.socket === currentSocket) {
                     _state.value = State.Error(throwable.message ?: throwable.javaClass.simpleName)
                     _authState.value = AuthState.Unknown
                     clearPending()
+                    closeSocket(currentSocket)
                 }
             }
         }
     }
 
-    private suspend fun receiveLoop() {
-        val currentReader = reader ?: return
+    private suspend fun receiveLoop(socket: Socket, reader: BufferedReader) {
         while (true) {
             val line = try {
-                currentReader.readLine()
+                reader.readLine()
             } catch (_: CancellationException) {
                 break
             } catch (e: IOException) {
                 Log.e(TAG, "Read failed", e)
-                closeSocket()
-                _state.value = State.Error(e.message ?: e.javaClass.simpleName)
-                _authState.value = AuthState.Unknown
-                clearPending()
+                // Only update global state if this is still the active connection.
+                // An old, stale receive loop may fail after a reconnect and must
+                // not close the new socket.
+                if (this.socket === socket) {
+                    _state.value = State.Error(e.message ?: e.javaClass.simpleName)
+                    _authState.value = AuthState.Unknown
+                    clearPending()
+                    closeSocket(socket)
+                }
                 break
             } ?: break
 
