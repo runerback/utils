@@ -2,6 +2,7 @@ const canvas = document.getElementById('waveform');
 const ctx = canvas.getContext('2d');
 const statusEl = document.getElementById('status');
 const nodesEl = document.getElementById('nodes');
+const toggleBtn = document.getElementById('toggle');
 
 const colors = {
     gain: '#4caf50',
@@ -9,6 +10,8 @@ const colors = {
 
 let ws = null;
 let latestWaveform = [];
+let isRunning = false;
+let reconnectTimer = null;
 
 function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
@@ -83,7 +86,16 @@ function draw() {
     ctx.stroke();
 }
 
+function setRunning(running) {
+    isRunning = running;
+    toggleBtn.textContent = running ? 'Stop' : 'Start';
+    toggleBtn.classList.toggle('stopped', !running);
+    statusEl.textContent = running ? 'Connecting...' : 'Stopped';
+    statusEl.className = 'status disconnected';
+}
+
 function connect() {
+    if (ws || !isRunning) return;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
@@ -93,9 +105,15 @@ function connect() {
     };
 
     ws.onclose = () => {
-        statusEl.textContent = 'Disconnected - reconnecting...';
-        statusEl.className = 'status disconnected';
-        setTimeout(connect, 1000);
+        ws = null;
+        if (isRunning) {
+            statusEl.textContent = 'Disconnected - reconnecting...';
+            statusEl.className = 'status disconnected';
+            reconnectTimer = setTimeout(connect, 1000);
+        } else {
+            statusEl.textContent = 'Stopped';
+            statusEl.className = 'status disconnected';
+        }
     };
 
     ws.onerror = () => {
@@ -112,10 +130,34 @@ function connect() {
     };
 }
 
+function disconnect() {
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+    if (ws) {
+        const socket = ws;
+        ws = null;
+        socket.close();
+    }
+}
+
+toggleBtn.addEventListener('click', () => {
+    if (isRunning) {
+        setRunning(false);
+        disconnect();
+    } else {
+        setRunning(true);
+        connect();
+    }
+});
+
 function animate() {
     draw();
     requestAnimationFrame(animate);
 }
 
-loadNodes().then(connect);
+loadNodes().then(() => {
+    setRunning(false);
+});
 animate();

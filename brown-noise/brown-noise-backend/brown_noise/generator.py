@@ -9,10 +9,10 @@ from .effects import ButterworthLowPass, DCBlocker, SimpleReverb, apply_gain, ap
 from .sources import BrownNoiseSource, NoiseSource, PinkNoiseSource, TuneSource, WhiteNoiseSource
 
 
-def _downsample_waveform(buffer: np.ndarray, points: int = 200) -> list[float]:
+def _downsample_waveform(buffer: np.ndarray, points: int = 1024) -> list[float]:
     if buffer.size == 0:
         return [0.0] * points
-    mono = np.mean(buffer, axis=1)
+    mono = buffer if buffer.ndim == 1 else np.mean(buffer, axis=1)
     if len(mono) <= points:
         return mono.tolist()
     bins = np.array_split(mono, points)
@@ -38,6 +38,8 @@ class AudioGenerator:
         self._wave_time = 0.0
         self._saturation = 0.3
         self._node_waveforms: dict[str, list[float]] = {}
+        self._gain_history: np.ndarray = np.zeros(0, dtype=np.float32)
+        self._waveform_history_chunks = 30
         self._apply_config()
 
     def _cutoff_for_softness(self, softness: float) -> float:
@@ -217,9 +219,13 @@ class AudioGenerator:
             if not bypass_gain:
                 raw = apply_gain(raw, gain)
             waveforms["gain"] = _downsample_waveform(raw)
+            gain_mono = np.mean(raw, axis=1)
 
             with self._lock:
                 self._node_waveforms = waveforms
+                history = np.concatenate((self._gain_history, gain_mono))
+                max_history = self._waveform_history_chunks * frames_per_chunk
+                self._gain_history = history[-max_history:]
 
             pcm = (raw * int16_max).astype(np.int16)
             interleaved = pcm.reshape(-1)
@@ -271,8 +277,8 @@ class AudioGenerator:
 
     def get_visible_waveforms(self) -> dict[str, list[float]]:
         with self._lock:
-            gain = self._node_waveforms.get("gain")
-            return {"gain": gain} if gain else {}
+            gain = self._gain_history
+            return {"gain": _downsample_waveform(gain)} if gain.size else {}
 
     def wait_for_stats_change(self, timeout: float | None = None) -> bool:
         if self._stats_event.wait(timeout):
