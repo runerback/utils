@@ -12,6 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.runerback.brownnoise.MainActivity
 import com.runerback.brownnoise.R
+import com.runerback.brownnoise.ui.logs.AppLogger
 
 class StreamingService : Service() {
 
@@ -26,6 +27,7 @@ class StreamingService : Service() {
 
     private val binder = LocalBinder()
     private var audioStreamer: AudioStreamer? = null
+    private var lastState: StreamState = StreamState.Idle
     private var onStateChange: ((StreamState) -> Unit)? = null
     private var onWaveform: ((FloatArray) -> Unit)? = null
 
@@ -53,7 +55,11 @@ class StreamingService : Service() {
 
         if (audioStreamer == null) {
             audioStreamer = AudioStreamer(
-                onStateChange = { state -> onStateChange?.invoke(state) },
+                onStateChange = { state ->
+                    AppLogger.i("StreamingService", "State changed to $state, listener=${onStateChange != null}")
+                    lastState = state
+                    onStateChange?.invoke(state)
+                },
                 onAudioData = { frame -> onWaveform?.invoke(frame) }
             )
         }
@@ -64,7 +70,11 @@ class StreamingService : Service() {
     }
 
     fun setStateListener(listener: ((StreamState) -> Unit)?) {
+        AppLogger.i("StreamingService", "setStateListener lastState=$lastState")
         onStateChange = listener
+        if (lastState != StreamState.Idle) {
+            listener?.invoke(lastState)
+        }
     }
 
     fun setWaveformListener(listener: ((FloatArray) -> Unit)?) {
@@ -114,7 +124,7 @@ class StreamingService : Service() {
         )
 
         val contentIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val contentPendingIntent = PendingIntent.getActivity(
             this,

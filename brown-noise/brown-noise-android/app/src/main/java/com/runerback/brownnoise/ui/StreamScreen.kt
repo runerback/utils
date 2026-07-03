@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -80,7 +81,7 @@ fun StreamScreen(
                 label = { Text("Host") },
                 modifier = Modifier.weight(2f),
                 singleLine = true,
-                enabled = !state.isPlaying
+                enabled = !state.isPlaying && !state.isConnecting
             )
             OutlinedTextField(
                 value = state.port,
@@ -89,7 +90,7 @@ fun StreamScreen(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                enabled = !state.isPlaying
+                enabled = !state.isPlaying && !state.isConnecting
             )
         }
 
@@ -97,9 +98,23 @@ fun StreamScreen(
             onClick = {
                 if (state.isPlaying) viewModel.disconnect() else viewModel.connect()
             },
+            enabled = !state.isConnecting,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (state.isPlaying) "Disconnect" else "Connect")
+            if (state.isConnecting) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .height(18.dp)
+                            .padding(end = 8.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Text("Connecting...")
+                }
+            } else {
+                Text(if (state.isPlaying) "Disconnect" else "Connect")
+            }
         }
 
         Text(

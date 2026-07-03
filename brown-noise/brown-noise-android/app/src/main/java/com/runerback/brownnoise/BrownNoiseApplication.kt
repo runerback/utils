@@ -9,7 +9,7 @@ class BrownNoiseApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        LogBuffer.init(filesDir)
+        LogBuffer.init(this)
         AppLogger.i("App", "Application onCreate")
 
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()

@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +36,9 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val currentScreen = remember { mutableStateOf(Screen.Stream) }
+                    BackHandler(enabled = currentScreen.value != Screen.Stream) {
+                        currentScreen.value = Screen.Stream
+                    }
                     when (currentScreen.value) {
                         Screen.Stream -> StreamScreen(
                             onNavigateToSettings = { currentScreen.value = Screen.Settings },

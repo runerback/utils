@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -33,7 +34,7 @@ fun LogsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val entries = LogBuffer.entries()
+    val entries = LogBuffer.entries.collectAsState().value
 
     Scaffold(
         topBar = {
@@ -58,7 +59,10 @@ fun LogsScreen(
                             contentDescription = "Copy logs"
                         )
                     }
-                    IconButton(onClick = { LogBuffer.clear() }) {
+                    IconButton(onClick = {
+                        LogBuffer.clear()
+                        Toast.makeText(context, "Cleared", Toast.LENGTH_SHORT).show()
+                    }) {
                         Icon(
                             imageVector = Icons.Filled.Clear,
                             contentDescription = "Clear logs"

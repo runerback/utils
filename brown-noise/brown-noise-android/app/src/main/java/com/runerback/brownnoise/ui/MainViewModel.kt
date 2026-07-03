@@ -36,15 +36,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
     val uiState: StateFlow<StreamUiState> = _uiState
 
-    init {
-        SettingsRepository.settings
-            .onEach { settings ->
-                trimWaveformBuffer(settings.waveformSamples)
-                sendSettingsCommand(flush = true)
-            }
-            .launchIn(viewModelScope)
-    }
-
     private var streamingService: StreamingService? = null
     private val waveformBuffer = ArrayDeque<Float>(MAX_WAVEFORM_SAMPLES)
     @Volatile
@@ -72,6 +63,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    init {
+        SettingsRepository.settings
+            .onEach { settings ->
+                trimWaveformBuffer(settings.waveformSamples)
+                sendSettingsCommand(flush = true)
+            }
+            .launchIn(viewModelScope)
+    }
+
     fun onHostChange(host: String) {
         _uiState.update { it.copy(host = host) }
     }
@@ -88,6 +88,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connect() {
         val state = _uiState.value
+        if (state.isConnecting || state.isPlaying) return
+
         var host = sanitizeHost(state.host)
 
         var port = state.port.trim().toIntOrNull()
@@ -109,7 +111,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putString(PREF_PORT, port.toString())
             .apply()
 
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(status = "Connecting", isConnecting = true, error = null) }
 
         val context = getApplication<Application>()
         val intent = Intent(context, StreamingService::class.java).apply {
@@ -117,8 +119,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             putExtra(StreamingService.EXTRA_PORT, port)
             putExtra(StreamingService.EXTRA_VOLUME, state.volume)
         }
-        ContextCompat.startForegroundService(context, intent)
-        context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        try {
+            ContextCompat.startForegroundService(context, intent)
+            context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        } catch (e: Exception) {
+            AppLogger.e("MainViewModel", "Failed to start streaming service", e)
+            _uiState.update { it.copy(status = "Error", isConnecting = false, error = e.message) }
+        }
     }
 
     fun disconnect() {
@@ -132,7 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         context.stopService(Intent(context, StreamingService::class.java))
         streamingService = null
-        _uiState.update { it.copy(status = "Idle", isPlaying = false) }
+        _uiState.update { it.copy(status = "Idle", isPlaying = false, isConnecting = false, error = null) }
     }
 
     override fun onCleared() {
@@ -216,20 +223,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         when (state) {
             is StreamState.Idle -> {
                 AppLogger.i("MainViewModel", "Stream idle")
-                _uiState.update { it.copy(status = "Idle", isPlaying = false) }
+                _uiState.update { it.copy(status = "Idle", isPlaying = false, isConnecting = false) }
             }
             is StreamState.Connecting -> {
                 AppLogger.i("MainViewModel", "Stream connecting")
-                _uiState.update { it.copy(status = "Connecting", isPlaying = true) }
+                _uiState.update { it.copy(status = "Connecting", isConnecting = true, isPlaying = false, error = null) }
             }
             is StreamState.Streaming -> {
                 AppLogger.i("MainViewModel", "Stream streaming")
-                _uiState.update { it.copy(status = "Streaming", isPlaying = true, error = null) }
+                _uiState.update { it.copy(status = "Streaming", isPlaying = true, isConnecting = false, error = null) }
             }
             is StreamState.Error -> {
                 AppLogger.e("MainViewModel", "Stream error: ${state.message}")
                 _uiState.update {
-                    it.copy(status = "Error", isPlaying = false, error = state.message)
+                    it.copy(status = "Error", isPlaying = false, isConnecting = false, error = state.message)
                 }
             }
         }
@@ -247,6 +254,7 @@ data class StreamUiState(
     val port: String = "",
     val status: String = "Idle",
     val isPlaying: Boolean = false,
+    val isConnecting: Boolean = false,
     val volume: Float = 1.0f,
     val error: String? = null,
     val waveformPoints: List<Float> = emptyList()

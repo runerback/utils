@@ -1,9 +1,13 @@
 package com.runerback.brownnoise.ui.logs
 
+import android.content.Context
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 object LogBuffer {
 
@@ -12,13 +16,21 @@ object LogBuffer {
     private val buffer = ArrayDeque<LogEntry>(CAPACITY)
     private val lock = Any()
 
-    private var logFile: File? = null
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
+    private val _entries = MutableStateFlow<List<LogEntry>>(emptyList())
+    val entries: StateFlow<List<LogEntry>> = _entries.asStateFlow()
 
-    fun init(filesDir: File) {
+    private var logFile: File? = null
+    private val dateFormat = DateTimeFormatter
+        .ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+        .withZone(ZoneId.systemDefault())
+
+    fun init(context: Context) {
         synchronized(lock) {
             if (logFile == null) {
-                logFile = File(filesDir, "logs/app.log").also { it.parentFile?.mkdirs() }
+                val dir = context.filesDir ?: context.cacheDir
+                if (dir != null) {
+                    logFile = File(dir, "logs/app.log").also { it.parentFile?.mkdirs() }
+                }
             }
         }
     }
@@ -27,6 +39,7 @@ object LogBuffer {
         synchronized(lock) {
             if (buffer.size >= CAPACITY) buffer.removeFirst()
             buffer.addLast(entry)
+            _entries.value = buffer.toList()
             appendToFile(entry)
         }
     }
@@ -38,6 +51,7 @@ object LogBuffer {
     fun clear() {
         synchronized(lock) {
             buffer.clear()
+            _entries.value = emptyList()
             logFile?.writeText("")
         }
     }
@@ -61,7 +75,7 @@ object LogBuffer {
     }
 
     fun formatEntry(entry: LogEntry): String {
-        val time = dateFormat.format(Date(entry.time))
+        val time = dateFormat.format(Instant.ofEpochMilli(entry.time))
         val throwable = entry.throwable?.let { "\n$it" } ?: ""
         return "$time ${entry.level}/${entry.tag}: ${entry.message}$throwable"
     }
