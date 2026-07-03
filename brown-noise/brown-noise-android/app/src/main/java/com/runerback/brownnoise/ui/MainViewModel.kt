@@ -158,6 +158,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val controlPort = port + 1
         val command = buildMap<String, Any> {
             put("noise_type", settings.noiseType)
+            put("random_source", settings.randomSource)
             put("gain", settings.gain)
             put("surround", settings.surround)
             put("reverb", settings.reverb)

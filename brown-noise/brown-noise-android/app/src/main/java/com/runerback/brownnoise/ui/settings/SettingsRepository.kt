@@ -27,6 +27,11 @@ object SettingsRepository {
         _settings.update { it.copy(noiseType = noiseType) }
     }
 
+    fun setRandomSource(randomSource: String) {
+        prefs.edit().putString(PREF_RANDOM_SOURCE, randomSource).apply()
+        _settings.update { it.copy(randomSource = randomSource) }
+    }
+
     fun setGain(gain: Float) {
         prefs.edit().putFloat(PREF_GAIN, gain).apply()
         _settings.update { it.copy(gain = gain) }
@@ -71,6 +76,7 @@ object SettingsRepository {
     private fun loadSettings(): Settings {
         return Settings(
             noiseType = prefs.getString(PREF_NOISE_TYPE, "brown") ?: "brown",
+            randomSource = prefs.getString(PREF_RANDOM_SOURCE, "normal") ?: "normal",
             gain = prefs.getFloat(PREF_GAIN, 0.5f),
             surround = prefs.getFloat(PREF_SURROUND, 0.0f),
             reverb = prefs.getFloat(PREF_REVERB, 0.0f),
@@ -83,6 +89,7 @@ object SettingsRepository {
     }
 
     private const val PREF_NOISE_TYPE = "noise_type"
+    private const val PREF_RANDOM_SOURCE = "random_source"
     private const val PREF_GAIN = "gain"
     private const val PREF_SURROUND = "surround"
     private const val PREF_REVERB = "reverb"

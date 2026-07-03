@@ -58,11 +58,15 @@ class AudioGenerator:
                 "tune": TuneSource,
             }
             source_cls = source_map.get(self.config.noise_type, BrownNoiseSource)
-            kwargs: dict = {"seed": self.config.seed}
+            kwargs: dict = {
+                "seed": self.config.seed,
+                "distribution": self.config.random_source,
+            }
             if self.config.noise_type == "brown":
                 kwargs["leak"] = self.config.leak
             elif self.config.noise_type == "tune":
                 kwargs["sample_rate"] = self.config.sample_rate
+                kwargs.pop("distribution", None)
             self._source = source_cls(**kwargs)
             self._reverb = SimpleReverb(
                 self.config.sample_rate, self.config.channels, self.config.reverb
@@ -75,6 +79,7 @@ class AudioGenerator:
         self,
         *,
         noise_type: str | None = None,
+        random_source: str | None = None,
         leak: float | None = None,
         gain: float | None = None,
         surround: float | None = None,
@@ -94,6 +99,8 @@ class AudioGenerator:
         with self._lock:
             if noise_type is not None:
                 self.config.noise_type = noise_type
+            if random_source is not None:
+                self.config.random_source = random_source
             if leak is not None:
                 self.config.leak = leak
             if gain is not None:

@@ -4,6 +4,7 @@ import com.runerback.brownnoise.ui.DEFAULT_WAVEFORM_SAMPLES
 
 data class Settings(
     val noiseType: String = "brown",
+    val randomSource: String = "normal",
     val gain: Float = 0.5f,
     val surround: Float = 0.0f,
     val reverb: Float = 0.0f,

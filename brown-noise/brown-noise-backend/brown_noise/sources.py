@@ -5,8 +5,16 @@ import numpy as np
 class NoiseSource(ABC):
     """Base class for realtime noise sources."""
 
-    def __init__(self, seed: int | None = None):
+    def __init__(self, seed: int | None = None, distribution: str = "normal"):
         self.rng = np.random.default_rng(seed)
+        self.distribution = distribution
+
+    def _random(self, size) -> np.ndarray:
+        if self.distribution == "laplace":
+            return self.rng.laplace(0.0, 1.0 / np.sqrt(2.0), size)
+        if self.distribution == "uniform":
+            return self.rng.uniform(-np.sqrt(3.0), np.sqrt(3.0), size)
+        return self.rng.standard_normal(size)
 
     @abstractmethod
     def generate(self, frames: int, channels: int) -> np.ndarray:
@@ -16,17 +24,17 @@ class NoiseSource(ABC):
 
 class WhiteNoiseSource(NoiseSource):
     def generate(self, frames: int, channels: int) -> np.ndarray:
-        return self.rng.standard_normal((frames, channels)).astype(np.float32)
+        return self._random((frames, channels)).astype(np.float32)
 
 
 class BrownNoiseSource(NoiseSource):
-    def __init__(self, seed: int | None = None, leak: float = 0.99):
-        super().__init__(seed)
+    def __init__(self, seed: int | None = None, leak: float = 0.99, distribution: str = "normal"):
+        super().__init__(seed, distribution)
         self.leak = leak
         self._state: np.ndarray | None = None
 
     def generate(self, frames: int, channels: int) -> np.ndarray:
-        white = self.rng.standard_normal((frames, channels)).astype(np.float32)
+        white = self._random((frames, channels)).astype(np.float32)
         if self._state is None or self._state.shape[0] != channels:
             self._state = np.zeros(channels, dtype=np.float32)
         out = np.empty_like(white)
@@ -41,8 +49,8 @@ class BrownNoiseSource(NoiseSource):
 class PinkNoiseSource(NoiseSource):
     """Approximate pink noise using the Voss-McCartney algorithm."""
 
-    def __init__(self, seed: int | None = None):
-        super().__init__(seed)
+    def __init__(self, seed: int | None = None, distribution: str = "normal"):
+        super().__init__(seed, distribution)
         self._rows = 16
         self._vals = None
         self._index = 0
@@ -50,7 +58,7 @@ class PinkNoiseSource(NoiseSource):
     def generate(self, frames: int, channels: int) -> np.ndarray:
         out = np.empty((frames, channels), dtype=np.float32)
         if self._vals is None or self._vals.shape[1] != channels:
-            self._vals = self.rng.standard_normal((self._rows, channels)).astype(np.float32)
+            self._vals = self._random((self._rows, channels)).astype(np.float32)
             self._index = 0
         for i in range(frames):
             self._index += 1
@@ -58,7 +66,7 @@ class PinkNoiseSource(NoiseSource):
             if row >= self._rows:
                 self._index = 1
                 row = 0
-            self._vals[row] = self.rng.standard_normal(channels).astype(np.float32)
+            self._vals[row] = self._random(channels).astype(np.float32)
             out[i] = self._vals.sum(axis=0) / np.sqrt(self._rows)
         return out
 

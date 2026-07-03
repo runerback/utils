@@ -34,6 +34,7 @@ def _config_to_dict(config: AudioConfig) -> dict[str, Any]:
         "chunk_size": config.chunk_size,
         "gain": config.gain,
         "noise_type": config.noise_type,
+        "random_source": config.random_source,
         "leak": config.leak,
         "seed": config.seed,
         "surround": config.surround,
@@ -55,6 +56,7 @@ def _config_to_dict(config: AudioConfig) -> dict[str, Any]:
 
 _CONFIG_KEYS = {
     "noise_type",
+    "random_source",
     "leak",
     "gain",
     "surround",

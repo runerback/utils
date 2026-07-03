@@ -11,6 +11,7 @@ class AudioConfig:
     chunk_size: int = 1024
     gain: float = 0.5
     noise_type: str = "brown"
+    random_source: str = "normal"
     leak: float = 0.99
     seed: int | None = None
     surround: float = 0.0

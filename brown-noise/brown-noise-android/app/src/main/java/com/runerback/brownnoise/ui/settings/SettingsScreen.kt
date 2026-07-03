@@ -105,32 +105,65 @@ fun SettingsScreen(
 @Composable
 private fun SoundTab(settings: Settings) {
     val noiseTypes = listOf("brown", "white", "pink", "tune")
-    var expanded by remember { mutableStateOf(false) }
+    var noiseExpanded by remember { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded }
+        expanded = noiseExpanded,
+        onExpandedChange = { noiseExpanded = !noiseExpanded }
     ) {
         OutlinedTextField(
             value = settings.noiseType.replaceFirstChar { it.uppercase() },
             onValueChange = {},
             readOnly = true,
             label = { Text("Noise type") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = noiseExpanded) },
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor()
         )
         ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
+            expanded = noiseExpanded,
+            onDismissRequest = { noiseExpanded = false }
         ) {
             noiseTypes.forEach { type ->
                 DropdownMenuItem(
                     text = { Text(type.replaceFirstChar { it.uppercase() }) },
                     onClick = {
                         SettingsRepository.setNoiseType(type)
-                        expanded = false
+                        noiseExpanded = false
+                    }
+                )
+            }
+        }
+    }
+
+    val randomSources = listOf("normal", "uniform", "laplace")
+    var sourceExpanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = sourceExpanded,
+        onExpandedChange = { sourceExpanded = !sourceExpanded }
+    ) {
+        OutlinedTextField(
+            value = settings.randomSource.replaceFirstChar { it.uppercase() },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Random source") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sourceExpanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+        )
+        ExposedDropdownMenu(
+            expanded = sourceExpanded,
+            onDismissRequest = { sourceExpanded = false }
+        ) {
+            randomSources.forEach { source ->
+                DropdownMenuItem(
+                    text = { Text(source.replaceFirstChar { it.uppercase() }) },
+                    onClick = {
+                        SettingsRepository.setRandomSource(source)
+                        sourceExpanded = false
                     }
                 )
             }

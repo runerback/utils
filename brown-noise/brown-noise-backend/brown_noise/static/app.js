@@ -3,6 +3,7 @@ const ctx = canvas.getContext('2d');
 const statusEl = document.getElementById('status');
 const nodesEl = document.getElementById('nodes');
 const toggleBtn = document.getElementById('toggle');
+const randomSourceEl = document.getElementById('random-source');
 
 const colors = {
     gain: '#4caf50',
@@ -55,7 +56,32 @@ function updateSwitches(config) {
         const key = `bypass_${input.dataset.node}`;
         input.checked = config[key] !== true;
     });
+    if (config.random_source) {
+        randomSourceEl.value = config.random_source;
+    }
 }
+
+async function loadConfig() {
+    try {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+        updateSwitches(config);
+    } catch (err) {
+        console.error('Failed to load config', err);
+    }
+}
+
+function setRandomSource(value) {
+    fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ random_source: value }),
+    }).catch(err => console.error('Failed to set random source', err));
+}
+
+randomSourceEl.addEventListener('change', () => {
+    setRandomSource(randomSourceEl.value);
+});
 
 function draw() {
     const width = canvas.width / window.devicePixelRatio;
@@ -159,5 +185,6 @@ function animate() {
 
 loadNodes().then(() => {
     setRunning(false);
+    loadConfig();
 });
 animate();

@@ -12,6 +12,14 @@
         <canvas id="waveform" width="800" height="300"></canvas>
         <div class="status" id="status">Stopped</div>
         <button id="toggle" class="toggle-btn">Start</button>
+        <div class="control-row">
+            <label for="random-source">Random source</label>
+            <select id="random-source">
+                <option value="normal">Normal</option>
+                <option value="uniform">Uniform (rand)</option>
+                <option value="laplace">Laplace</option>
+            </select>
+        </div>
         <div class="nodes" id="nodes"></div>
     </div>
     <script src="/app.js"></script>

@@ -76,8 +76,13 @@ class ControlServer:
         if noise_type is not None and noise_type not in {"brown", "white", "pink", "tune"}:
             raise ValueError(f"Unknown noise type: {noise_type}")
 
+        random_source = cmd.get("random_source")
+        if random_source is not None and random_source not in {"normal", "uniform", "laplace"}:
+            raise ValueError(f"Unknown random source: {random_source}")
+
         self.generator.update_config(
             noise_type=noise_type,
+            random_source=random_source,
             leak=cmd.get("leak"),
             gain=cmd.get("gain"),
             surround=cmd.get("surround"),
