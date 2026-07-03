@@ -1,0 +1,1 @@
+type jtoken = str | int | list[jtoken] | dict[str, jtoken]

@@ -1,0 +1,53 @@
+.svnlogs {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  min-height: 10vh;
+  background-color: white;
+}
+
+.svnlogscard {
+  margin: 6px;
+  width: 100%;
+}
+
+.logs {
+  width: 100%;
+}
+
+.line {
+  width: 100%;
+
+  .ant-checkbox-label {
+    width: 100%;
+  }
+}
+
+.comparer {
+  width: 100%;
+  text-align: center;
+
+  button {
+    margin-bottom: 16px;
+  }
+}
+
+.svnrevlogscard {
+  flex: 100%;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.svnrevlogcard {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 6px;
+  background-color: white;
+
+  .ant-spin-nested-loading {
+    width: 100%;
+  }
+}

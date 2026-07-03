@@ -1,0 +1,309 @@
+import { Button, Collapse, Space, Spin } from "antd";
+import {
+  useComputed,
+  useSignal,
+  useSignalEffect,
+  useSignals,
+} from "@preact/signals-react/runtime";
+import type { Key } from "preact";
+import { useCallback, useContext, type MutableRef } from "preact/hooks";
+import { SvnDiffContext } from "../context/svnDiffContext";
+import { filter } from "rxjs";
+import { type ReadonlySignal } from "@preact/signals-react";
+import network from "../context/network";
+import SvnDiffCardLabel from "./SvnDiffCardLabel";
+import SvnDiffCardContent from "./SvnDiffCardContent";
+import Refresh from "../assets/Refresh.svg?react";
+import { lazy, Suspense } from "preact/compat";
+import DocPendingCommitIcon from "../components/icons/DocPendingCommitIcon";
+import DocNotCommitIcon from "../components/icons/DocNotCommitIcon";
+import { SvnCommitContext } from "../context/svnCommitContext";
+import RevertIcon from "../components/icons/RevertIcon";
+import { SvnRevertContext } from "../context/svnRevertContext";
+import CopyIcon from "../components/icons/CopyIcon";
+import { ClipboardContext } from "../context/clipboardContext";
+
+const History = lazy(() => import("../assets/History.svg?react"));
+const OpenFolderIcon = lazy(() => import("../components/icons/OpenFolderIcon"));
+
+export function SvnDiffCard(props: {
+  fkey?: Key;
+  status: SvnStatusItem;
+  settings: ReadonlySignal<Settings | undefined>;
+  observe: (
+    target: MutableRef<HTMLElement>,
+    callback: (active: boolean) => void,
+  ) => void;
+  unobserve: (target: MutableRef<HTMLElement>) => void;
+  fetchLogs: (status: SvnStatusItem) => void;
+}) {
+  useSignals();
+  const fetching = useSignal(false);
+  const fetched = useSignal(false);
+  const busy = useSignal(false);
+  const diffId = useSignal("");
+  const diffs = useSignal<Chunk1>();
+  const unversioned = useSignal(Array<string>());
+  const missing = useSignal(Array<string>());
+  const svnContext = useContext(SvnDiffContext);
+  const svnRevertContext = useContext(SvnRevertContext);
+  useSignalEffect(() => {
+    svnContext.stream$
+      .pipe(
+        filter(
+          (it) =>
+            !!it &&
+            !!it.id &&
+            it.job !== "FETCH_LOGS" &&
+            it.id === diffId.value,
+        ),
+      )
+      .subscribe((e) => {
+        if (!!e.chunks && e.chunks.length > 0) {
+          diffs.value = e.chunks[0];
+          unversioned.value = [];
+          missing.value = [];
+        } else if (!!e.unversioned && e.unversioned.length > 0) {
+          unversioned.value = e.unversioned;
+          diffs.value = undefined;
+          missing.value = [];
+        } else if (!!e.missing && e.missing.length > 0) {
+          missing.value = e.missing;
+          diffs.value = undefined;
+          unversioned.value = [];
+        }
+        busy.value = false;
+      });
+  });
+  useSignalEffect(() => {
+    if (fetching.value && !fetched.value) {
+      fetching.value = false;
+      fetched.value = true;
+      busy.value = true;
+      svnContext.provide(props.status).then((id) => {
+        if (!!id) {
+          diffId.value = id;
+        } else {
+          diffId.value = "";
+          busy.value = false;
+        }
+      });
+    }
+  });
+  const fetch = useCallback((key?: string[]) => {
+    if (typeof key === "undefined") {
+      fetched.value = false;
+      fetching.value = true;
+      return;
+    }
+    if (fetched.value) {
+      return;
+    }
+    fetching.value = true;
+  }, []);
+  const canShowLog = useComputed(() => {
+    switch (props.status.state) {
+      case "?":
+      case "A":
+      case "D":
+        return false;
+      default:
+        return true;
+    }
+  });
+  const canViewFile = useComputed(() => {
+    switch (props.status.state) {
+      case "D":
+        return false;
+      default:
+        return true;
+    }
+  });
+  const checked = useSignal(false);
+  const svnCommitContext = useContext(SvnCommitContext);
+  const fetchCommitContext = useCallback(() => {
+    if (checked.value) {
+      svnCommitContext.append(props.status.source);
+    } else {
+      svnCommitContext.remove(props.status.source);
+    }
+  }, []);
+  const canRevert = useComputed(() => props.status.state === "M");
+  const isfile = useSignal(false);
+  const fileLastModifiedTime = useSignal("");
+  useSignalEffect(() => {
+    if (isfile.value && props.status.state !== "D") {
+      network.get_file_modifed_time(props.status.source).then((res) => {
+        if (!!res) {
+          fileLastModifiedTime.value = res;
+        }
+      });
+    }
+  });
+  const onActivedOnce = useCallback(() => {
+    switch (props.status.state) {
+      case "M":
+      case "A":
+        break;
+      case "D":
+        isfile.value = true;
+        return;
+      default:
+        return;
+    }
+    network.get_file_isfile(props.status.source).then((res) => {
+      isfile.value = res === true;
+    });
+  }, []);
+  const clipboard = useContext(ClipboardContext);
+  return (
+    <div className="diffcard">
+      <Spin spinning={busy.value}>
+        <Collapse
+          bordered
+          key={props.fkey}
+          onChange={fetch}
+          items={[
+            {
+              label: (
+                <SvnDiffCardLabel
+                  {...props}
+                  viewed={fetched.value}
+                  onActivedOnce={onActivedOnce}
+                  lastModifiedTime={fileLastModifiedTime.value}
+                />
+              ),
+              extra: (
+                <Space>
+                  {isfile.value && canViewFile.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        <Suspense fallback={<img className="icon" />}>
+                          <CopyIcon
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        </Suspense>
+                      }
+                      title="Copy Full Path"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        clipboard.copy(
+                          `${props.settings.value?.svn_root}/${props.status.source}`,
+                        );
+                      }}
+                    />
+                  )}
+                  {canShowLog.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        <Suspense fallback={<img className="icon" />}>
+                          <History
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        </Suspense>
+                      }
+                      title="Show Logs"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        props.fetchLogs(props.status);
+                      }}
+                    />
+                  )}
+                  {canViewFile.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        <Suspense fallback={<img className="icon" />}>
+                          <OpenFolderIcon
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        </Suspense>
+                      }
+                      title="Open Containing Folder"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        network.open_in_dir(props.status.source);
+                      }}
+                    />
+                  )}
+                  {canViewFile.value && canRevert.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        <RevertIcon
+                          className={busy.value ? "icon p5 spin" : "icon p5"}
+                        />
+                      }
+                      title="Revert"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        svnRevertContext.revert({ status: props.status });
+                      }}
+                    />
+                  )}
+                  {canViewFile.value && (
+                    <Button
+                      loading={busy.value}
+                      icon={
+                        checked.value ? (
+                          <DocPendingCommitIcon
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        ) : (
+                          <DocNotCommitIcon
+                            className={busy.value ? "icon p5 spin" : "icon p5"}
+                          />
+                        )
+                      }
+                      title={
+                        checked.value
+                          ? "Will be committed"
+                          : "Will not be committed"
+                      }
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        checked.value = !checked.peek();
+                        fetchCommitContext();
+                      }}
+                    />
+                  )}
+                  <Button
+                    loading={busy.value}
+                    icon={
+                      <Refresh
+                        className={busy.value ? "icon p5 spin" : "icon p5"}
+                      />
+                    }
+                    title="Reload"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      fetch();
+                    }}
+                  />
+                </Space>
+              ),
+              children: [
+                <SvnDiffCardContent
+                  diffs={diffs}
+                  unversioned={unversioned}
+                  missing={missing}
+                  busy={busy}
+                  {...props}
+                />,
+              ],
+              collapsible: isfile.value ? undefined : "disabled",
+            },
+          ]}
+        />
+      </Spin>
+    </div>
+  );
+}

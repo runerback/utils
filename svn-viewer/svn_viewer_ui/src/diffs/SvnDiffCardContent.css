@@ -1,0 +1,62 @@
+.header {
+  display: flex;
+}
+
+.header .indicator {
+  flex: 80%;
+  justify-content: flex-start;
+}
+
+.diff_panel {
+  --diff-addition-background: #f0fff4;
+  --diff-deletion-background: #ffeef0;
+  --line-number-width: 30px;
+  --diff-whitespace-color: #9aa0a6;
+  --diff-whitespace-trailing-color: #cc3e44;
+
+  border: solid lightgray 1px;
+}
+
+.diff_panel .diff_row {
+  display: grid;
+  grid-template-columns: var(--line-number-width) var(--line-number-width) auto;
+}
+
+.diff_panel .diff_row .number {
+  font-weight: bold;
+  user-select: none;
+  color: gray;
+  padding-right: 8px;
+}
+
+.diff_panel .diff_row .hunk {
+  color: gray;
+  font-style: italic;
+}
+
+.diff_panel .diff_row .addition {
+  background-color: var(--diff-addition-background);
+}
+
+.diff_panel .diff_row .deletion {
+  background-color: var(--diff-deletion-background);
+}
+
+.diff_panel .diff-whitespace-marker {
+  color: var(--diff-whitespace-color);
+  user-select: text;
+  opacity: 0.9;
+}
+
+.diff_panel .diff-whitespace-tab {
+  letter-spacing: -1px;
+}
+
+.diff_panel .diff-whitespace-trailing {
+  color: var(--diff-whitespace-trailing-color);
+  opacity: 1;
+}
+
+.diff_panel .diff-line-marker {
+  user-select: none;
+}
