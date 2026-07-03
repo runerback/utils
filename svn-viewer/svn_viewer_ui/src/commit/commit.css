@@ -1,0 +1,40 @@
+.modal_footer {
+  width: 100%;
+  text-align: center;
+}
+
+.modal_empty_list {
+  min-height: 30vh;
+  max-height: 60vh;
+  align-content: center;
+}
+
+.modal_list {
+  max-height: 60vh;
+  min-height: 10vh;
+  overflow-y: auto;
+}
+
+.modal_message {
+  width: 100%;
+}
+
+.modal_title {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  overflow-x: hidden;
+}
+
+.modal_switch {
+  margin: auto;
+
+  button {
+    :has(.ant-switch-inner-checked) {
+      background-color: #1677ff;
+    }
+    :has(:not(.ant-switch-inner-checked)) {
+      background-color: #1677ff;
+    }
+  }
+}

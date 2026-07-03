@@ -1,0 +1,21 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.header {
+  height: auto;
+}
+
+.content {
+  height: 80%;
+  flex-grow: 1;
+  overflow-y: auto;
+  text-align: left;
+  scrollbar-width: thin;
+}
+
+.ant-modal-wrap {
+  scrollbar-width: thin;
+}

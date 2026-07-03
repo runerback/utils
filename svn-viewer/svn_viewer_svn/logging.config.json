@@ -1,0 +1,25 @@
+{
+    "version": 1,
+    "disable_existing_loggers": false,
+    "formatters": {
+        "stdformatter": {
+            "format": "DateTime=%(asctime)s loglevel=%(levelname)-6s  %(funcName)s() L%(lineno)-4d %(message)s call_trace=%(pathname)s L%(lineno)-4d"
+        }
+    },
+    "handlers": {
+        "stdhandler": {
+            "class": "logging.StreamHandler",
+            "formatter": "stdformatter",
+            "stream": "ext://sys.stdout"
+        }
+    },
+    "loggers": {
+        "root": {
+            "handlers": [
+                "stdhandler"
+            ],
+            "level": "INFO",
+            "propagate": true
+        }
+    }
+}

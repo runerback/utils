@@ -1,0 +1,31 @@
+{
+  "name": "svn_viewer_server",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "start": "cross-env NODE_OPTIONS=--max-old-space-size=8192 && npm run dev",
+    "dev": "npm run compile && node --trace-uncaught ./libs/dist/index.js",
+    "compile": "npx tsc && npx swc dist -d libs",
+    "test": "jest"
+  },
+  "author": "runerback",
+  "license": "ISC",
+  "dependencies": {
+    "@microsoft/signalr": "^8.0.7",
+    "express": "^5.1.0",
+    "moment": "^2.30.1",
+    "node-cache": "^5.1.2",
+    "svn_viewer_server": "file:"
+  },
+  "devDependencies": {
+    "@swc/cli": "^0.7.3",
+    "@types/express": "^5.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.15.12",
+    "cross-env": "^7.0.3",
+    "jest": "^30.1.3",
+    "ts-jest": "^29.4.1",
+    "typescript": "^5.8.3"
+  }
+}

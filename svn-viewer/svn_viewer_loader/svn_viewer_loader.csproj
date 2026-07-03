@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>svn.viewer.loader</RootNamespace>
+    <NoWarn>$(NoWarn);IDE0063;IDE0290</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="assets\*.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="aspire-webview2-wpf" Version="1.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.1-dev-02307" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.1-dev-00953" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.*.json">
+      <DependentUpon>appsettings.json</DependentUpon>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
