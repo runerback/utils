@@ -9,6 +9,7 @@
     <string name="save">Save</string>
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
+    <string name="reset">Reset</string>
     <string name="connected">Connected</string>
     <string name="disconnected">Disconnected</string>
     <string name="connecting">Connecting…</string>
@@ -19,6 +20,10 @@
     <string name="tab_keys">Keys</string>
     <string name="fkeys_title">F-Key Configuration</string>
     <string name="fkeys_visible_hint">Keys inside the border are shown on the keyboard</string>
+    <string name="print_screen_title">Print Screen key</string>
+    <string name="print_screen_option_prtsc">PrtSc</string>
+    <string name="print_screen_option_home">Home</string>
+    <string name="print_screen_option_end">End</string>
     <string name="background_color_label">Background color</string>
     <string name="vibration_label">Vibrate on key press</string>
     <string name="vibration_intensity_label">Intensity</string>

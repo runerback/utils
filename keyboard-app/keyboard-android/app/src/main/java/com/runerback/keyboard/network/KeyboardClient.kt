@@ -114,6 +114,15 @@ object KeyboardClient {
         clearPending()
     }
 
+    fun reset(host: String, port: Int, deviceToken: String = "") {
+        if (host.isBlank()) return
+        disconnect()
+        lastHost = host
+        lastPort = port
+        lastDeviceToken = deviceToken
+        attemptConnect(host, port)
+    }
+
     fun sendKey(vk: Int, action: String) {
         if (!isAuthenticated()) {
             synchronized(pendingKeys) {
