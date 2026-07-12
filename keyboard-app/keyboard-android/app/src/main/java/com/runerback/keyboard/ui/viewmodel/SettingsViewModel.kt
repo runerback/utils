@@ -27,6 +27,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val vibrationEnabled: StateFlow<Boolean> = SettingsRepository.vibrationEnabled
     val vibrationIntensity: StateFlow<Int> = SettingsRepository.vibrationIntensity
     val fKeyOrder: StateFlow<String> = SettingsRepository.fKeyOrder
+    val printScreenVk: StateFlow<Int> = SettingsRepository.printScreenVk
 
     val connectionState: StateFlow<KeyboardClient.State> = KeyboardClient.state
     val authState: StateFlow<KeyboardClient.AuthState> = KeyboardClient.authState
@@ -60,6 +61,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         KeyboardClient.disconnect()
     }
 
+    fun reset() {
+        val hostValue = _host.value.trim()
+        val portValue = _port.value.toIntOrNull() ?: 50051
+        if (hostValue.isNotEmpty()) {
+            KeyboardClient.reset(hostValue, portValue, SettingsRepository.readDeviceToken())
+        }
+    }
+
     fun openLogScreen() {
         val intent = Intent(getApplication(), LogActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -90,5 +99,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun onFKeyOrderChange(order: List<Int>) {
         SettingsRepository.setFKeyOrder(order)
+    }
+
+    fun onPrintScreenVkChange(vk: Int) {
+        SettingsRepository.setPrintScreenVk(vk)
     }
 }

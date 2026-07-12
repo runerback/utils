@@ -22,10 +22,12 @@ object SettingsRepository {
     private const val KEY_VIBRATION_ENABLED = "vibration_enabled"
     private const val KEY_VIBRATION_INTENSITY = "vibration_intensity"
     private const val KEY_FKEY_ORDER = "fkey_order"
+    private const val KEY_PRINT_SCREEN_VK = "print_screen_vk"
 
     private val DEFAULT_BACKGROUND_COLOR = Color.White.toArgb()
     private const val DEFAULT_VIBRATION_INTENSITY = 3
     private val DEFAULT_FKEY_ORDER = (0x70..0x7B).joinToString(",")
+    private const val DEFAULT_PRINT_SCREEN_VK = 0x2C
 
     private lateinit var prefs: SharedPreferences
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -38,6 +40,7 @@ object SettingsRepository {
     private val _vibrationEnabled = MutableStateFlow(false)
     private val _vibrationIntensity = MutableStateFlow(DEFAULT_VIBRATION_INTENSITY)
     private val _fKeyOrder = MutableStateFlow(DEFAULT_FKEY_ORDER)
+    private val _printScreenVk = MutableStateFlow(DEFAULT_PRINT_SCREEN_VK)
 
     val host: StateFlow<String> = _host.asStateFlow()
     val port: StateFlow<String> = _port.asStateFlow()
@@ -47,6 +50,7 @@ object SettingsRepository {
     val vibrationEnabled: StateFlow<Boolean> = _vibrationEnabled.asStateFlow()
     val vibrationIntensity: StateFlow<Int> = _vibrationIntensity.asStateFlow()
     val fKeyOrder: StateFlow<String> = _fKeyOrder.asStateFlow()
+    val printScreenVk: StateFlow<Int> = _printScreenVk.asStateFlow()
 
     private val listener = OnSharedPreferenceChangeListener { _, key ->
         mainHandler.post {
@@ -64,6 +68,8 @@ object SettingsRepository {
                     prefs.getInt(KEY_VIBRATION_INTENSITY, DEFAULT_VIBRATION_INTENSITY)
                 KEY_FKEY_ORDER -> _fKeyOrder.value =
                     prefs.getString(KEY_FKEY_ORDER, DEFAULT_FKEY_ORDER) ?: DEFAULT_FKEY_ORDER
+                KEY_PRINT_SCREEN_VK -> _printScreenVk.value =
+                    prefs.getInt(KEY_PRINT_SCREEN_VK, DEFAULT_PRINT_SCREEN_VK)
             }
         }
     }
@@ -84,6 +90,7 @@ object SettingsRepository {
         _vibrationEnabled.value = prefs.getBoolean(KEY_VIBRATION_ENABLED, false)
         _vibrationIntensity.value = prefs.getInt(KEY_VIBRATION_INTENSITY, DEFAULT_VIBRATION_INTENSITY)
         _fKeyOrder.value = prefs.getString(KEY_FKEY_ORDER, DEFAULT_FKEY_ORDER) ?: DEFAULT_FKEY_ORDER
+        _printScreenVk.value = prefs.getInt(KEY_PRINT_SCREEN_VK, DEFAULT_PRINT_SCREEN_VK)
     }
 
     fun setHost(value: String) {
@@ -119,6 +126,14 @@ object SettingsRepository {
         prefs.edit().putString(KEY_FKEY_ORDER, order.joinToString(",")).apply()
     }
 
+    fun setPrintScreenVk(vk: Int) {
+        val valid = when (vk) {
+            0x2C, 0x24, 0x23 -> vk
+            else -> DEFAULT_PRINT_SCREEN_VK
+        }
+        prefs.edit().putInt(KEY_PRINT_SCREEN_VK, valid).apply()
+    }
+
     fun readHost(): String = host.value
 
     fun readPort(): Int = port.value.toIntOrNull() ?: 50051
@@ -134,4 +149,6 @@ object SettingsRepository {
         val default = (0x70..0x7B).toList()
         return if (parsed.size == 12 && parsed.toSet().size == 12) parsed else default
     }
+
+    fun readPrintScreenVk(): Int = printScreenVk.value
 }

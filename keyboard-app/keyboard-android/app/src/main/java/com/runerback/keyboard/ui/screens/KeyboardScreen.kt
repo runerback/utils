@@ -81,6 +81,8 @@ object Vk {
     const val F12 = 0x7B
     const val INSERT = 0x2D
     const val SNAPSHOT = 0x2C // PrintScreen
+    const val HOME = 0x24
+    const val END = 0x23
     const val SPACE = 0x20
     const val DELETE = 0x2E
     const val LEFT = 0x25
@@ -188,7 +190,8 @@ private val keyRows: List<List<KeyData>> = listOf(
         KeyData("Win", Vk.WIN, weight = 1.25f),
         KeyData("Alt", Vk.MENU, weight = 1.25f),
         KeyData("Space", Vk.SPACE, weight = 5f, repeat = true),
-        KeyData("Menu", Vk.APPS),
+        KeyData("Menu", Vk.APPS, weight = 1.25f),
+        KeyData("Ctrl", Vk.CONTROL, weight = 1.25f),
         KeyData("←", Vk.LEFT, repeat = true),
         KeyData("→", Vk.RIGHT, repeat = true),
         KeyData("↓", Vk.DOWN, repeat = true)
@@ -233,10 +236,17 @@ fun KeyboardScreen(
     var shiftActive by remember { mutableStateOf(false) }
 
     val fKeyOrder by SettingsRepository.fKeyOrder.collectAsState()
+    val printScreenVk by SettingsRepository.printScreenVk.collectAsState()
     val visibleFKeys = remember(fKeyOrder) {
         parseFKeyOrder(fKeyOrder)
             .take(8)
             .map { vk -> KeyData(labelForFKey(vk), vk) }
+    }
+
+    val printScreenLabel = when (printScreenVk) {
+        Vk.HOME -> "Home"
+        Vk.END -> "End"
+        else -> "PrtSc"
     }
 
     val handleKeyEvent = { vk: Int, action: String ->
@@ -302,7 +312,7 @@ fun KeyboardScreen(
                 modifier = Modifier.weight(1f)
             )
             KeyButton(
-                key = KeyData("PrtSc", Vk.SNAPSHOT),
+                key = KeyData(printScreenLabel, printScreenVk),
                 onKeyEvent = handleKeyEvent,
                 capsActive = capsActive,
                 shiftActive = shiftActive,
@@ -340,8 +350,7 @@ fun KeyboardScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            keyRows.forEachIndexed { rowIndex, row ->
-                val isLastRow = rowIndex == keyRows.lastIndex
+            keyRows.forEachIndexed { _, row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -349,8 +358,6 @@ fun KeyboardScreen(
                     row.forEach { key ->
                         val keyModifier = when {
                             key.vk == Vk.SPACE -> Modifier.weight(key.weight)
-                            key.vk == Vk.CONTROL || key.vk == Vk.WIN || key.vk == Vk.MENU || key.vk == Vk.APPS -> Modifier.width(78.dp)
-                            isLastRow -> Modifier.width(52.dp)
                             key.isSquare -> Modifier.width(52.dp)
                             else -> Modifier.weight(key.weight)
                         }

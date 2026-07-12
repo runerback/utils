@@ -33,6 +33,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.Composable
@@ -94,6 +95,7 @@ fun SettingsScreen(
     val vibrationEnabled by viewModel.vibrationEnabled.collectAsState()
     val vibrationIntensity by viewModel.vibrationIntensity.collectAsState()
     val fKeyOrder by viewModel.fKeyOrder.collectAsState()
+    val printScreenVk by viewModel.printScreenVk.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.resetSavedFlag()
@@ -137,6 +139,7 @@ fun SettingsScreen(
                     onSave = viewModel::save,
                     onConnect = viewModel::connect,
                     onDisconnect = viewModel::disconnect,
+                    onReset = viewModel::reset,
                     onInterceptRealKeyboardChange = viewModel::onInterceptRealKeyboardChange,
                     onShowLogs = viewModel::openLogScreen
                 )
@@ -152,7 +155,9 @@ fun SettingsScreen(
                 )
                 3 -> KeysTab(
                     fKeyOrder = fKeyOrder,
-                    onFKeyOrderChange = viewModel::onFKeyOrderChange
+                    onFKeyOrderChange = viewModel::onFKeyOrderChange,
+                    printScreenVk = printScreenVk,
+                    onPrintScreenVkChange = viewModel::onPrintScreenVkChange
                 )
             }
 
@@ -227,6 +232,7 @@ private fun SystemTab(
     onSave: () -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
+    onReset: () -> Unit,
     onInterceptRealKeyboardChange: (Boolean) -> Unit,
     onShowLogs: () -> Unit,
     modifier: Modifier = Modifier
@@ -315,6 +321,13 @@ private fun SystemTab(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(stringResource(R.string.disconnect))
+            }
+            Button(
+                onClick = onReset,
+                modifier = Modifier.weight(1f),
+                enabled = host.isNotBlank() && port.isNotBlank()
+            ) {
+                Text(stringResource(R.string.reset))
             }
         }
 
@@ -470,10 +483,23 @@ private fun parseFKeyOrder(csv: String): List<Int> {
     return if (parsed.size == 12 && parsed.toSet().size == 12) parsed else default
 }
 
+private data class PrintScreenOption(
+    @androidx.annotation.StringRes val labelRes: Int,
+    val vk: Int
+)
+
+private val printScreenOptions = listOf(
+    PrintScreenOption(R.string.print_screen_option_prtsc, Vk.SNAPSHOT),
+    PrintScreenOption(R.string.print_screen_option_home, Vk.HOME),
+    PrintScreenOption(R.string.print_screen_option_end, Vk.END)
+)
+
 @Composable
 private fun KeysTab(
     fKeyOrder: String,
     onFKeyOrderChange: (List<Int>) -> Unit,
+    printScreenVk: Int,
+    onPrintScreenVkChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val parsed = remember(fKeyOrder) { parseFKeyOrder(fKeyOrder) }
@@ -486,6 +512,36 @@ private fun KeysTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Text(
+            text = stringResource(R.string.print_screen_title),
+            style = MaterialTheme.typography.headlineMedium
+        )
+
+        printScreenOptions.forEach { option ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = printScreenVk == option.vk,
+                        role = Role.RadioButton,
+                        onClick = { onPrintScreenVkChange(option.vk) }
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = printScreenVk == option.vk,
+                    onClick = null
+                )
+                Text(
+                    text = stringResource(option.labelRes),
+                    modifier = Modifier.padding(start = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Text(
             text = stringResource(R.string.fkeys_title),
             style = MaterialTheme.typography.headlineMedium
