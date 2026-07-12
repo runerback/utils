@@ -75,11 +75,18 @@ class RotationState(BaseModel):
     quarter_turns: QuarterTurnCount = 0
 
 
+class FreezeFrameState(BaseModel):
+    enabled: bool = False
+    timestamp: float = Field(default=0, ge=0)
+    duration: float = Field(default=1.0, ge=0.1)
+
+
 class EditState(BaseModel):
     trim: TrimState = Field(default_factory=TrimState)
     crop: CropState = Field(default_factory=CropState)
     rotation: RotationState = Field(default_factory=RotationState)
     scene_split: SceneSplitState = Field(default_factory=SceneSplitState)
+    freeze_frame: FreezeFrameState = Field(default_factory=FreezeFrameState)
     crop_enabled: bool = False
     resize_max: Optional[int] = Field(default=None, gt=0)
     speed: float = Field(default=1.0, ge=0.25)
@@ -160,6 +167,10 @@ class ProjectListItem(BaseModel):
 class TrimFramesResponse(BaseModel):
     start_url: str
     end_url: str
+
+
+class FrameResponse(BaseModel):
+    url: str
 
 
 @dataclass

@@ -13,6 +13,7 @@ from app.main import (
     create_project_from_path,
     download_export,
     estimate_export_gif,
+    get_frame,
     get_project,
     get_project_original,
     index,
@@ -411,6 +412,41 @@ class MainTests(unittest.TestCase):
             access_logger.setLevel(original_access_level)
             access_logger.propagate = original_access_propagate
             temp_dir.cleanup()
+
+    def test_get_frame_renders_single_frame_image(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project_id = "abc123"
+            original_file = root / "uploads" / f"{project_id}.mp4"
+            original_file.parent.mkdir(parents=True, exist_ok=True)
+            original_file.write_bytes(b"video")
+            paths = ProjectPaths(
+                project_id=project_id,
+                project_file=root / "projects" / f"{project_id}.json",
+                original_file=original_file,
+                preview_file=root / "work" / f"{project_id}_preview.mp4",
+                export_file=root / "exports" / "legacy_export.mp4",
+                player_proxy_file=root / "work" / f"{project_id}_original_player.mp4",
+            )
+            metadata = VideoMetadata(
+                width=1920,
+                height=1080,
+                duration=8.0,
+                fps=30.0,
+                frame_count=240,
+                video_codec="h264",
+                audio_codec="aac",
+                container_format="mov,mp4,m4a,3gp,3g2,mj2",
+            )
+            state = EditState()
+            fake_storage = _FakeStorage(paths, metadata, state)
+            fake_ffmpeg = _FakeFFmpeg(metadata=metadata)
+
+            with patch("app.main.storage", fake_storage), patch("app.main.ffmpeg", fake_ffmpeg):
+                response = get_frame(project_id, timestamp=2.5)
+
+            self.assertEqual(response.url, f"/work/{project_id}_frame.jpg")
+            self.assertEqual(fake_ffmpeg.ran_commands[0][2], "2.500000")
 
     def test_trim_frames_uses_last_available_frame_for_end_timestamp(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

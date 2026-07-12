@@ -27,7 +27,7 @@ h1, h2 {
   font-weight: 500;
 }
 
-.controls, .timeline, .crop, .speed, .resize, .scene-split, .actions {
+.controls, .timeline, .crop, .speed, .resize, .scene-split, .freeze-frame, .actions {
   background: #1a2026;
   border: 1px solid #2f3944;
   padding: 12px;
@@ -125,6 +125,26 @@ video {
 }
 
 .trim-preview-card img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+  border: 1px solid #2f3944;
+}
+
+.freeze-frame-preview-card {
+  border: 1px solid #2f3944;
+  background: #111920;
+  padding: 8px;
+  flex: 1;
+}
+
+.freeze-frame-preview-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.freeze-frame-preview-card img {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: contain;

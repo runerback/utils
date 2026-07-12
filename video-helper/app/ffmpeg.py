@@ -124,6 +124,11 @@ class FFmpegService:
             )
             if not self._is_segmentable_duration(trim_duration, min_len, max_len):
                 raise ValueError("Scene split min/max clip lengths cannot segment the current trimmed duration")
+        if state.freeze_frame.enabled:
+            if state.scene_split.enabled:
+                raise ValueError("Freeze frame cannot be used with scene split")
+            if state.freeze_frame.timestamp > metadata.duration:
+                raise ValueError("Freeze frame timestamp exceeds video duration")
 
     def frame_interval(self, metadata: VideoMetadata) -> float:
         if metadata.fps <= self._SEGMENT_EPSILON:
@@ -144,17 +149,8 @@ class FFmpegService:
         adjusted_max = max_len + tolerance
         return adjusted_min, adjusted_max
 
-    def _filters(
-        self,
-        metadata: VideoMetadata,
-        state: EditState,
-        trim_start: float | None = None,
-        trim_end: float | None = None,
-    ) -> str:
+    def _visual_filters(self, state: EditState) -> list[str]:
         filters: list[str] = []
-        effective_trim_start = state.trim.start if trim_start is None else trim_start
-        effective_trim_end = (state.trim.end or metadata.duration) if trim_end is None else trim_end
-        filters.append(self._video_timing_filter(state, effective_trim_start, effective_trim_end))
         if state.crop_enabled and state.crop.width and state.crop.height:
             filters.append(
                 f"crop={state.crop.width}:{state.crop.height}:{state.crop.x}:{state.crop.y}"
@@ -167,6 +163,20 @@ class FFmpegService:
                 f"if(gte(iw\\,ih)\\,min(iw\\,{max_size})\\,-2):"
                 f"if(gte(iw\\,ih)\\,-2\\,min(ih\\,{max_size}))"
             )
+        return filters
+
+    def _filters(
+        self,
+        metadata: VideoMetadata,
+        state: EditState,
+        trim_start: float | None = None,
+        trim_end: float | None = None,
+    ) -> str:
+        filters: list[str] = []
+        effective_trim_start = state.trim.start if trim_start is None else trim_start
+        effective_trim_end = (state.trim.end or metadata.duration) if trim_end is None else trim_end
+        filters.append(self._video_timing_filter(state, effective_trim_start, effective_trim_end))
+        filters.extend(self._visual_filters(state))
         return ",".join(filters)
 
     def _video_timing_filter(self, state: EditState, trim_start: float, trim_end: float) -> str:
@@ -267,9 +277,93 @@ class FFmpegService:
             "[gif_input][palette]paletteuse=dither=sierra2_4a"
         )
 
+    def _freeze_frame_loop_count(self, metadata: VideoMetadata, duration: float) -> int:
+        if metadata.fps <= 0:
+            return 0
+        return max(0, int(round(duration * metadata.fps)) - 1)
+
+    def build_freeze_frame_filter_complex(
+        self,
+        metadata: VideoMetadata,
+        state: EditState,
+        trim_start: float,
+        trim_end: float,
+    ) -> str:
+        freeze = state.freeze_frame
+        ts = max(trim_start, min(freeze.timestamp, trim_end))
+        frame_interval = self.frame_interval(metadata)
+        epsilon = max(frame_interval, 1e-6)
+        loop_count = self._freeze_frame_loop_count(metadata, freeze.duration)
+        speed_mult = self._format_filter_number(1.0 / state.speed)
+
+        before_filter = self._video_timing_filter(state, trim_start, ts)
+        after_filter = self._video_timing_filter(state, ts, trim_end)
+        visual_filters = self._visual_filters(state)
+
+        video_complex = (
+            f"[0:v]split=3[v1][v2][v3];"
+            f"[v1]{before_filter}[before];"
+            f"[v2]trim=start={ts:.6f}:end={ts + epsilon:.6f},select=eq(n\\,0),loop=loop={loop_count}:size=1,"
+            f"setpts={speed_mult}*(PTS-STARTPTS)[freeze];"
+            f"[v3]{after_filter}[after];"
+            f"[before][freeze][after]concat=n=3:v=1:a=0[concatenated]"
+        )
+        if visual_filters:
+            video_complex += (
+                f";[concatenated]{','.join(visual_filters)},format=yuv420p[video]"
+            )
+        else:
+            video_complex += ";[concatenated]format=yuv420p[video]"
+
+        if not metadata.audio_codec:
+            return video_complex
+
+        silence_duration = freeze.duration / state.speed
+        audio_filters_before = [
+            f"atrim=start={trim_start}:end={ts}",
+            "asetpts=PTS-STARTPTS",
+            *self._tempo_filters(state.speed),
+        ]
+        audio_filters_after = [
+            f"atrim=start={ts}:end={trim_end}",
+            "asetpts=PTS-STARTPTS",
+            *self._tempo_filters(state.speed),
+        ]
+        audio_complex = (
+            f"[0:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,asplit=3[a1][a2][a3];"
+            f"[a1]{','.join(audio_filters_before)}[abefore];"
+            f"anullsrc=r=48000:cl=stereo:d={silence_duration:.6f}[asilence];"
+            f"[a3]{','.join(audio_filters_after)}[aafter];"
+            f"[abefore][asilence][aafter]concat=n=3:v=0:a=1[audio]"
+        )
+        return f"{video_complex};{audio_complex}"
+
+    def _freeze_frame_map_args(self, metadata: VideoMetadata, state: EditState) -> list[str]:
+        if metadata.audio_codec:
+            return ["-map", "[video]", "-map", "[audio]", "-c:a", "aac", "-b:a", "128k"]
+        return ["-map", "[video]", "-an"]
+
     def build_preview_command(self, source: Path, output: Path, metadata: VideoMetadata, state: EditState) -> list[str]:
-        vf = self._filters(metadata, state)
         trim_end = state.trim.end or metadata.duration
+        if state.freeze_frame.enabled:
+            filter_complex = self.build_freeze_frame_filter_complex(metadata, state, state.trim.start, trim_end)
+            return [
+                self.ffmpeg_bin,
+                "-y",
+                "-i",
+                str(source),
+                "-filter_complex",
+                filter_complex,
+                *self._freeze_frame_map_args(metadata, state),
+                "-preset",
+                "veryfast",
+                "-crf",
+                "30",
+                "-movflags",
+                "+faststart",
+                str(output),
+            ]
+        vf = self._filters(metadata, state)
         return [
             self.ffmpeg_bin,
             "-y",
@@ -319,8 +413,26 @@ class FFmpegService:
         ]
 
     def build_export_command(self, source: Path, output: Path, metadata: VideoMetadata, state: EditState) -> list[str]:
-        vf = self._filters(metadata, state)
         trim_end = state.trim.end or metadata.duration
+        if state.freeze_frame.enabled:
+            filter_complex = self.build_freeze_frame_filter_complex(metadata, state, state.trim.start, trim_end)
+            return [
+                self.ffmpeg_bin,
+                "-y",
+                "-i",
+                str(source),
+                "-filter_complex",
+                filter_complex,
+                *self._freeze_frame_map_args(metadata, state),
+                "-preset",
+                "medium",
+                "-crf",
+                "20",
+                "-movflags",
+                "+faststart",
+                str(output),
+            ]
+        vf = self._filters(metadata, state)
         return [
             self.ffmpeg_bin,
             "-y",
@@ -339,6 +451,27 @@ class FFmpegService:
         ]
 
     def build_export_gif_command(self, source: Path, output: Path, metadata: VideoMetadata, state: EditState) -> list[str]:
+        trim_end = state.trim.end or metadata.duration
+        if state.freeze_frame.enabled:
+            freeze_complex = self.build_freeze_frame_filter_complex(metadata, state, state.trim.start, trim_end)
+            filter_complex = (
+                f"{freeze_complex};"
+                "[video]split[palette_input][gif_input];"
+                "[palette_input]palettegen=stats_mode=diff[palette];"
+                "[gif_input][palette]paletteuse=dither=sierra2_4a"
+            )
+            return [
+                self.ffmpeg_bin,
+                "-y",
+                "-i",
+                str(source),
+                "-filter_complex",
+                filter_complex,
+                "-an",
+                "-loop",
+                "0",
+                str(output),
+            ]
         filters = self._filters(metadata, state)
         return [
             self.ffmpeg_bin,

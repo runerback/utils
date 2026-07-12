@@ -9,6 +9,11 @@ const EXTRA_SPEED_BUTTON_VALUES = [5, 10];
 const DEFAULT_SPEED = 1;
 const MIN_SCENE_SPLIT_CLIP_LENGTH = 0.1;
 const DEFAULT_FIXED_CLIP_LENGTH = 12;
+const DEFAULT_FREEZE_FRAME = {
+  enabled: false,
+  timestamp: 0,
+  duration: 1.0
+};
 const DEFAULT_SCENE_SPLIT = {
   enabled: false,
   detector: "ffmpeg",
@@ -27,6 +32,17 @@ function toFiniteNumber(value, fallback) {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeFreezeFrameConfig(freezeFrame) {
+  const next = freezeFrame && typeof freezeFrame === "object" ? freezeFrame : {};
+  const timestamp = toFiniteNumber(next.timestamp, DEFAULT_FREEZE_FRAME.timestamp);
+  const duration = toFiniteNumber(next.duration, DEFAULT_FREEZE_FRAME.duration);
+  return {
+    enabled: Boolean(next.enabled),
+    timestamp: Math.max(0, timestamp),
+    duration: Math.max(0.1, duration)
+  };
 }
 
 function normalizeSceneSplitConfig(sceneSplit) {
@@ -145,7 +161,8 @@ const state = {
     crop_enabled: false,
     resize_max: null,
     speed: DEFAULT_SPEED,
-    scene_split: loadSceneSplitPreferences()
+    scene_split: loadSceneSplitPreferences(),
+    freeze_frame: { ...DEFAULT_FREEZE_FRAME }
   }
 };
 
@@ -227,6 +244,14 @@ const el = {
   sceneSplitFixedClipRange: document.getElementById("sceneSplitFixedClipRange"),
   sceneSplitResetBtn: document.getElementById("sceneSplitResetBtn"),
   sceneSplitDetectorSections: document.querySelectorAll("[data-scene-detector]"),
+  freezeFrameEnabled: document.getElementById("freezeFrameEnabled"),
+  freezeFrameTimestamp: document.getElementById("freezeFrameTimestamp"),
+  freezeFrameTimestampRange: document.getElementById("freezeFrameTimestampRange"),
+  freezeFrameDuration: document.getElementById("freezeFrameDuration"),
+  freezeFrameUseCurrentBtn: document.getElementById("freezeFrameUseCurrentBtn"),
+  freezeFramePresetButtons: document.querySelectorAll(".freeze-frame-preset"),
+  freezeFrameShiftButtons: document.querySelectorAll(".freeze-frame-shift-btn"),
+  freezeFrameImage: document.getElementById("freezeFrameImage"),
   originalDims: document.getElementById("originalDims"),
   previewDims: document.getElementById("previewDims"),
   saveStateBtn: document.getElementById("saveStateBtn"),
@@ -253,6 +278,7 @@ function normalizeEditState(edit, metadata = null) {
   const crop = next.crop && typeof next.crop === "object" ? next.crop : {};
   const rotation = next.rotation && typeof next.rotation === "object" ? next.rotation : {};
   const sceneSplit = next.scene_split && typeof next.scene_split === "object" ? next.scene_split : {};
+  const freezeFrame = next.freeze_frame && typeof next.freeze_frame === "object" ? next.freeze_frame : {};
 
   next.trim = {
     start: Math.max(0, toFiniteNumber(trim.start, 0)),
@@ -276,6 +302,7 @@ function normalizeEditState(edit, metadata = null) {
   const resizeMax = Math.round(toFiniteNumber(next.resize_max, null));
   next.resize_max = Number.isInteger(resizeMax) && resizeMax >= 2 ? resizeMax : null;
   next.scene_split = normalizeSceneSplitConfig(sceneSplit);
+  next.freeze_frame = normalizeFreezeFrameConfig(freezeFrame);
   return next;
 }
 
@@ -537,10 +564,14 @@ function setProjectFromPayload(payload, options = {}) {
   clearPreviewParts();
   setVideoSource(el.previewVideo, previewUrl, { cacheBust: true });
   updateSpeedUI();
+  if (state.edit.freeze_frame.enabled) {
+    refreshFreezeFrameImage();
+  }
   el.resizeMaxInput.value = state.edit.resize_max ?? "";
   el.cropEnabled.checked = state.edit.crop_enabled;
   updateRotationUI();
   updateSceneSplitUI();
+  updateFreezeFrameUI();
   updatePreviewPartsVisibility();
   state.cropIndicatorVisible = forceCropOff
     ? false
@@ -559,6 +590,9 @@ function setActiveEditorPanel(panelName) {
     panel.classList.toggle("hidden", panel.dataset.panel !== panelName);
   });
   updateCropUI();
+  if (panelName === "freeze-frame" && state.edit.freeze_frame.enabled) {
+    refreshFreezeFrameImage();
+  }
 }
 
 function projectLabel(project) {
@@ -1023,6 +1057,71 @@ function updateSceneSplitLengthModeControls(sceneSplit) {
   el.sceneSplitFixedClipRow.classList.toggle("hidden", !fixedLengthMode);
 }
 
+let freezeFramePreviewTimer = null;
+
+function scheduleFreezeFrameImageRefresh() {
+  if (freezeFramePreviewTimer) {
+    clearTimeout(freezeFramePreviewTimer);
+  }
+  freezeFramePreviewTimer = setTimeout(() => {
+    refreshFreezeFrameImage();
+  }, 100);
+}
+
+async function refreshFreezeFrameImage() {
+  if (!state.projectId || !state.metadata || !state.edit.freeze_frame.enabled) return;
+  const timestamp = state.edit.freeze_frame.timestamp;
+  const response = await fetch(
+    `/api/projects/${state.projectId}/frame?timestamp=${encodeURIComponent(timestamp)}`
+  );
+  if (!response.ok) return;
+  const payload = await response.json();
+  el.freezeFrameImage.src = `${payload.url}?t=${Date.now()}`;
+}
+
+function updateFreezeFrameUI() {
+  const freezeFrame = normalizeFreezeFrameConfig(state.edit.freeze_frame);
+  state.edit.freeze_frame = freezeFrame;
+  el.freezeFrameEnabled.checked = Boolean(freezeFrame.enabled);
+  el.freezeFrameTimestamp.value = freezeFrame.timestamp.toFixed(3);
+  if (state.metadata) {
+    el.freezeFrameTimestampRange.max = String(state.metadata.duration);
+  }
+  el.freezeFrameTimestampRange.value = freezeFrame.timestamp;
+  el.freezeFrameDuration.value = freezeFrame.duration.toFixed(1);
+}
+
+function syncFreezeFrameFromInputs() {
+  const next = normalizeFreezeFrameConfig({
+    enabled: Boolean(el.freezeFrameEnabled.checked),
+    timestamp: toFiniteNumber(el.freezeFrameTimestamp.value, DEFAULT_FREEZE_FRAME.timestamp),
+    duration: toFiniteNumber(el.freezeFrameDuration.value, DEFAULT_FREEZE_FRAME.duration)
+  });
+  state.edit.freeze_frame = next;
+  scheduleFreezeFrameImageRefresh();
+}
+
+function syncFreezeFrameDuration(rawValue) {
+  const value = toFiniteNumber(rawValue, DEFAULT_FREEZE_FRAME.duration);
+  state.edit.freeze_frame = normalizeFreezeFrameConfig({
+    ...state.edit.freeze_frame,
+    duration: value
+  });
+  el.freezeFrameDuration.value = state.edit.freeze_frame.duration.toFixed(1);
+  scheduleFreezeFrameImageRefresh();
+}
+
+function setFreezeFrameTimestampFromCurrentPosition() {
+  if (!state.metadata) return;
+  const timestamp = Math.max(0, Math.min(el.originalVideo.currentTime || 0, state.metadata.duration));
+  state.edit.freeze_frame = normalizeFreezeFrameConfig({
+    ...state.edit.freeze_frame,
+    timestamp
+  });
+  el.freezeFrameTimestamp.value = state.edit.freeze_frame.timestamp.toFixed(3);
+  scheduleFreezeFrameImageRefresh();
+}
+
 function syncSceneSplitFromInputs(options = {}) {
   const { persist = false, thresholdSource = null, aiSensitivitySource = null, fixedClipSource = null } = options;
   let threshold = toFiniteNumber(
@@ -1351,6 +1450,7 @@ async function saveState(options = {}) {
     state.cropIndicatorVisible = false;
   }
   syncSceneSplitFromInputs();
+  syncFreezeFrameFromInputs();
   const response = await fetch(`/api/projects/${state.projectId}/state`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -1365,6 +1465,7 @@ async function saveState(options = {}) {
   const payload = await response.json();
   state.edit = normalizeEditState(payload.state, state.metadata);
   updateSceneSplitUI();
+  updateFreezeFrameUI();
   if (!silent) setStatus("State saved.");
   return payload;
 }
@@ -1655,6 +1756,43 @@ el.sceneSplitResetBtn.addEventListener("click", () => {
   }
   updateSceneSplitUI();
 });
+el.freezeFrameEnabled.addEventListener("change", () => syncFreezeFrameFromInputs());
+el.freezeFrameTimestamp.addEventListener("change", () => syncFreezeFrameFromInputs());
+el.freezeFrameTimestampRange.addEventListener("input", () => {
+  state.edit.freeze_frame = normalizeFreezeFrameConfig({
+    ...state.edit.freeze_frame,
+    timestamp: Number(el.freezeFrameTimestampRange.value || 0)
+  });
+  el.freezeFrameTimestamp.value = state.edit.freeze_frame.timestamp.toFixed(3);
+  scheduleFreezeFrameImageRefresh();
+});
+el.freezeFrameDuration.addEventListener("change", () => syncFreezeFrameFromInputs());
+el.freezeFrameUseCurrentBtn.addEventListener("click", () => setFreezeFrameTimestampFromCurrentPosition());
+el.freezeFrameShiftButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (!state.metadata) return;
+    const deltaSeconds = Number(button.dataset.seconds || 0);
+    if (!Number.isFinite(deltaSeconds)) return;
+    const nextTimestamp = Math.max(
+      0,
+      Math.min(
+        state.edit.freeze_frame.timestamp + deltaSeconds,
+        state.metadata.duration
+      )
+    );
+    state.edit.freeze_frame = normalizeFreezeFrameConfig({
+      ...state.edit.freeze_frame,
+      timestamp: nextTimestamp
+    });
+    updateFreezeFrameUI();
+    scheduleFreezeFrameImageRefresh();
+  });
+});
+el.freezeFramePresetButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    syncFreezeFrameDuration(button.dataset.duration);
+  });
+});
 el.editorTabButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveEditorPanel(button.dataset.panel));
 });
@@ -1849,6 +1987,7 @@ updateZoomUI();
 updateDimensionLabels();
 updateRotationUI();
 updateSceneSplitUI();
+updateFreezeFrameUI();
 clearPreviewParts();
 setActiveEditorPanel("trim");
 setSelectedFile(null);

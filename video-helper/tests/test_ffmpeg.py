@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.ffmpeg import FFmpegService
-from app.schemas import CropState, EditState, TrimState, VideoMetadata
+from app.schemas import CropState, EditState, FreezeFrameState, TrimState, VideoMetadata
 
 
 class FFmpegServiceTests(unittest.TestCase):
@@ -582,6 +582,90 @@ class FFmpegServiceTests(unittest.TestCase):
             ),
         )
         self.assertLess(estimated, no_resize_estimated)
+
+    def test_edit_state_defaults_freeze_frame_configuration(self) -> None:
+        freeze_frame = EditState().freeze_frame
+        self.assertFalse(freeze_frame.enabled)
+        self.assertEqual(freeze_frame.timestamp, 0)
+        self.assertEqual(freeze_frame.duration, 1.0)
+
+    def test_edit_state_accepts_freeze_frame_configuration(self) -> None:
+        freeze_frame = EditState(
+            freeze_frame={"enabled": True, "timestamp": 3.5, "duration": 2.5}
+        ).freeze_frame
+        self.assertTrue(freeze_frame.enabled)
+        self.assertEqual(freeze_frame.timestamp, 3.5)
+        self.assertEqual(freeze_frame.duration, 2.5)
+
+    def test_edit_state_rejects_negative_freeze_frame_duration(self) -> None:
+        with self.assertRaises(ValueError):
+            EditState(freeze_frame={"duration": 0})
+
+    def test_validate_state_rejects_freeze_frame_with_scene_split(self) -> None:
+        state = EditState(
+            trim=TrimState(start=0.0, end=8.0),
+            freeze_frame=FreezeFrameState(enabled=True, timestamp=3.0, duration=2.0),
+            scene_split={"enabled": True, "threshold": 0.3, "min_clip_length": 2.0, "max_clip_length": 6.0},
+        )
+        with self.assertRaisesRegex(ValueError, "Freeze frame cannot be used with scene split"):
+            self.service.validate_state(self.metadata, state)
+
+    def test_validate_state_rejects_freeze_timestamp_exceeding_duration(self) -> None:
+        state = EditState(
+            trim=TrimState(start=0.0, end=8.0),
+            freeze_frame=FreezeFrameState(enabled=True, timestamp=20.0, duration=2.0),
+        )
+        with self.assertRaisesRegex(ValueError, "Freeze frame timestamp exceeds video duration"):
+            self.service.validate_state(self.metadata, state)
+
+    def test_build_preview_command_uses_filter_complex_for_freeze_frame(self) -> None:
+        state = EditState(
+            trim=TrimState(start=1.0, end=9.0),
+            freeze_frame=FreezeFrameState(enabled=True, timestamp=4.0, duration=2.0),
+        )
+        command = self.service.build_preview_command(Path("in.mp4"), Path("out.mp4"), self.metadata, state)
+        self.assertIn("-filter_complex", command)
+        filter_complex = command[command.index("-filter_complex") + 1]
+        self.assertIn("[0:v]split=3[v1][v2][v3]", filter_complex)
+        self.assertIn("concat=n=3:v=1:a=0", filter_complex)
+        self.assertIn("loop=loop=59:size=1", filter_complex)
+        self.assertIn("trim=start=1.0:end=4.0", filter_complex)
+        self.assertIn("trim=start=4.000000:end=4.033333", filter_complex)
+        self.assertIn("trim=start=4.0:end=9.0", filter_complex)
+        self.assertIn("[video]", filter_complex)
+        self.assertIn("[audio]", filter_complex)
+
+    def test_build_export_command_applies_crop_rotation_resize_to_freeze_frame(self) -> None:
+        state = EditState(
+            trim=TrimState(start=0.0, end=6.0),
+            crop=CropState(x=10, y=20, width=1000, height=500),
+            rotation={"quarter_turns": 1},
+            crop_enabled=True,
+            resize_max=720,
+            freeze_frame=FreezeFrameState(enabled=True, timestamp=2.0, duration=1.0),
+        )
+        command = self.service.build_export_command(Path("in.mp4"), Path("out.mp4"), self.metadata, state)
+        filter_complex = command[command.index("-filter_complex") + 1]
+        self.assertIn("crop=1000:500:10:20", filter_complex)
+        self.assertIn("transpose=1", filter_complex)
+        self.assertIn("scale=if(gte(iw\\,ih)\\,min(iw\\,720)\\,-2):if(gte(iw\\,ih)\\,-2\\,min(ih\\,720))", filter_complex)
+
+    def test_build_export_gif_command_uses_freeze_frame_filter_complex(self) -> None:
+        state = EditState(
+            trim=TrimState(start=0.0, end=4.0),
+            freeze_frame=FreezeFrameState(enabled=True, timestamp=1.0, duration=1.0),
+        )
+        command = self.service.build_export_gif_command(Path("in.mp4"), Path("out.gif"), self.metadata, state)
+        filter_complex = command[command.index("-filter_complex") + 1]
+        self.assertIn("[video]split[palette_input][gif_input]", filter_complex)
+        self.assertIn("palettegen=stats_mode=diff", filter_complex)
+        self.assertIn("paletteuse=dither=sierra2_4a", filter_complex)
+
+    def test_build_preview_command_uses_vf_when_freeze_frame_disabled(self) -> None:
+        state = EditState(trim=TrimState(start=1.0, end=5.0))
+        command = self.service.build_preview_command(Path("in.mp4"), Path("out.mp4"), self.metadata, state)
+        self.assertIn("-vf", command)
+        self.assertNotIn("-filter_complex", command)
 
 
 if __name__ == "__main__":

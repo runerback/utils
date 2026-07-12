@@ -88,6 +88,7 @@
       <button class="editor-tab" type="button" data-panel="speed">Speed</button>
       <button class="editor-tab" type="button" data-panel="resize">Resize</button>
       <button class="editor-tab" type="button" data-panel="scene-split">Scene Split</button>
+      <button class="editor-tab" type="button" data-panel="freeze-frame">Freeze Frame</button>
     </section>
 
     <section class="timeline editor-panel" data-panel="trim">
@@ -298,6 +299,45 @@
       <p class="scene-split-hint">With FFmpeg Fixed Length, the last short remainder is merged into the previous clip instead of being exported as a tiny tail clip.</p>
       <p class="scene-split-hint">Turn on Scene Split, then click <strong>Apply Changes</strong> to render all preview clips here.</p>
       <p class="scene-split-hint">After preview clips appear, choose the ones you want to export. If none are selected, Export keeps the current behavior and writes all split clips.</p>
+    </section>
+
+    <section class="freeze-frame editor-panel hidden" data-panel="freeze-frame">
+      <h2>Freeze Frame</h2>
+      <div class="timeline-row">
+        <label><input id="freezeFrameEnabled" type="checkbox"> Freeze Frame On</label>
+      </div>
+      <div class="timeline-row">
+        <input id="freezeFrameTimestampRange" type="range" min="0" max="0" step="0.01" value="0">
+      </div>
+      <div class="timeline-row">
+        <label>Timestamp (s) <input id="freezeFrameTimestamp" type="number" min="0" step="0.01"></label>
+        <button id="freezeFrameUseCurrentBtn" type="button">Use Current Position</button>
+      </div>
+      <div class="timeline-row">
+        <label>Timestamp Presets</label>
+        <button class="freeze-frame-shift-btn" type="button" data-seconds="-10">-10s</button>
+        <button class="freeze-frame-shift-btn" type="button" data-seconds="-5">-5s</button>
+        <button class="freeze-frame-shift-btn" type="button" data-seconds="-3">-3s</button>
+        <button class="freeze-frame-shift-btn" type="button" data-seconds="-1">-1s</button>
+        <button class="freeze-frame-shift-btn" type="button" data-seconds="1">+1s</button>
+        <button class="freeze-frame-shift-btn" type="button" data-seconds="3">+3s</button>
+        <button class="freeze-frame-shift-btn" type="button" data-seconds="5">+5s</button>
+        <button class="freeze-frame-shift-btn" type="button" data-seconds="10">+10s</button>
+      </div>
+      <div class="timeline-row">
+        <label>Duration (s) <input id="freezeFrameDuration" type="number" min="0.1" step="0.1"></label>
+        <button class="freeze-frame-preset" type="button" data-duration="1">1s</button>
+        <button class="freeze-frame-preset" type="button" data-duration="2">2s</button>
+        <button class="freeze-frame-preset" type="button" data-duration="3">3s</button>
+        <button class="freeze-frame-preset" type="button" data-duration="5">5s</button>
+      </div>
+      <div class="timeline-row">
+        <div class="freeze-frame-preview-card">
+          <h3>Freeze Frame Preview</h3>
+          <img id="freezeFrameImage" alt="Freeze frame preview">
+        </div>
+      </div>
+      <p class="scene-split-hint">The freeze frame is inserted after trim and before crop/rotation/resize/speed. It cannot be used with Scene Split.</p>
     </section>
   </main>
   <script src="/static/app.js"></script>

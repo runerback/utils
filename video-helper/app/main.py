@@ -19,6 +19,7 @@ from .schemas import (
     EditState,
     ExportEstimatePart,
     ExportEstimateResponse,
+    FrameResponse,
     LocalProjectCreateRequest,
     ProjectCreateResponse,
     ProjectListItem,
@@ -534,6 +535,20 @@ def render_preview(project_id: str) -> RenderResponse:
         raise _logged_http_exception(404, exc, "Preview render failed: project not found", project_id=project_id) from exc
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
         raise _logged_http_exception(400, exc, "Preview render failed", project_id=project_id) from exc
+
+
+@app.get("/api/projects/{project_id}/frame", response_model=FrameResponse)
+def get_frame(project_id: str, timestamp: float) -> FrameResponse:
+    try:
+        paths, metadata, _ = storage.load_project(project_id)
+        safe_ts = ffmpeg.clamp_frame_timestamp(metadata, timestamp)
+        frame_image = storage.work / f"{project_id}_frame.jpg"
+        ffmpeg.run(ffmpeg.build_frame_image_command(paths.original_file, frame_image, safe_ts))
+        return FrameResponse(url=f"/work/{frame_image.name}")
+    except FileNotFoundError as exc:
+        raise _logged_http_exception(404, exc, "Frame lookup failed: project not found", project_id=project_id) from exc
+    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        raise _logged_http_exception(400, exc, "Failed to generate frame image", project_id=project_id, timestamp=timestamp) from exc
 
 
 @app.get("/api/projects/{project_id}/trim-frames", response_model=TrimFramesResponse)
