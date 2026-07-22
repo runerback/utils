@@ -12,6 +12,7 @@ struct InterceptionInput::Impl {
     InterceptionContext context = nullptr;
     InterceptionDevice keyboardDevice = 0;
     bool ready = false;
+    HKL usLayout = nullptr;
 
     std::thread receiveThread;
     std::atomic<bool> running{false};
@@ -46,6 +47,15 @@ bool InterceptionInput::initialize() {
 
     impl_->ready = true;
     impl_->running = true;
+
+    // Load the US-English layout so VK-to-scan-code mapping is independent of
+    // the active Windows keyboard layout on the receiving PC. This keeps the
+    // on-screen QWERTY labels consistent with the physical scan codes sent.
+    impl_->usLayout = LoadKeyboardLayoutW(L"00000409", KLF_NOTELLSHELL);
+    if (!impl_->usLayout) {
+        std::cerr << "Failed to load US-English keyboard layout; falling back to active layout mapping.\n";
+    }
+
     impl_->receiveThread = std::thread(&InterceptionInput::receiveLoop, this);
 
     std::cout << "Interception input initialized.\n";
@@ -61,13 +71,19 @@ void InterceptionInput::shutdown() {
         interception_destroy_context(impl_->context);
         impl_->context = nullptr;
     }
+    if (impl_->usLayout) {
+        UnloadKeyboardLayout(impl_->usLayout);
+        impl_->usLayout = nullptr;
+    }
     impl_->ready = false;
 }
 
 void InterceptionInput::sendKey(int vk, bool down) {
     if (!impl_->ready) return;
 
-    const UINT scanCodeEx = MapVirtualKeyW(static_cast<UINT>(vk), MAPVK_VK_TO_VSC_EX);
+    const UINT scanCodeEx = impl_->usLayout
+        ? MapVirtualKeyExW(static_cast<UINT>(vk), MAPVK_VK_TO_VSC_EX, impl_->usLayout)
+        : MapVirtualKeyW(static_cast<UINT>(vk), MAPVK_VK_TO_VSC_EX);
     if (scanCodeEx == 0) {
         std::cerr << "Cannot map VK " << vk << " to scan code\n";
         return;
