@@ -122,6 +122,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
             if (showSettings) {
                 SettingsDialog(
                     currentUrl = uiState.backendUrl,
+                    recentUrls = uiState.recentBackendUrls,
                     onDismiss = { showSettings = false },
                     onSave = { url ->
                         viewModel.updateBackendUrl(url)

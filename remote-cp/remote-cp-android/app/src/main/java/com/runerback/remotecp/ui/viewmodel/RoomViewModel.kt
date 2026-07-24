@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -27,6 +28,7 @@ data class UiState(
     val error: String? = null,
     val statusMessage: String? = null,
     val backendUrl: String = "",
+    val recentBackendUrls: List<String> = emptyList(),
     val markdownMode: Map<String, Boolean> = emptyMap()
 )
 
@@ -43,9 +45,25 @@ class RoomViewModel @Inject constructor(
 
     init {
         val savedUrl = prefs.getString("backend_url", "http://10.0.2.2:5000") ?: "http://10.0.2.2:5000"
-        _uiState.update { it.copy(backendUrl = savedUrl) }
+        _uiState.update { it.copy(backendUrl = savedUrl, recentBackendUrls = loadRecentBackendUrls()) }
         loadMessages()
         connectSocket()
+    }
+
+    private fun loadRecentBackendUrls(): List<String> {
+        val json = prefs.getString("recent_backend_urls", null) ?: return emptyList()
+        return try {
+            val array = JSONArray(json)
+            (0 until array.length()).map { array.getString(it) }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun saveRecentBackendUrls(urls: List<String>) {
+        val array = JSONArray()
+        urls.forEach { array.put(it) }
+        prefs.edit().putString("recent_backend_urls", array.toString()).apply()
     }
 
     fun loadMessages() {
@@ -171,7 +189,10 @@ class RoomViewModel @Inject constructor(
 
     fun updateBackendUrl(url: String) {
         prefs.edit().putString("backend_url", url).apply()
-        _uiState.update { it.copy(backendUrl = url, messages = emptyList(), error = null) }
+        val updated = listOf(url) + _uiState.value.recentBackendUrls.filter { it != url }
+        val trimmed = updated.take(5)
+        saveRecentBackendUrls(trimmed)
+        _uiState.update { it.copy(backendUrl = url, recentBackendUrls = trimmed, messages = emptyList(), error = null) }
         messageRepository.reconnect()
         loadMessages()
         disconnectSocket()
