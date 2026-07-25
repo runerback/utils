@@ -309,18 +309,22 @@ private fun SystemTab(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(
-                onClick = onConnect,
-                modifier = Modifier.weight(1f),
-                enabled = host.isNotBlank() && port.isNotBlank()
-            ) {
-                Text(stringResource(R.string.connect))
+            if (connectionState is KeyboardClient.State.Disconnected || connectionState is KeyboardClient.State.Error) {
+                Button(
+                    onClick = onConnect,
+                    modifier = Modifier.weight(1f),
+                    enabled = host.isNotBlank() && port.isNotBlank()
+                ) {
+                    Text(stringResource(R.string.connect))
+                }
             }
-            Button(
-                onClick = onDisconnect,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(stringResource(R.string.disconnect))
+            if (connectionState is KeyboardClient.State.Connected) {
+                Button(
+                    onClick = onDisconnect,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(stringResource(R.string.disconnect))
+                }
             }
             Button(
                 onClick = onReset,
