@@ -92,6 +92,48 @@ class RemoteCopyPasteAppTests(unittest.TestCase):
         self.assertEqual(len(uploaded_files), 1)
         self.assertEqual(uploaded_files[0].suffix, ".py")
 
+    def test_epub_upload_is_accepted_as_generic_file_attachment(self) -> None:
+        response = self.client.post(
+            "/api/messages",
+            data={
+                "device_type": "Test device",
+                "client_timestamp": "2026-04-30 13:17",
+                "files": (io.BytesIO(b"epub payload"), "book.epub", "application/epub+zip"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["text"], "")
+        self.assertEqual(len(payload["files"]), 1)
+        self.assertEqual(payload["files"][0]["name"], "book.epub")
+        self.assertTrue(payload["files"][0]["downloadUrl"].endswith("/book.epub"))
+
+        uploaded_files = list((Path(self.app.instance_path) / "uploads").iterdir())
+        self.assertEqual(len(uploaded_files), 1)
+        self.assertEqual(uploaded_files[0].suffix, ".epub")
+
+    def test_scad_upload_is_accepted_as_generic_file_attachment(self) -> None:
+        response = self.client.post(
+            "/api/messages",
+            data={
+                "device_type": "Test device",
+                "client_timestamp": "2026-04-30 13:17",
+                "files": (io.BytesIO(b"scad payload"), "model.scad", "application/octet-stream"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["text"], "")
+        self.assertEqual(len(payload["files"]), 1)
+        self.assertEqual(payload["files"][0]["name"], "model.scad")
+        self.assertTrue(payload["files"][0]["downloadUrl"].endswith("/model.scad"))
+
+        uploaded_files = list((Path(self.app.instance_path) / "uploads").iterdir())
+        self.assertEqual(len(uploaded_files), 1)
+        self.assertEqual(uploaded_files[0].suffix, ".scad")
+
     def test_non_ascii_md_upload_preserves_original_name(self) -> None:
         response = self.client.post(
             "/api/messages",

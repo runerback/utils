@@ -379,7 +379,7 @@ export function Composer({ onStatus }: ComposerProps) {
                     id="file-input"
                     name="files"
                     type="file"
-                    accept=".7z,.apk,.csv,.doc,.docx,.json,.md,.pdf,.ppt,.pptx,.pt,.py,.rtf,.txt,.xls,.xlsx,.zip"
+                    accept=".7z,.apk,.csv,.doc,.docx,.epub,.json,.md,.pdf,.ppt,.pptx,.pt,.py,.rtf,.scad,.txt,.xls,.xlsx,.zip"
                     multiple
                     ref={fileInputRef}
                     onClick={() => startSelecting(fileHintRef)}
