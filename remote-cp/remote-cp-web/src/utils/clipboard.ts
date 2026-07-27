@@ -1,3 +1,5 @@
+import { DEFAULT_IMAGE_EXTENSION, IMAGE_MIME_MAP } from "../generated/fileTypes";
+
 export async function copyTextToClipboard(text: string): Promise<void> {
   let clipboardError: Error | null = null;
 
@@ -165,12 +167,5 @@ function createGeneratedImageFileName(prefix: string, extension: string): string
 }
 
 function extensionForMimeType(mimeType: string): string {
-  const extensionMap: Record<string, string> = {
-    "image/bmp": "bmp",
-    "image/gif": "gif",
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-  };
-  return extensionMap[mimeType] || "png";
+  return IMAGE_MIME_MAP[mimeType] || DEFAULT_IMAGE_EXTENSION;
 }

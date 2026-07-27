@@ -9,6 +9,7 @@ import {
 import { detectDeviceType } from "../utils/device";
 import { formatTimestamp } from "../utils/format";
 import { buildTextSubmission } from "../utils/files";
+import { FILE_ACCEPT, IMAGE_ACCEPT, VIDEO_ACCEPT } from "../generated/fileTypes";
 import type { TextSubmissionResult } from "../utils/files";
 
 interface ComposerProps {
@@ -313,7 +314,7 @@ export function Composer({ onStatus }: ComposerProps) {
                     id="image-input"
                     name="images"
                     type="file"
-                    accept="image/*"
+                    accept={IMAGE_ACCEPT}
                     multiple
                     ref={imageInputRef}
                     onClick={() => startSelecting(imageHintRef)}
@@ -346,7 +347,7 @@ export function Composer({ onStatus }: ComposerProps) {
                     id="video-input"
                     name="videos"
                     type="file"
-                    accept="video/mp4,.mp4"
+                    accept={VIDEO_ACCEPT}
                     multiple
                     ref={videoInputRef}
                     onClick={() => startSelecting(videoHintRef)}
@@ -379,7 +380,7 @@ export function Composer({ onStatus }: ComposerProps) {
                     id="file-input"
                     name="files"
                     type="file"
-                    accept=".7z,.apk,.csv,.doc,.docx,.epub,.json,.md,.pdf,.ppt,.pptx,.pt,.py,.rtf,.scad,.txt,.xls,.xlsx,.zip"
+                    accept={FILE_ACCEPT}
                     multiple
                     ref={fileInputRef}
                     onClick={() => startSelecting(fileHintRef)}

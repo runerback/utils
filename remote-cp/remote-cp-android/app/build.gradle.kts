@@ -61,6 +61,18 @@ android {
     }
 }
 
+tasks.register<Exec>("generateFileTypes") {
+    group = "build"
+    description = "Generate file type constants from shared/file-types.json"
+    workingDir = rootDir.parentFile
+    val python = File(rootDir.parentFile, ".venv/Scripts/python.exe")
+    commandLine(python.absolutePath, "scripts/generate_file_types.py")
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    dependsOn("generateFileTypes")
+}
+
 kapt {
     correctErrorTypes = true
 }

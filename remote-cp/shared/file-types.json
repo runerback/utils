@@ -1,0 +1,33 @@
+{
+  "imageExtensions": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"],
+  "videoExtensions": [".mp4"],
+  "fileExtensions": [
+    ".7z",
+    ".apk",
+    ".csv",
+    ".doc",
+    ".docx",
+    ".epub",
+    ".json",
+    ".md",
+    ".pdf",
+    ".ppt",
+    ".pptx",
+    ".pt",
+    ".py",
+    ".rtf",
+    ".scad",
+    ".txt",
+    ".xls",
+    ".xlsx",
+    ".zip"
+  ],
+  "imageMimeMap": {
+    "image/bmp": "bmp",
+    "image/gif": "gif",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp"
+  },
+  "defaultImageExtension": "png"
+}

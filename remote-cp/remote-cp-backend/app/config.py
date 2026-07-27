@@ -1,29 +1,12 @@
 import os
 
-ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
-ALLOWED_VIDEO_EXTENSIONS = {".mp4"}
-ALLOWED_FILE_EXTENSIONS = {
-    ".7z",
-    ".apk",
-    ".csv",
-    ".doc",
-    ".docx",
-    ".epub",
-    ".json",
-    ".md",
-    ".pdf",
-    ".ppt",
-    ".pptx",
-    ".pt",
-    ".py",
-    ".rtf",
-    ".scad",
-    ".txt",
-    ".xls",
-    ".xlsx",
-    ".zip",
-}
-FILE_INPUT_ACCEPT = ",".join(sorted(ALLOWED_FILE_EXTENSIONS))
+from .generated_file_types import (
+    ALLOWED_FILE_EXTENSIONS,
+    ALLOWED_IMAGE_EXTENSIONS,
+    ALLOWED_VIDEO_EXTENSIONS,
+    FILE_INPUT_ACCEPT,
+)
+
 MAX_UPLOAD_SIZE_MB = 500
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 

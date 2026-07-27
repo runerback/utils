@@ -3,6 +3,11 @@ __pycache__/
 instance/uploads/
 *.pyc
 
+# Generated file type constants
+remote-cp-backend/app/generated_file_types.py
+remote-cp-web/src/generated/fileTypes.ts
+remote-cp-android/app/src/main/java/com/runerback/remotecp/data/FileTypes.kt
+
 # Backend
 remote-cp-backend/__pycache__/
 remote-cp-backend/*.pyc

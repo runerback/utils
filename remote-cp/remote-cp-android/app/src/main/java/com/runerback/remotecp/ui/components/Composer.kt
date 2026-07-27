@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.runerback.remotecp.data.FileTypes
 
 @Composable
 fun Composer(
@@ -175,7 +176,7 @@ fun Composer(
             Column {
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
-                    onClick = { imagePicker.launch("image/*") },
+                    onClick = { imagePicker.launch(FileTypes.IMAGE_MIME) },
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -187,7 +188,7 @@ fun Composer(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
-                    onClick = { videoPicker.launch("video/*") },
+                    onClick = { videoPicker.launch(FileTypes.VIDEO_MIME) },
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -199,7 +200,7 @@ fun Composer(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
-                    onClick = { filePicker.launch(arrayOf("*/*")) },
+                    onClick = { filePicker.launch(FileTypes.FILE_MIME_ARRAY) },
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
