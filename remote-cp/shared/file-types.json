@@ -20,7 +20,8 @@
     ".txt",
     ".xls",
     ".xlsx",
-    ".zip"
+    ".zip",
+    ".tar"
   ],
   "imageMimeMap": {
     "image/bmp": "bmp",
