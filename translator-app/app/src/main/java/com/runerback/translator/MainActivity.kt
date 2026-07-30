@@ -32,6 +32,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Refresh
@@ -68,6 +71,7 @@ import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.runerback.translator.bookshelf.Book
 import com.runerback.translator.bookshelf.BookScanner
+import com.runerback.translator.bookshelf.BookSort
 import com.runerback.translator.bookshelf.BookType
 import com.runerback.translator.data.SettingsRepository
 import com.runerback.translator.reader.ReaderActivity
@@ -97,10 +101,12 @@ private fun BookshelfScreen() {
 
     val books by settingsRepository.books.collectAsState(initial = emptyList())
     val rootFolder by settingsRepository.rootFolderUri.collectAsState(initial = null)
+    val bookSort by settingsRepository.bookSort.collectAsState(initial = BookSort.NAME_ASC)
 
     var isScanning by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
     var pdfDialog by remember { mutableStateOf<Pair<Book, Int>?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -195,6 +201,34 @@ private fun BookshelfScreen() {
                         )
                     }
                     OutlinedButton(
+                        onClick = { showSortMenu = true },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black,
+                        ),
+                        modifier = Modifier.padding(end = 4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.Sort,
+                            contentDescription = "Sort",
+                            tint = Color.Black,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false },
+                    ) {
+                        BookSort.entries.forEach { sort ->
+                            DropdownMenuItem(
+                                text = { Text(sortLabel(sort)) },
+                                onClick = {
+                                    scope.launch { settingsRepository.setBookSort(sort) }
+                                    showSortMenu = false
+                                },
+                            )
+                        }
+                    }
+                    OutlinedButton(
                         onClick = { showSettings = true },
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.White,
@@ -248,6 +282,7 @@ private fun BookshelfScreen() {
                 else -> {
                     BookshelfGrid(
                         books = books,
+                        sort = bookSort,
                         onBookClick = { book ->
                             context.startActivity(ReaderActivity.createIntent(context, book))
                         },
@@ -336,11 +371,15 @@ private fun EmptyState(onPickFolder: () -> Unit) {
 @Composable
 private fun BookshelfGrid(
     books: List<Book>,
+    sort: BookSort,
     onBookClick: (Book) -> Unit,
     onBookLongClick: (Book) -> Unit,
 ) {
     val grouped = books.groupBy { it.group ?: "" }
-    val sortedGroups = grouped.toSortedMap()
+    val sortedGroups = when (sort) {
+        BookSort.NAME_DESC -> grouped.toSortedMap(compareByDescending { it })
+        else -> grouped.toSortedMap()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -348,6 +387,11 @@ private fun BookshelfGrid(
         verticalArrangement = Arrangement.spacedBy(32.dp),
     ) {
         sortedGroups.forEach { (group, groupBooks) ->
+            val sortedBooks = when (sort) {
+                BookSort.NAME_ASC -> groupBooks.sortedBy { it.title.lowercase() }
+                BookSort.NAME_DESC -> groupBooks.sortedByDescending { it.title.lowercase() }
+                BookSort.TYPE -> groupBooks.sortedWith(compareBy({ it.type }, { it.title.lowercase() }))
+            }
             if (group.isNotBlank()) {
                 item {
                     Text(
@@ -360,7 +404,7 @@ private fun BookshelfGrid(
             }
             item {
                 Shelf(
-                    books = groupBooks,
+                    books = sortedBooks,
                     onBookClick = onBookClick,
                     onBookLongClick = onBookLongClick,
                 )
@@ -470,6 +514,14 @@ private fun placeholderText(type: BookType): String {
         BookType.TXT -> "TXT"
         BookType.PDF -> "PDF"
         BookType.MANGA -> "MANGA"
+    }
+}
+
+private fun sortLabel(sort: BookSort): String {
+    return when (sort) {
+        BookSort.NAME_ASC -> "Name (A-Z)"
+        BookSort.NAME_DESC -> "Name (Z-A)"
+        BookSort.TYPE -> "Type"
     }
 }
 

@@ -8,6 +8,12 @@ enum class BookType {
     EPUB, TXT, PDF, MANGA
 }
 
+enum class BookSort {
+    NAME_ASC,
+    NAME_DESC,
+    TYPE,
+}
+
 @Serializable
 data class BookEntry(
     @Serializable(with = UriSerializer::class)

@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.runerback.translator.bookshelf.Book
+import com.runerback.translator.bookshelf.BookSort
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
@@ -44,6 +45,10 @@ class SettingsRepository(private val context: Context) {
 
     val books: Flow<List<Book>> = dataStore.data.map { prefs ->
         prefs[KEY_BOOKS]?.let { json.decodeFromString(it) } ?: emptyList()
+    }
+
+    val bookSort: Flow<BookSort> = dataStore.data.map { prefs ->
+        prefs[KEY_BOOK_SORT]?.let { BookSort.valueOf(it) } ?: BookSort.NAME_ASC
     }
 
     suspend fun setBaseUrl(value: String) {
@@ -82,6 +87,12 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    suspend fun setBookSort(sort: BookSort) {
+        dataStore.edit { prefs ->
+            prefs[KEY_BOOK_SORT] = sort.name
+        }
+    }
+
     suspend fun updateBookLastPage(bookId: String, page: Int) {
         dataStore.edit { prefs ->
             val current = prefs[KEY_BOOKS]?.let { json.decodeFromString<List<Book>>(it) } ?: emptyList()
@@ -109,6 +120,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_USE_FAKE_SERVER = booleanPreferencesKey("use_fake_server")
         private val KEY_ROOT_FOLDER_URI = stringPreferencesKey("root_folder_uri")
         private val KEY_BOOKS = stringPreferencesKey("books_json")
+        private val KEY_BOOK_SORT = stringPreferencesKey("book_sort")
 
         const val DEFAULT_BASE_URL = "http://127.0.0.1:11434"
         const val DEFAULT_MODEL = "qwen3:14b"
