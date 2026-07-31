@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,9 +7,22 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.runerback.translator"
     compileSdk = 35
+
+    signingConfigs {
+        create("release") {
+            storeFile = file(localProperties.getProperty("RELEASE_STORE_FILE"))
+            keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+            storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+            keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+        }
+    }
 
     defaultConfig {
         applicationId = "com.runerback.translator"
@@ -17,9 +32,19 @@ android {
         versionName = "1.0"
     }
 
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -61,7 +86,8 @@ android {
     applicationVariants.configureEach {
         outputs.configureEach {
             val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            outputImpl.outputFileName = "translator-${buildType.name}.apk"
+            val abi = outputImpl.filters.find { it.filterType == "ABI" }?.identifier ?: "all"
+            outputImpl.outputFileName = "translator-${abi}-${buildType.name}.apk"
         }
     }
 }
