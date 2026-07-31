@@ -4,7 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.Color
 
 fun Bitmap.cropWhitespace(threshold: Int = 250): Bitmap {
-    val pixels = IntArray(width * height)
+    val pixelCount = width.toLong() * height
+    if (pixelCount <= 0 || pixelCount > Int.MAX_VALUE) return this
+    val pixels = IntArray(pixelCount.toInt())
     getPixels(pixels, 0, width, 0, 0, width, height)
 
     fun isEmpty(pixel: Int): Boolean {

@@ -6,6 +6,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.widget.TextView
+import com.runerback.translator.util.LogManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,23 +56,34 @@ fun TextReaderScreen(
     var selection by remember { mutableStateOf<Selection?>(null) }
 
     LaunchedEffect(content, containerSize, paddingPx) {
-        if (containerSize.width > 0 && containerSize.height > 0 && content.isNotEmpty()) {
-            val computed = computePages(
-                text = content,
-                width = containerSize.width.toInt(),
-                height = containerSize.height.toInt(),
-                fontSizeSp = fontSizeSp,
-                lineSpacingMultiplier = lineSpacingMultiplier,
-                paddingPx = paddingPx,
-            )
-            pages = computed
-            onTotalPages(computed.size.coerceAtLeast(1))
-            val safePage = currentPage.coerceIn(0, computed.size - 1)
-            if (safePage != currentPage) {
-                currentPage = safePage
-            }
-            onPageChange(currentPage, computed.size.coerceAtLeast(1))
+        if (content.isEmpty()) {
+            LogManager.d("TextReaderScreen", "empty content")
+            return@LaunchedEffect
         }
+        if (containerSize.width <= 0 || containerSize.height <= 0) {
+            LogManager.d("TextReaderScreen", "waiting for layout size=$containerSize")
+            return@LaunchedEffect
+        }
+        val computed = computePages(
+            text = content,
+            width = containerSize.width.toInt(),
+            height = containerSize.height.toInt(),
+            fontSizeSp = fontSizeSp,
+            lineSpacingMultiplier = lineSpacingMultiplier,
+            paddingPx = paddingPx,
+        )
+        pages = computed
+        val total = computed.size.coerceAtLeast(1)
+        LogManager.d(
+            "TextReaderScreen",
+            "computed pages=$total size=$containerSize contentLength=${content.length}",
+        )
+        onTotalPages(total)
+        val safePage = currentPage.coerceIn(0, computed.size - 1)
+        if (safePage != currentPage) {
+            currentPage = safePage
+        }
+        onPageChange(currentPage, total)
     }
 
     LaunchedEffect(initialPage) {
@@ -198,7 +210,10 @@ private fun computePages(
     lineSpacingMultiplier: Float,
     paddingPx: Int,
 ): List<String> {
-    if (width <= 0 || height <= 0) return listOf(text)
+    if (width <= 0 || height <= 0) {
+        LogManager.d("TextReaderScreen", "computePages invalid size width=$width height=$height")
+        return listOf(text)
+    }
 
     val paint = TextPaint().apply {
         isAntiAlias = true
@@ -242,7 +257,10 @@ private fun computePages(
         pages.add(text.substring(startOffset, endOffset))
     }
 
-    return pages.ifEmpty { listOf(text) }
+    return pages.ifEmpty {
+        LogManager.d("TextReaderScreen", "computePages fallback lineCount=$lineCount")
+        listOf(text)
+    }
 }
 
 private fun getSelectionAnchor(textView: TextView, start: Int, end: Int): Rect {

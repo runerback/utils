@@ -11,8 +11,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.runerback.translator.bookshelf.Book
 import com.runerback.translator.bookshelf.BookSort
+import com.runerback.translator.util.LogManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -44,7 +46,7 @@ class SettingsRepository(private val context: Context) {
     }
 
     val books: Flow<List<Book>> = dataStore.data.map { prefs ->
-        prefs[KEY_BOOKS]?.let { json.decodeFromString(it) } ?: emptyList()
+        prefs[KEY_BOOKS]?.let { json.decodeFromString(ListSerializer(Book.serializer()), it) } ?: emptyList()
     }
 
     val bookSort: Flow<BookSort> = dataStore.data.map { prefs ->
@@ -83,7 +85,7 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setBooks(books: List<Book>) {
         dataStore.edit { prefs ->
-            prefs[KEY_BOOKS] = json.encodeToString(books)
+            prefs[KEY_BOOKS] = json.encodeToString(ListSerializer(Book.serializer()), books)
         }
     }
 
@@ -94,22 +96,34 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun updateBookLastPage(bookId: String, page: Int) {
-        dataStore.edit { prefs ->
-            val current = prefs[KEY_BOOKS]?.let { json.decodeFromString<List<Book>>(it) } ?: emptyList()
-            val updated = current.map { book ->
-                if (book.id == bookId) book.copy(lastPage = page) else book
+        runCatching {
+            dataStore.edit { prefs ->
+                val current = prefs[KEY_BOOKS]?.let {
+                    json.decodeFromString(ListSerializer(Book.serializer()), it)
+                } ?: emptyList()
+                val updated = current.map { book ->
+                    if (book.id == bookId) book.copy(lastPage = page) else book
+                }
+                prefs[KEY_BOOKS] = json.encodeToString(ListSerializer(Book.serializer()), updated)
             }
-            prefs[KEY_BOOKS] = json.encodeToString(updated)
+        }.onFailure { e ->
+            LogManager.e("SettingsRepository", "Failed to update last page for $bookId", e)
         }
     }
 
     suspend fun updateBookThumbnail(bookId: String, coverUri: Uri?, thumbnailPage: Int) {
-        dataStore.edit { prefs ->
-            val current = prefs[KEY_BOOKS]?.let { json.decodeFromString<List<Book>>(it) } ?: emptyList()
-            val updated = current.map { book ->
-                if (book.id == bookId) book.copy(coverUri = coverUri, thumbnailPage = thumbnailPage) else book
+        runCatching {
+            dataStore.edit { prefs ->
+                val current = prefs[KEY_BOOKS]?.let {
+                    json.decodeFromString(ListSerializer(Book.serializer()), it)
+                } ?: emptyList()
+                val updated = current.map { book ->
+                    if (book.id == bookId) book.copy(coverUri = coverUri, thumbnailPage = thumbnailPage) else book
+                }
+                prefs[KEY_BOOKS] = json.encodeToString(ListSerializer(Book.serializer()), updated)
             }
-            prefs[KEY_BOOKS] = json.encodeToString(updated)
+        }.onFailure { e ->
+            LogManager.e("SettingsRepository", "Failed to update thumbnail for $bookId", e)
         }
     }
 

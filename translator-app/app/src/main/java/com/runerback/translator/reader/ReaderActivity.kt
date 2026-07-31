@@ -62,6 +62,7 @@ import com.runerback.translator.ui.floating.FloatingTranslationPanel
 import com.runerback.translator.ui.floating.TranslationPanelViewModel
 import com.runerback.translator.ui.floating.TranslationPanelViewModelFactory
 import com.runerback.translator.ui.theme.TranslatorTheme
+import com.runerback.translator.util.LogManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -187,6 +188,14 @@ private fun ReaderScreen(
         }
     }
 
+    LaunchedEffect(totalPages) {
+        val maxPage = (totalPages - 1).coerceAtLeast(0)
+        if (pageIndex > maxPage) {
+            pageIndex = maxPage
+            saveProgress(pageIndex)
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
         // Content (center area)
         Box(
@@ -198,11 +207,15 @@ private fun ReaderScreen(
                 book = book,
                 pageIndex = pageIndex,
                 onPageChange = { newPage, newTotal ->
+                    LogManager.d("ReaderActivity", "onPageChange page=$newPage total=$newTotal")
                     pageIndex = newPage
                     totalPages = newTotal
                     saveProgress(newPage)
                 },
-                onTotalPages = { totalPages = it },
+                onTotalPages = {
+                    LogManager.d("ReaderActivity", "onTotalPages total=$it")
+                    totalPages = it
+                },
                 viewModel = viewModel,
                 ocrEngine = ocrEngine,
                 menusVisible = menusVisible,
@@ -291,7 +304,8 @@ private fun ReaderScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = {
                         if (!showTopMenu && !showBottomMenu) {
-                            pageIndex = (pageIndex + 1).coerceAtMost(totalPages - 1)
+                            val maxPage = (totalPages - 1).coerceAtLeast(0)
+                            pageIndex = (pageIndex + 1).coerceAtMost(maxPage)
                             saveProgress(pageIndex)
                         }
                     })
@@ -399,6 +413,7 @@ private fun ReaderContent(
             book = book,
             pageIndex = pageIndex,
             onPageChange = onPageChange,
+            onTotalPages = onTotalPages,
             ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
@@ -424,6 +439,7 @@ private fun MangaReader(
     book: Book,
     pageIndex: Int,
     onPageChange: (Int, Int) -> Unit,
+    onTotalPages: (Int) -> Unit,
     ocrEngine: PaddleOcrEngine?,
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
@@ -433,6 +449,11 @@ private fun MangaReader(
 
     LaunchedEffect(pageIndex) {
         onPageChange(pageIndex, book.entries.size)
+    }
+
+    LaunchedEffect(Unit) {
+        LogManager.d("ReaderActivity", "MangaReader entries=${book.entries.size}")
+        onTotalPages(book.entries.size)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -504,13 +525,17 @@ private fun TextReader(
         content = withContext(Dispatchers.IO) {
             when (fileType) {
                 FileType.EPUB -> {
-                    EpubParser(context).parse(uri).getOrNull()
-                        ?.chapters?.firstOrNull()?.body ?: ""
+                    val chapters = EpubParser(context).parse(uri).getOrNull()?.chapters
+                    val body = chapters?.joinToString("\n\n") { it.body } ?: ""
+                    LogManager.d("ReaderActivity", "EPUB chapters=${chapters?.size ?: 0} contentLength=${body.length}")
+                    body
                 }
                 FileType.TXT -> {
-                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                    val text = context.contentResolver.openInputStream(uri)?.use { stream ->
                         stream.bufferedReader().readText()
                     } ?: ""
+                    LogManager.d("ReaderActivity", "TXT contentLength=${text.length}")
+                    text
                 }
                 else -> ""
             }
@@ -528,7 +553,27 @@ private fun TextReader(
                 if (!menusVisible) viewModel.show(selected, anchor)
             },
         )
+    } else {
+        LaunchedEffect(Unit) {
+            LogManager.d("ReaderActivity", "Empty content for $fileType uri=$uri")
+            onTotalPages(0)
+        }
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "Empty book",
+                color = Color.Black,
+                fontSize = 16.sp,
+            )
+        }
     }
+}
+
+private sealed class PageLoadResult {
+    data class Success(val bitmap: Bitmap?, val totalPages: Int) : PageLoadResult()
+    data object Error : PageLoadResult()
 }
 
 @Composable
@@ -544,30 +589,54 @@ private fun ImageReader(
     onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var bitmap by remember(uri, pageIndex) { mutableStateOf<Bitmap?>(null) }
-    var pdfPageCount by remember { mutableIntStateOf(1) }
+    var loadError by remember(uri, pageIndex) { mutableStateOf(false) }
     val contentScale = if (fileType == FileType.IMAGE) ContentScale.Crop else ContentScale.Fit
 
     LaunchedEffect(uri, pageIndex) {
-        bitmap = withContext(Dispatchers.IO) {
-            when (fileType) {
-                FileType.PDF -> {
-                    val renderer = PdfRendererWrapper(context, uri)
-                    pdfPageCount = renderer.pageCount.coerceAtLeast(1)
-                    onTotalPages(pdfPageCount)
-                    val page = renderer.renderPage(pageIndex.coerceIn(0, pdfPageCount - 1), 1200)
-                    renderer.close()
-                    page?.cropWhitespace()
-                }
-                FileType.IMAGE -> {
-                    onTotalPages(1)
-                    context.contentResolver.openInputStream(uri)?.use { stream ->
-                        android.graphics.BitmapFactory.decodeStream(stream)?.cropWhitespace()
+        bitmap = null
+        loadError = false
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                when (fileType) {
+                    FileType.PDF -> {
+                        val renderer = PdfRendererWrapper(context, uri)
+                        val count = renderer.pageCount
+                        LogManager.d("ReaderActivity", "PDF pageCount=$count uri=$uri")
+                        if (count <= 0) {
+                            renderer.close()
+                            PageLoadResult.Error
+                        } else {
+                            val page = renderer.renderPage(pageIndex.coerceIn(0, count - 1), 1200)
+                            renderer.close()
+                            PageLoadResult.Success(page?.cropWhitespace(), count)
+                        }
                     }
+                    FileType.IMAGE -> {
+                        val stream = context.contentResolver.openInputStream(uri)
+                        val decoded = stream?.use {
+                            android.graphics.BitmapFactory.decodeStream(it)?.cropWhitespace()
+                        }
+                        PageLoadResult.Success(decoded, 1)
+                    }
+                    else -> PageLoadResult.Error
                 }
-                else -> null
+            }.getOrElse { e ->
+                LogManager.e("ReaderActivity", "Error loading $fileType page uri=$uri", e)
+                PageLoadResult.Error
             }
+        }
+        when (result) {
+            is PageLoadResult.Success -> {
+                onTotalPages(result.totalPages)
+                if (result.bitmap != null) {
+                    bitmap = result.bitmap
+                } else {
+                    loadError = true
+                    LogManager.e("ReaderActivity", "Decoded bitmap is null for $fileType uri=$uri")
+                }
+            }
+            is PageLoadResult.Error -> loadError = true
         }
     }
 
@@ -579,6 +648,19 @@ private fun ImageReader(
             bitmap = bmp,
             contentScale = contentScale,
         )
+    }
+
+    if (loadError) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "Unable to open page",
+                color = Color.Black,
+                fontSize = 16.sp,
+            )
+        }
     }
 }
 
