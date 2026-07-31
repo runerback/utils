@@ -173,6 +173,7 @@ private fun ReaderScreen(
     var isCropMode by remember { mutableStateOf(false) }
     var currentImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var currentImageContentScale by remember { mutableStateOf(ContentScale.Fit) }
+    var currentPageHasBitmap by remember(book) { mutableStateOf(false) }
     var cropRequest by remember { mutableStateOf<Pair<Int, Offset>?>(null) }
     var cropRequestId by remember { mutableIntStateOf(0) }
     var clearingPage by remember(book) { mutableStateOf(false) }
@@ -198,6 +199,11 @@ private fun ReaderScreen(
         withFrameNanos { }
         // Frame 2: switch to the next page and remove the flash.
         pageIndex = targetPageIndex
+        isCropMode = false
+        cropRequest = null
+        currentImageBitmap = null
+        currentImageContentScale = ContentScale.Fit
+        currentPageHasBitmap = false
         clearingPage = false
     }
 
@@ -235,11 +241,12 @@ private fun ReaderScreen(
                 onBitmapLoaded = { bitmap, scale ->
                     currentImageBitmap = bitmap
                     currentImageContentScale = scale
+                    currentPageHasBitmap = bitmap != null
                 },
             )
 
             // Long-press on image pages activates the OCR selector.
-            if (isImageBook) {
+            if (isImageBook && currentPageHasBitmap) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -418,7 +425,7 @@ private fun ReaderContent(
     ocrEngine: PaddleOcrEngine?,
     menusVisible: Boolean,
     readerDebugMode: Boolean,
-    onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
+    onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
 ) {
     if (book.type == BookType.MANGA) {
         MangaReader(
@@ -458,7 +465,7 @@ private fun MangaReader(
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
     readerDebugMode: Boolean,
-    onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
+    onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
 ) {
     val uri = book.entries[pageIndex.coerceIn(0, book.entries.size - 1)].uri
 
@@ -498,7 +505,7 @@ private fun SingleEntryReader(
     ocrEngine: PaddleOcrEngine?,
     menusVisible: Boolean,
     readerDebugMode: Boolean,
-    onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
+    onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
 ) {
     when (type) {
         BookType.EPUB, BookType.TXT -> TextReader(
@@ -606,7 +613,7 @@ private fun ImageReader(
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
     readerDebugMode: Boolean,
-    onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
+    onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
 ) {
     val context = LocalContext.current
     var bitmap by remember(uri, pageIndex) { mutableStateOf<Bitmap?>(null) }
@@ -668,6 +675,7 @@ private fun ImageReader(
         }
         when (result) {
             is PdfPageResult.Text -> {
+                onBitmapLoaded(null, contentScale)
                 onTotalPages(result.totalPages)
                 pageContent = result.content
             }
