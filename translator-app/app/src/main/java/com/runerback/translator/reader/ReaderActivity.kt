@@ -30,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,16 +42,20 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.runerback.translator.bookshelf.Book
@@ -63,8 +68,8 @@ import com.runerback.translator.reader.image.ImageRangeSelector
 import com.runerback.translator.reader.image.ImageReaderScreen
 import com.runerback.translator.reader.image.PdfRendererWrapper
 import com.runerback.translator.reader.image.cropWhitespace
-import com.runerback.translator.reader.pdf.PdfContentExtractor
-import com.runerback.translator.reader.pdf.PdfPageContent
+import com.runerback.translator.reader.pdf.PdfPageCache
+import com.runerback.translator.reader.pdf.PdfPaginator
 import com.runerback.translator.reader.pdf.PdfTextReaderScreen
 import com.runerback.translator.reader.text.TextReaderScreen
 import com.runerback.translator.ui.floating.FloatingTranslationPanel
@@ -447,7 +452,6 @@ private fun ReaderContent(
             onPageChange = onPageChange,
             onTotalPages = onTotalPages,
             viewModel = viewModel,
-            ocrEngine = ocrEngine,
             menusVisible = menusVisible,
             readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
@@ -479,18 +483,67 @@ private fun MangaReader(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ImageReader(
+        ImageFileReader(
             uri = uri,
-            fileType = FileType.IMAGE,
-            pageIndex = 0,
-            onPageChange = { _, _ -> },
-            onTotalPages = { },
-            ocrEngine = ocrEngine,
-            viewModel = viewModel,
-            menusVisible = menusVisible,
             readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
         )
+    }
+}
+
+@Composable
+private fun ImageFileReader(
+    uri: Uri,
+    readerDebugMode: Boolean,
+    onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
+) {
+    val context = LocalContext.current
+    var bitmap by remember(uri) { mutableStateOf<Bitmap?>(null) }
+    var loadError by remember(uri) { mutableStateOf(false) }
+
+    LaunchedEffect(uri) {
+        bitmap = null
+        loadError = false
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    android.graphics.BitmapFactory.decodeStream(stream)?.cropWhitespace(debug = readerDebugMode)
+                }
+            }.getOrElse { e ->
+                if (e is CancellationException) throw e
+                LogManager.e("ReaderActivity", "Error loading image uri=$uri", e)
+                null
+            }
+        }
+        if (result != null) {
+            bitmap = result
+        } else {
+            loadError = true
+        }
+    }
+
+    bitmap?.let { bmp ->
+        LaunchedEffect(bmp) {
+            onBitmapLoaded(bmp, ContentScale.Crop)
+        }
+        ImageReaderScreen(
+            bitmap = bmp,
+            contentScale = ContentScale.Crop,
+            debug = readerDebugMode,
+        )
+    }
+
+    if (loadError) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "Unable to open page",
+                color = Color.Black,
+                fontSize = 16.sp,
+            )
+        }
     }
 }
 
@@ -502,7 +555,6 @@ private fun SingleEntryReader(
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
     viewModel: TranslationPanelViewModel,
-    ocrEngine: PaddleOcrEngine?,
     menusVisible: Boolean,
     readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
@@ -517,13 +569,11 @@ private fun SingleEntryReader(
             viewModel = viewModel,
             menusVisible = menusVisible,
         )
-        BookType.PDF -> ImageReader(
+        BookType.PDF -> PdfReader(
             uri = uri,
-            fileType = FileType.PDF,
             pageIndex = pageIndex,
             onPageChange = onPageChange,
             onTotalPages = onTotalPages,
-            ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
             readerDebugMode = readerDebugMode,
@@ -596,113 +646,162 @@ private fun TextReader(
     }
 }
 
-private sealed class PdfPageResult {
-    data class Text(val content: PdfPageContent, val totalPages: Int) : PdfPageResult()
-    data class BitmapPage(val bitmap: android.graphics.Bitmap?, val totalPages: Int) : PdfPageResult()
-    data object Error : PdfPageResult()
-}
-
 @Composable
-private fun ImageReader(
+private fun PdfReader(
     uri: Uri,
-    fileType: FileType,
     pageIndex: Int,
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
-    ocrEngine: PaddleOcrEngine?,
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
     readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
 ) {
     val context = LocalContext.current
-    var bitmap by remember(uri, pageIndex) { mutableStateOf<Bitmap?>(null) }
-    var pageContent by remember(uri, pageIndex) { mutableStateOf<PdfPageContent?>(null) }
-    var loadError by remember(uri, pageIndex) { mutableStateOf(false) }
-    val contentScale = if (fileType == FileType.IMAGE) ContentScale.Crop else ContentScale.Fit
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
 
-    LaunchedEffect(uri, pageIndex) {
-        bitmap = null
-        pageContent = null
-        loadError = false
-        val result = withContext(Dispatchers.IO) {
-            runCatching {
-                when (fileType) {
-                    FileType.PDF -> {
-                        val extractor = PdfContentExtractor(context)
-                        val content = extractor.extractPage(uri, pageIndex)
-                        if (!content?.text.isNullOrBlank()) {
-                            val count = extractor.pageCount(uri) ?: 1
-                            LogManager.d(
-                                "ReaderActivity",
-                                "PDF text mode pageCount=$count page=$pageIndex uri=$uri",
-                            )
-                            PdfPageResult.Text(content!!, count)
-                        } else {
-                            val renderer = PdfRendererWrapper(context, uri)
-                            val count = renderer.pageCount
-                            LogManager.d(
-                                "ReaderActivity",
-                                "PDF bitmap mode pageCount=$count page=$pageIndex uri=$uri",
-                            )
-                            if (count <= 0) {
-                                renderer.close()
-                                PdfPageResult.Error
-                            } else {
-                                val page = renderer.renderPage(pageIndex.coerceIn(0, count - 1), 1200)
-                                renderer.close()
-                                if (readerDebugMode) {
-                                    LogManager.d("ReaderActivity", "cropping PDF page $pageIndex")
-                                }
-                                PdfPageResult.BitmapPage(page?.cropWhitespace(debug = readerDebugMode), count)
-                            }
-                        }
-                    }
-                    FileType.IMAGE -> {
-                        val stream = context.contentResolver.openInputStream(uri)
-                        val decoded = stream?.use {
-                            android.graphics.BitmapFactory.decodeStream(it)?.cropWhitespace(debug = readerDebugMode)
-                        }
-                        PdfPageResult.BitmapPage(decoded, 1)
-                    }
-                    else -> PdfPageResult.Error
-                }
-            }.getOrElse { e ->
-                if (e is CancellationException) throw e
-                LogManager.e("ReaderActivity", "Error loading $fileType page uri=$uri", e)
-                PdfPageResult.Error
-            }
-        }
-        when (result) {
-            is PdfPageResult.Text -> {
-                onBitmapLoaded(null, contentScale)
-                onTotalPages(result.totalPages)
-                pageContent = result.content
-            }
-            is PdfPageResult.BitmapPage -> {
-                onTotalPages(result.totalPages)
-                if (result.bitmap != null) {
-                    bitmap = result.bitmap
-                } else {
-                    loadError = true
-                    LogManager.e("ReaderActivity", "Decoded bitmap is null for $fileType uri=$uri")
-                }
-            }
-            is PdfPageResult.Error -> loadError = true
+    var containerSize by remember { mutableStateOf(Size.Zero) }
+
+    val params = remember(density, containerSize) {
+        if (containerSize.width <= 0 || containerSize.height <= 0) return@remember null
+        val paddingPx = with(density) { 12.dp.toPx() }.toInt()
+        PdfPageCache.RenderParams(
+            fontSizeSp = 18f,
+            lineHeight = 1.3f,
+            width = containerSize.width.toInt(),
+            height = containerSize.height.toInt(),
+            paddingPx = paddingPx,
+        )
+    }
+
+    var paginator by remember { mutableStateOf<PdfPaginator?>(null) }
+
+    DisposableEffect(uri, params) {
+        val newPaginator = params?.let { PdfPaginator(context, uri, it, scope) }
+        paginator = newPaginator
+        onDispose {
+            newPaginator?.cancel()
         }
     }
 
-    pageContent?.let { content ->
-        PdfTextReaderScreen(content = content, debug = readerDebugMode)
+    val totalChunks by paginator?.totalChunks?.collectAsStateWithLifecycle()
+        ?: remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(pageIndex, totalChunks) {
+        onPageChange(pageIndex, totalChunks.coerceAtLeast(1))
+    }
+
+    LaunchedEffect(paginator) {
+        paginator?.totalChunks?.collect { total ->
+            onTotalPages(total)
+        }
+    }
+
+    var pageLocation by remember { mutableStateOf<PdfPaginator.PageLocation?>(null) }
+    var pageText by remember { mutableStateOf("") }
+    var isImagePage by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(pageIndex, paginator) {
+        isLoading = true
+        val pag = paginator ?: return@LaunchedEffect
+        val location = pag.locationFor(pageIndex)
+        pageLocation = location
+        isImagePage = pag.isImagePage(location.pdfPage)
+        pageText = if (isImagePage) "" else pag.chunkText(pageIndex)
+        isLoading = false
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .onSizeChanged { containerSize = it.toSize() },
+    ) {
+        if (isLoading || paginator == null) {
+            return@Box
+        }
+
+        val location = pageLocation ?: return@Box
+
+        LaunchedEffect(isImagePage, location.pdfPage) {
+            if (!isImagePage) {
+                onBitmapLoaded(null, ContentScale.Fit)
+            }
+        }
+
+        if (isImagePage) {
+            PdfBitmapPage(
+                uri = uri,
+                pdfPage = location.pdfPage,
+                readerDebugMode = readerDebugMode,
+                onBitmapLoaded = onBitmapLoaded,
+            )
+        } else {
+            PdfTextReaderScreen(
+                text = pageText,
+                images = emptyList(),
+                pageIndex = pageIndex,
+                totalPages = totalChunks,
+                menusVisible = menusVisible,
+                onPageChange = onPageChange,
+                onTotalPages = onTotalPages,
+                onTranslate = { selected, anchor ->
+                    if (!menusVisible) viewModel.show(selected, anchor)
+                },
+                debug = readerDebugMode,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PdfBitmapPage(
+    uri: Uri,
+    pdfPage: Int,
+    readerDebugMode: Boolean,
+    onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
+) {
+    val context = LocalContext.current
+    var bitmap by remember(uri, pdfPage) { mutableStateOf<Bitmap?>(null) }
+    var loadError by remember(uri, pdfPage) { mutableStateOf(false) }
+
+    LaunchedEffect(uri, pdfPage) {
+        bitmap = null
+        loadError = false
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                val renderer = PdfRendererWrapper(context, uri)
+                val count = renderer.pageCount
+                if (count <= 0) {
+                    renderer.close()
+                    null
+                } else {
+                    val page = renderer.renderPage(pdfPage.coerceIn(0, count - 1), 1200)
+                    renderer.close()
+                    page?.cropWhitespace(debug = readerDebugMode)
+                }
+            }.getOrElse { e ->
+                if (e is CancellationException) throw e
+                LogManager.e("ReaderActivity", "Error rendering PDF bitmap page=$pdfPage uri=$uri", e)
+                null
+            }
+        }
+        if (result != null) {
+            bitmap = result
+        } else {
+            loadError = true
+        }
     }
 
     bitmap?.let { bmp ->
         LaunchedEffect(bmp) {
-            onBitmapLoaded(bmp, contentScale)
+            onBitmapLoaded(bmp, ContentScale.Fit)
         }
         ImageReaderScreen(
             bitmap = bmp,
-            contentScale = contentScale,
+            contentScale = ContentScale.Fit,
             debug = readerDebugMode,
         )
     }

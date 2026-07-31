@@ -207,7 +207,7 @@ private fun SelectionToolbar(
     }
 }
 
-private fun computePages(
+internal fun computePages(
     text: String,
     width: Int,
     height: Int,
