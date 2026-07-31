@@ -8,8 +8,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,7 +47,6 @@ private val HandleRadius = 12.dp
 private val RectStrokeWidth = 2.dp
 private val TranslateButtonWidth = 48.dp
 private val TranslateButtonHeight = 32.dp
-private val ContentZonePadding = 56.dp
 private val MinRectWidth = max((HandleSize * 2 + TranslateButtonWidth).value, (HandleSize * 2).value).dp
 private val MinRectHeight = max((HandleSize * 2 + TranslateButtonHeight).value, (HandleSize * 2).value).dp
 
@@ -64,16 +66,20 @@ fun ImageRangeSelector(
     var suppressTapsUntil by remember { mutableStateOf(0L) }
 
     val density = LocalDensity.current
+    val safePadding = WindowInsets.safeDrawing.asPaddingValues()
+    val topPadding = safePadding.calculateTopPadding()
+    val bottomPadding = safePadding.calculateBottomPadding()
+    val topPaddingPx = with(density) { topPadding.toPx() }
+    val bottomPaddingPx = with(density) { bottomPadding.toPx() }
     val handleRadiusPx = with(density) { HandleRadius.toPx() }
     val buttonHeightPx = with(density) { TranslateButtonHeight.toPx() }
-    val contentPaddingPx = with(density) { ContentZonePadding.toPx() }
     val minRectWidthPx = with(density) { MinRectWidth.toPx() }.toInt()
     val minRectHeightPx = with(density) { MinRectHeight.toPx() }.toInt()
 
-    val contentSize = remember(fullSize) {
+    val contentSize = remember(fullSize, topPaddingPx, bottomPaddingPx) {
         Size(
             fullSize.width,
-            (fullSize.height - contentPaddingPx * 2).coerceAtLeast(0f),
+            (fullSize.height - topPaddingPx - bottomPaddingPx).coerceAtLeast(0f),
         )
     }
 
@@ -86,7 +92,7 @@ fun ImageRangeSelector(
     }
 
     fun toContentPoint(point: Offset): Offset {
-        return Offset(point.x, point.y - contentPaddingPx)
+        return Offset(point.x, point.y - topPaddingPx)
     }
 
     fun createInitialCropRect(centerX: Float, centerY: Float): Rect {
@@ -178,7 +184,7 @@ fun ImageRangeSelector(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = ContentZonePadding, bottom = ContentZonePadding),
+                .padding(top = topPadding, bottom = bottomPadding),
         ) {
             // Page image (replicated here so the overlay is self-contained and on top).
             Canvas(modifier = Modifier.fillMaxSize()) {

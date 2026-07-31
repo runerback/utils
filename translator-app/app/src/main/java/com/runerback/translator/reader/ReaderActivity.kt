@@ -18,11 +18,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -57,6 +61,9 @@ import com.runerback.translator.reader.image.ImageRangeSelector
 import com.runerback.translator.reader.image.ImageReaderScreen
 import com.runerback.translator.reader.image.PdfRendererWrapper
 import com.runerback.translator.reader.image.cropWhitespace
+import com.runerback.translator.reader.pdf.PdfContentExtractor
+import com.runerback.translator.reader.pdf.PdfPageContent
+import com.runerback.translator.reader.pdf.PdfTextReaderScreen
 import com.runerback.translator.reader.text.TextReaderScreen
 import com.runerback.translator.ui.floating.FloatingTranslationPanel
 import com.runerback.translator.ui.floating.TranslationPanelViewModel
@@ -201,7 +208,7 @@ private fun ReaderScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 56.dp, bottom = 56.dp, start = 0.dp, end = 0.dp),
+                .padding(WindowInsets.safeDrawing.asPaddingValues()),
         ) {
             ReaderContent(
                 book = book,
@@ -281,7 +288,6 @@ private fun ReaderScreen(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(top = 56.dp, bottom = 56.dp)
                 .fillMaxWidth(0.25f)
                 .align(Alignment.CenterStart)
                 .pointerInput(Unit) {
@@ -298,7 +304,6 @@ private fun ReaderScreen(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(top = 56.dp, bottom = 56.dp)
                 .fillMaxWidth(0.25f)
                 .align(Alignment.CenterEnd)
                 .pointerInput(Unit) {
@@ -571,9 +576,10 @@ private fun TextReader(
     }
 }
 
-private sealed class PageLoadResult {
-    data class Success(val bitmap: Bitmap?, val totalPages: Int) : PageLoadResult()
-    data object Error : PageLoadResult()
+private sealed class PdfPageResult {
+    data class Text(val content: PdfPageContent, val totalPages: Int) : PdfPageResult()
+    data class BitmapPage(val bitmap: android.graphics.Bitmap?, val totalPages: Int) : PdfPageResult()
+    data object Error : PdfPageResult()
 }
 
 @Composable
@@ -590,26 +596,39 @@ private fun ImageReader(
 ) {
     val context = LocalContext.current
     var bitmap by remember(uri, pageIndex) { mutableStateOf<Bitmap?>(null) }
+    var pageContent by remember(uri, pageIndex) { mutableStateOf<PdfPageContent?>(null) }
     var loadError by remember(uri, pageIndex) { mutableStateOf(false) }
     val contentScale = if (fileType == FileType.IMAGE) ContentScale.Crop else ContentScale.Fit
 
     LaunchedEffect(uri, pageIndex) {
         bitmap = null
+        pageContent = null
         loadError = false
         val result = withContext(Dispatchers.IO) {
             runCatching {
                 when (fileType) {
                     FileType.PDF -> {
-                        val renderer = PdfRendererWrapper(context, uri)
-                        val count = renderer.pageCount
-                        LogManager.d("ReaderActivity", "PDF pageCount=$count uri=$uri")
-                        if (count <= 0) {
-                            renderer.close()
-                            PageLoadResult.Error
+                        val extractor = PdfContentExtractor(context)
+                        val content = extractor.extractPage(uri, pageIndex)
+                        if (!content?.text.isNullOrBlank()) {
+                            val count = extractor.pageCount(uri) ?: 1
+                            LogManager.d(
+                                "ReaderActivity",
+                                "PDF text mode pageCount=$count page=$pageIndex uri=$uri",
+                            )
+                            PdfPageResult.Text(content!!, count)
                         } else {
-                            val page = renderer.renderPage(pageIndex.coerceIn(0, count - 1), 1200)
-                            renderer.close()
-                            PageLoadResult.Success(page?.cropWhitespace(), count)
+                            val renderer = PdfRendererWrapper(context, uri)
+                            val count = renderer.pageCount
+                            LogManager.d("ReaderActivity", "PDF bitmap mode pageCount=$count uri=$uri")
+                            if (count <= 0) {
+                                renderer.close()
+                                PdfPageResult.Error
+                            } else {
+                                val page = renderer.renderPage(pageIndex.coerceIn(0, count - 1), 1200)
+                                renderer.close()
+                                PdfPageResult.BitmapPage(page?.cropWhitespace(), count)
+                            }
                         }
                     }
                     FileType.IMAGE -> {
@@ -617,17 +636,21 @@ private fun ImageReader(
                         val decoded = stream?.use {
                             android.graphics.BitmapFactory.decodeStream(it)?.cropWhitespace()
                         }
-                        PageLoadResult.Success(decoded, 1)
+                        PdfPageResult.BitmapPage(decoded, 1)
                     }
-                    else -> PageLoadResult.Error
+                    else -> PdfPageResult.Error
                 }
             }.getOrElse { e ->
                 LogManager.e("ReaderActivity", "Error loading $fileType page uri=$uri", e)
-                PageLoadResult.Error
+                PdfPageResult.Error
             }
         }
         when (result) {
-            is PageLoadResult.Success -> {
+            is PdfPageResult.Text -> {
+                onTotalPages(result.totalPages)
+                pageContent = result.content
+            }
+            is PdfPageResult.BitmapPage -> {
                 onTotalPages(result.totalPages)
                 if (result.bitmap != null) {
                     bitmap = result.bitmap
@@ -636,8 +659,12 @@ private fun ImageReader(
                     LogManager.e("ReaderActivity", "Decoded bitmap is null for $fileType uri=$uri")
                 }
             }
-            is PageLoadResult.Error -> loadError = true
+            is PdfPageResult.Error -> loadError = true
         }
+    }
+
+    pageContent?.let { content ->
+        PdfTextReaderScreen(content = content)
     }
 
     bitmap?.let { bmp ->

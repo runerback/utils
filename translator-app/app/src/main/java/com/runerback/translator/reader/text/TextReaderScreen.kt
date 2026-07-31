@@ -5,6 +5,7 @@ import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.util.TypedValue
 import android.widget.TextView
 import com.runerback.translator.util.LogManager
 import androidx.compose.foundation.background
@@ -42,7 +43,6 @@ fun TextReaderScreen(
     initialPage: Int = 0,
     fontSizeSp: Float = 18f,
     lineSpacingMultiplier: Float = 1.3f,
-    paddingDp: Int = 24,
     menusVisible: Boolean = false,
     onPageChange: (Int, Int) -> Unit = { _, _ -> },
     onTotalPages: (Int) -> Unit = {},
@@ -52,7 +52,12 @@ fun TextReaderScreen(
     var containerSize by remember { mutableStateOf(Size.Zero) }
     var pages by remember { mutableStateOf(listOf("")) }
     var currentPage by remember(initialPage) { mutableIntStateOf(initialPage.coerceAtLeast(0)) }
-    val paddingPx = remember(density) { with(density) { paddingDp.dp.toPx() }.toInt() }
+    val paddingPx = remember(density, containerSize.width) {
+        if (containerSize.width <= 0f) return@remember 0
+        val maxPaddingPx = with(density) { 8.dp.toPx() }
+        val calculatedPaddingPx = containerSize.width * 0.015f
+        minOf(calculatedPaddingPx, maxPaddingPx).toInt().coerceAtLeast(0)
+    }
     var selection by remember { mutableStateOf<Selection?>(null) }
 
     LaunchedEffect(content, containerSize, paddingPx) {
@@ -218,7 +223,11 @@ private fun computePages(
     val paint = TextPaint().apply {
         isAntiAlias = true
         color = android.graphics.Color.BLACK
-        textSize = fontSizeSp * android.content.res.Resources.getSystem().displayMetrics.scaledDensity
+        textSize = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            fontSizeSp,
+            android.content.res.Resources.getSystem().displayMetrics,
+        )
     }
 
     val availableWidth = width - paddingPx * 2

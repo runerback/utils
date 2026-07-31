@@ -112,6 +112,9 @@ dependencies {
     // EPUB parsing / HTML cleaning
     implementation("org.jsoup:jsoup:1.18.1")
 
+    // PDF text / image extraction (free Apache-2.0 Android port)
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+
     // Image loading
     implementation("io.coil-kt:coil-compose:2.7.0")
 
