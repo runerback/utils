@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.runerback.translator.data.SettingsManager
 import com.runerback.translator.data.SettingsRepository
 import kotlinx.coroutines.launch
 
@@ -33,10 +34,12 @@ fun SettingsDialog(
 ) {
     val baseUrl by settingsRepository.baseUrl.collectAsStateWithLifecycle(initialValue = SettingsRepository.DEFAULT_BASE_URL)
     val useFakeServer by settingsRepository.useFakeServer.collectAsStateWithLifecycle(initialValue = false)
+    val readerDebugMode by SettingsManager.readerDebugMode.collectAsStateWithLifecycle(initialValue = false)
     val scope = rememberCoroutineScope()
 
     var urlInput by remember(baseUrl) { mutableStateOf(baseUrl) }
     var fakeInput by remember(useFakeServer) { mutableStateOf(useFakeServer) }
+    var debugInput by remember(readerDebugMode) { mutableStateOf(readerDebugMode) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -72,6 +75,21 @@ fun SettingsDialog(
                         uncheckedTrackColor = Color.Black,
                     ),
                 )
+                Text(
+                    text = "Reader debug mode",
+                    color = Color.Black,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+                Switch(
+                    checked = debugInput,
+                    onCheckedChange = { debugInput = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.Black,
+                        checkedTrackColor = Color.White,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color.Black,
+                    ),
+                )
             }
         },
         confirmButton = {
@@ -80,8 +98,9 @@ fun SettingsDialog(
                     scope.launch {
                         settingsRepository.setBaseUrl(urlInput)
                         settingsRepository.setUseFakeServer(fakeInput)
+                        SettingsManager.setReaderDebugMode(debugInput)
+                        onDismiss()
                     }
-                    onDismiss()
                 },
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = Color.White,

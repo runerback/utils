@@ -3,17 +3,20 @@ package com.runerback.translator.reader.image
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun ImageReaderScreen(
     bitmap: Bitmap,
     contentScale: ContentScale = ContentScale.Fit,
+    debug: Boolean = false,
 ) {
     Image(
         bitmap = bitmap.asImageBitmap(),
@@ -21,6 +24,7 @@ fun ImageReaderScreen(
         contentScale = contentScale,
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White),
+            .background(Color.White)
+            .then(if (debug) Modifier.border(2.dp, Color.Red) else Modifier),
     )
 }

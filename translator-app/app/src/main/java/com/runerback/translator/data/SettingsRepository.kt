@@ -41,6 +41,10 @@ class SettingsRepository(private val context: Context) {
         prefs[KEY_USE_FAKE_SERVER] ?: false
     }
 
+    val readerDebugMode: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_READER_DEBUG_MODE] ?: false
+    }
+
     val rootFolderUri: Flow<Uri?> = dataStore.data.map { prefs ->
         prefs[KEY_ROOT_FOLDER_URI]?.let { Uri.parse(it) }
     }
@@ -74,6 +78,12 @@ class SettingsRepository(private val context: Context) {
     suspend fun setUseFakeServer(value: Boolean) {
         dataStore.edit { prefs ->
             prefs[KEY_USE_FAKE_SERVER] = value
+        }
+    }
+
+    suspend fun setReaderDebugMode(value: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_READER_DEBUG_MODE] = value
         }
     }
 
@@ -132,6 +142,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_MODEL = stringPreferencesKey("ollama_model")
         private val KEY_TEMPERATURE = doublePreferencesKey("ollama_temperature")
         private val KEY_USE_FAKE_SERVER = booleanPreferencesKey("use_fake_server")
+        private val KEY_READER_DEBUG_MODE = booleanPreferencesKey("reader_debug_mode")
         private val KEY_ROOT_FOLDER_URI = stringPreferencesKey("root_folder_uri")
         private val KEY_BOOKS = stringPreferencesKey("books_json")
         private val KEY_BOOK_SORT = stringPreferencesKey("book_sort")

@@ -51,9 +51,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.runerback.translator.bookshelf.Book
 import com.runerback.translator.bookshelf.BookType
+import com.runerback.translator.data.SettingsManager
 import com.runerback.translator.data.SettingsRepository
 import com.runerback.translator.ocr.PaddleOcrEngine
 import com.runerback.translator.reader.epub.EpubParser
@@ -70,6 +72,7 @@ import com.runerback.translator.ui.floating.TranslationPanelViewModel
 import com.runerback.translator.ui.floating.TranslationPanelViewModelFactory
 import com.runerback.translator.ui.theme.TranslatorTheme
 import com.runerback.translator.util.LogManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -160,6 +163,8 @@ private fun ReaderScreen(
 ) {
     val scope = rememberCoroutineScope()
 
+    val readerDebugMode by SettingsManager.readerDebugMode.collectAsStateWithLifecycle(initialValue = false)
+
     var pageIndex by remember(book) { mutableIntStateOf(book.lastPage.coerceAtLeast(0)) }
     var targetPageIndex by remember(book) { mutableIntStateOf(pageIndex) }
     var totalPages by remember(book) { mutableIntStateOf(1) }
@@ -226,6 +231,7 @@ private fun ReaderScreen(
                 viewModel = viewModel,
                 ocrEngine = ocrEngine,
                 menusVisible = menusVisible,
+                readerDebugMode = readerDebugMode,
                 onBitmapLoaded = { bitmap, scale ->
                     currentImageBitmap = bitmap
                     currentImageContentScale = scale
@@ -411,6 +417,7 @@ private fun ReaderContent(
     viewModel: TranslationPanelViewModel,
     ocrEngine: PaddleOcrEngine?,
     menusVisible: Boolean,
+    readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     if (book.type == BookType.MANGA) {
@@ -422,6 +429,7 @@ private fun ReaderContent(
             ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
+            readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
         )
     } else {
@@ -434,6 +442,7 @@ private fun ReaderContent(
             viewModel = viewModel,
             ocrEngine = ocrEngine,
             menusVisible = menusVisible,
+            readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
         )
     }
@@ -448,6 +457,7 @@ private fun MangaReader(
     ocrEngine: PaddleOcrEngine?,
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
+    readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     val uri = book.entries[pageIndex.coerceIn(0, book.entries.size - 1)].uri
@@ -471,6 +481,7 @@ private fun MangaReader(
             ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
+            readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
         )
     }
@@ -486,6 +497,7 @@ private fun SingleEntryReader(
     viewModel: TranslationPanelViewModel,
     ocrEngine: PaddleOcrEngine?,
     menusVisible: Boolean,
+    readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     when (type) {
@@ -507,6 +519,7 @@ private fun SingleEntryReader(
             ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
+            readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
         )
         else -> {}
@@ -592,6 +605,7 @@ private fun ImageReader(
     ocrEngine: PaddleOcrEngine?,
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
+    readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     val context = LocalContext.current
@@ -620,27 +634,34 @@ private fun ImageReader(
                         } else {
                             val renderer = PdfRendererWrapper(context, uri)
                             val count = renderer.pageCount
-                            LogManager.d("ReaderActivity", "PDF bitmap mode pageCount=$count uri=$uri")
+                            LogManager.d(
+                                "ReaderActivity",
+                                "PDF bitmap mode pageCount=$count page=$pageIndex uri=$uri",
+                            )
                             if (count <= 0) {
                                 renderer.close()
                                 PdfPageResult.Error
                             } else {
                                 val page = renderer.renderPage(pageIndex.coerceIn(0, count - 1), 1200)
                                 renderer.close()
-                                PdfPageResult.BitmapPage(page?.cropWhitespace(), count)
+                                if (readerDebugMode) {
+                                    LogManager.d("ReaderActivity", "cropping PDF page $pageIndex")
+                                }
+                                PdfPageResult.BitmapPage(page?.cropWhitespace(debug = readerDebugMode), count)
                             }
                         }
                     }
                     FileType.IMAGE -> {
                         val stream = context.contentResolver.openInputStream(uri)
                         val decoded = stream?.use {
-                            android.graphics.BitmapFactory.decodeStream(it)?.cropWhitespace()
+                            android.graphics.BitmapFactory.decodeStream(it)?.cropWhitespace(debug = readerDebugMode)
                         }
                         PdfPageResult.BitmapPage(decoded, 1)
                     }
                     else -> PdfPageResult.Error
                 }
             }.getOrElse { e ->
+                if (e is CancellationException) throw e
                 LogManager.e("ReaderActivity", "Error loading $fileType page uri=$uri", e)
                 PdfPageResult.Error
             }
@@ -664,7 +685,7 @@ private fun ImageReader(
     }
 
     pageContent?.let { content ->
-        PdfTextReaderScreen(content = content)
+        PdfTextReaderScreen(content = content, debug = readerDebugMode)
     }
 
     bitmap?.let { bmp ->
@@ -674,6 +695,7 @@ private fun ImageReader(
         ImageReaderScreen(
             bitmap = bmp,
             contentScale = contentScale,
+            debug = readerDebugMode,
         )
     }
 

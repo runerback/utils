@@ -98,7 +98,10 @@ fun LogsDialog(
                 }
                 Spacer(modifier = Modifier.padding(horizontal = 8.dp))
                 OutlinedButton(
-                    onClick = { LogManager.clear() },
+                    onClick = {
+                        LogManager.clear()
+                        onDismiss()
+                    },
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.White,
                         contentColor = Color.Red,

@@ -2,6 +2,7 @@ package com.runerback.translator.reader.pdf
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +32,7 @@ fun PdfTextReaderScreen(
     content: PdfPageContent,
     fontSizeSp: Float = 18f,
     lineHeight: Float = 1.3f,
+    debug: Boolean = false,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -58,7 +60,8 @@ fun PdfTextReaderScreen(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 8.dp)
+                    .then(if (debug) Modifier.border(2.dp, Color.Red) else Modifier),
             )
         }
     }
