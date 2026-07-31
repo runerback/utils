@@ -71,7 +71,6 @@ import com.runerback.translator.ui.floating.TranslationPanelViewModelFactory
 import com.runerback.translator.ui.theme.TranslatorTheme
 import com.runerback.translator.util.LogManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -162,6 +161,7 @@ private fun ReaderScreen(
     val scope = rememberCoroutineScope()
 
     var pageIndex by remember(book) { mutableIntStateOf(book.lastPage.coerceAtLeast(0)) }
+    var targetPageIndex by remember(book) { mutableIntStateOf(pageIndex) }
     var totalPages by remember(book) { mutableIntStateOf(1) }
     var showTopMenu by remember { mutableStateOf(false) }
     var showBottomMenu by remember { mutableStateOf(false) }
@@ -170,8 +170,7 @@ private fun ReaderScreen(
     var currentImageContentScale by remember { mutableStateOf(ContentScale.Fit) }
     var cropRequest by remember { mutableStateOf<Pair<Int, Offset>?>(null) }
     var cropRequestId by remember { mutableIntStateOf(0) }
-    var previousPageIndex by remember { mutableIntStateOf(pageIndex) }
-    var clearingPage by remember { mutableStateOf(false) }
+    var clearingPage by remember(book) { mutableStateOf(false) }
 
     fun saveProgress(page: Int) {
         scope.launch {
@@ -186,19 +185,22 @@ private fun ReaderScreen(
         if (menusVisible) isCropMode = false
     }
 
-    LaunchedEffect(pageIndex) {
-        if (pageIndex != previousPageIndex) {
-            clearingPage = true
-            previousPageIndex = pageIndex
-            delay(100)
-            clearingPage = false
-        }
+    LaunchedEffect(targetPageIndex) {
+        if (targetPageIndex == pageIndex) return@LaunchedEffect
+        // Frame 1: full white flash to clear e-ink ghosting.
+        clearingPage = true
+        // Wait exactly one frame so the white flash is drawn.
+        withFrameNanos { }
+        // Frame 2: switch to the next page and remove the flash.
+        pageIndex = targetPageIndex
+        clearingPage = false
     }
 
     LaunchedEffect(totalPages) {
         val maxPage = (totalPages - 1).coerceAtLeast(0)
         if (pageIndex > maxPage) {
             pageIndex = maxPage
+            targetPageIndex = maxPage
             saveProgress(pageIndex)
         }
     }
@@ -215,9 +217,7 @@ private fun ReaderScreen(
                 pageIndex = pageIndex,
                 onPageChange = { newPage, newTotal ->
                     LogManager.d("ReaderActivity", "onPageChange page=$newPage total=$newTotal")
-                    pageIndex = newPage
-                    totalPages = newTotal
-                    saveProgress(newPage)
+                    if (newTotal != totalPages) totalPages = newTotal
                 },
                 onTotalPages = {
                     LogManager.d("ReaderActivity", "onTotalPages total=$it")
@@ -293,8 +293,8 @@ private fun ReaderScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = {
                         if (!showTopMenu && !showBottomMenu) {
-                            pageIndex = (pageIndex - 1).coerceAtLeast(0)
-                            saveProgress(pageIndex)
+                            targetPageIndex = (targetPageIndex - 1).coerceAtLeast(0)
+                            saveProgress(targetPageIndex)
                         }
                     })
                 },
@@ -310,8 +310,8 @@ private fun ReaderScreen(
                     detectTapGestures(onTap = {
                         if (!showTopMenu && !showBottomMenu) {
                             val maxPage = (totalPages - 1).coerceAtLeast(0)
-                            pageIndex = (pageIndex + 1).coerceAtMost(maxPage)
-                            saveProgress(pageIndex)
+                            targetPageIndex = (targetPageIndex + 1).coerceAtMost(maxPage)
+                            saveProgress(targetPageIndex)
                         }
                     })
                 },
