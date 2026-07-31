@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.ActionMode
 import android.widget.TextView
+import com.runerback.translator.R
 
 class SelectableTextView @JvmOverloads constructor(
     context: Context,
@@ -11,6 +12,12 @@ class SelectableTextView @JvmOverloads constructor(
 ) : TextView(context, attrs) {
 
     var onSelectionChanged: ((Int, Int) -> Unit)? = null
+
+    init {
+        setTextSelectHandle(R.drawable.transparent_handle)
+        setTextSelectHandleLeft(R.drawable.transparent_handle)
+        setTextSelectHandleRight(R.drawable.transparent_handle)
+    }
 
     override fun onSelectionChanged(selStart: Int, selEnd: Int) {
         super.onSelectionChanged(selStart, selEnd)

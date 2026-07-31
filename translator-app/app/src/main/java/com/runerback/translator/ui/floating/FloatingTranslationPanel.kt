@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import kotlin.math.roundToInt
 
 sealed interface TranslationState {
@@ -68,6 +69,7 @@ fun FloatingTranslationPanel(
             IntOffset(x, y)
         },
         onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
     ) {
         Column(
             modifier = Modifier

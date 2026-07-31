@@ -4,15 +4,19 @@ package com.runerback.translator.reader
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -31,9 +36,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,6 +53,7 @@ import com.runerback.translator.bookshelf.BookType
 import com.runerback.translator.data.SettingsRepository
 import com.runerback.translator.ocr.PaddleOcrEngine
 import com.runerback.translator.reader.epub.EpubParser
+import com.runerback.translator.reader.image.ImageRangeSelector
 import com.runerback.translator.reader.image.ImageReaderScreen
 import com.runerback.translator.reader.image.PdfRendererWrapper
 import com.runerback.translator.reader.image.cropWhitespace
@@ -53,10 +63,24 @@ import com.runerback.translator.ui.floating.TranslationPanelViewModel
 import com.runerback.translator.ui.floating.TranslationPanelViewModelFactory
 import com.runerback.translator.ui.theme.TranslatorTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+
+private object NoIndication : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode {
+        return object : Modifier.Node(), DrawModifierNode {
+            override fun ContentDrawScope.draw() {
+                drawContent()
+            }
+        }
+    }
+
+    override fun equals(other: Any?): Boolean = this === other
+    override fun hashCode(): Int = System.identityHashCode(this)
+}
 
 class ReaderActivity : ComponentActivity() {
 
@@ -68,6 +92,7 @@ class ReaderActivity : ComponentActivity() {
     private var ocrEngine: PaddleOcrEngine? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        window.setWindowAnimations(0)
         super.onCreate(savedInstanceState)
         initOcr()
 
@@ -81,12 +106,14 @@ class ReaderActivity : ComponentActivity() {
 
         setContent {
             TranslatorTheme {
-                ReaderScreen(
-                    book = book,
-                    settingsRepository = settingsRepository,
-                    viewModel = viewModel,
-                    ocrEngine = ocrEngine,
-                )
+                CompositionLocalProvider(LocalIndication provides NoIndication) {
+                    ReaderScreen(
+                        book = book,
+                        settingsRepository = settingsRepository,
+                        viewModel = viewModel,
+                        ocrEngine = ocrEngine,
+                    )
+                }
             }
         }
     }
@@ -130,7 +157,13 @@ private fun ReaderScreen(
     var totalPages by remember(book) { mutableIntStateOf(1) }
     var showTopMenu by remember { mutableStateOf(false) }
     var showBottomMenu by remember { mutableStateOf(false) }
-    var enterCropMode by remember { mutableStateOf(false) }
+    var isCropMode by remember { mutableStateOf(false) }
+    var currentImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var currentImageContentScale by remember { mutableStateOf(ContentScale.Fit) }
+    var cropRequest by remember { mutableStateOf<Pair<Int, Offset>?>(null) }
+    var cropRequestId by remember { mutableIntStateOf(0) }
+    var previousPageIndex by remember { mutableIntStateOf(pageIndex) }
+    var clearingPage by remember { mutableStateOf(false) }
 
     fun saveProgress(page: Int) {
         scope.launch {
@@ -138,8 +171,24 @@ private fun ReaderScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Content (center area, handles its own long-press)
+    val menusVisible = showTopMenu || showBottomMenu
+    val isImageBook = book.type != BookType.EPUB && book.type != BookType.TXT
+
+    LaunchedEffect(menusVisible) {
+        if (menusVisible) isCropMode = false
+    }
+
+    LaunchedEffect(pageIndex) {
+        if (pageIndex != previousPageIndex) {
+            clearingPage = true
+            previousPageIndex = pageIndex
+            delay(100)
+            clearingPage = false
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        // Content (center area)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -156,10 +205,31 @@ private fun ReaderScreen(
                 onTotalPages = { totalPages = it },
                 viewModel = viewModel,
                 ocrEngine = ocrEngine,
-                menusVisible = showTopMenu || showBottomMenu,
-                enterCropMode = enterCropMode,
-                onCropModeHandled = { enterCropMode = false },
+                menusVisible = menusVisible,
+                onBitmapLoaded = { bitmap, scale ->
+                    currentImageBitmap = bitmap
+                    currentImageContentScale = scale
+                },
             )
+
+            // Long-press on image pages activates the OCR selector.
+            if (isImageBook) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(menusVisible) {
+                            detectTapGestures(
+                                onLongPress = { point ->
+                                    if (!menusVisible) {
+                                        cropRequestId += 1
+                                        cropRequest = cropRequestId to point
+                                        isCropMode = true
+                                    }
+                                },
+                            )
+                        },
+                )
+            }
         }
 
         // Pagination indicator
@@ -267,6 +337,30 @@ private fun ReaderScreen(
             }
         }
 
+        // Full-screen selector overlay on top of everything while crop mode is active.
+        if (isCropMode && currentImageBitmap != null) {
+            ImageRangeSelector(
+                bitmap = currentImageBitmap!!,
+                contentScale = currentImageContentScale,
+                menusVisible = menusVisible,
+                isCropMode = isCropMode,
+                cropRequest = cropRequest,
+                onCropModeChanged = { isCropMode = it },
+                onCrop = { cropped, _ ->
+                    scope.launch(Dispatchers.IO) {
+                        val engine = ocrEngine ?: return@launch
+                        engine.run(cropped).onSuccess { lines ->
+                            withContext(Dispatchers.Main) {
+                                val text = lines.joinToString("\n")
+                                val anchor = Rect(0, 0, 0, 0)
+                                viewModel.show(text, anchor)
+                            }
+                        }
+                    }
+                },
+            )
+        }
+
         // Translation panel
         if (viewModel.isVisible) {
             FloatingTranslationPanel(
@@ -275,6 +369,15 @@ private fun ReaderScreen(
                 onSimplify = { viewModel.onSimplify() },
                 onChinese = { viewModel.onChinese() },
                 onDismiss = { viewModel.dismiss() },
+            )
+        }
+
+        // E-ink full refresh flash between pages.
+        if (clearingPage) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White),
             )
         }
     }
@@ -289,8 +392,7 @@ private fun ReaderContent(
     viewModel: TranslationPanelViewModel,
     ocrEngine: PaddleOcrEngine?,
     menusVisible: Boolean,
-    enterCropMode: Boolean,
-    onCropModeHandled: () -> Unit,
+    onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     if (book.type == BookType.MANGA) {
         MangaReader(
@@ -300,8 +402,7 @@ private fun ReaderContent(
             ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
-            enterCropMode = enterCropMode,
-            onCropModeHandled = onCropModeHandled,
+            onBitmapLoaded = onBitmapLoaded,
         )
     } else {
         SingleEntryReader(
@@ -313,8 +414,7 @@ private fun ReaderContent(
             viewModel = viewModel,
             ocrEngine = ocrEngine,
             menusVisible = menusVisible,
-            enterCropMode = enterCropMode,
-            onCropModeHandled = onCropModeHandled,
+            onBitmapLoaded = onBitmapLoaded,
         )
     }
 }
@@ -327,8 +427,7 @@ private fun MangaReader(
     ocrEngine: PaddleOcrEngine?,
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
-    enterCropMode: Boolean,
-    onCropModeHandled: () -> Unit,
+    onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     val uri = book.entries[pageIndex.coerceIn(0, book.entries.size - 1)].uri
 
@@ -346,8 +445,7 @@ private fun MangaReader(
             ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
-            enterCropMode = enterCropMode,
-            onCropModeHandled = onCropModeHandled,
+            onBitmapLoaded = onBitmapLoaded,
         )
     }
 }
@@ -362,8 +460,7 @@ private fun SingleEntryReader(
     viewModel: TranslationPanelViewModel,
     ocrEngine: PaddleOcrEngine?,
     menusVisible: Boolean,
-    enterCropMode: Boolean,
-    onCropModeHandled: () -> Unit,
+    onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     when (type) {
         BookType.EPUB, BookType.TXT -> TextReader(
@@ -384,8 +481,7 @@ private fun SingleEntryReader(
             ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
-            enterCropMode = enterCropMode,
-            onCropModeHandled = onCropModeHandled,
+            onBitmapLoaded = onBitmapLoaded,
         )
         else -> {}
     }
@@ -445,13 +541,13 @@ private fun ImageReader(
     ocrEngine: PaddleOcrEngine?,
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
-    enterCropMode: Boolean,
-    onCropModeHandled: () -> Unit,
+    onBitmapLoaded: (Bitmap, ContentScale) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var bitmap by remember(uri, pageIndex) { mutableStateOf<Bitmap?>(null) }
     var pdfPageCount by remember { mutableIntStateOf(1) }
+    val contentScale = if (fileType == FileType.IMAGE) ContentScale.Crop else ContentScale.Fit
 
     LaunchedEffect(uri, pageIndex) {
         bitmap = withContext(Dispatchers.IO) {
@@ -476,24 +572,12 @@ private fun ImageReader(
     }
 
     bitmap?.let { bmp ->
+        LaunchedEffect(bmp) {
+            onBitmapLoaded(bmp, contentScale)
+        }
         ImageReaderScreen(
             bitmap = bmp,
-            contentScale = if (fileType == FileType.IMAGE) ContentScale.Crop else ContentScale.Fit,
-            menusVisible = menusVisible,
-            enterCropMode = enterCropMode,
-            onCropModeHandled = onCropModeHandled,
-            onCrop = { cropped, _ ->
-                scope.launch(Dispatchers.IO) {
-                    val engine = ocrEngine ?: return@launch
-                    engine.run(cropped).onSuccess { lines ->
-                        withContext(Dispatchers.Main) {
-                            val text = lines.joinToString("\n")
-                            val anchor = Rect(0, 0, 0, 0)
-                            viewModel.show(text, anchor)
-                        }
-                    }
-                }
-            },
+            contentScale = contentScale,
         )
     }
 }
