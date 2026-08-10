@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Head -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,22a10,10 0,1 1,-0.1 0z" />
+
+    <!-- Body -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M54,38L54,72" />
+
+    <!-- Arms -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M54,50L28,40" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M54,50L80,40" />
+
+    <!-- Legs -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M54,72L36,96" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M54,72L72,96" />
+
+    <!-- Joints -->
+    <path
+        android:fillColor="#FF6B35"
+        android:pathData="M54,48a3.5,3.5 0,1 1,-0.1 0zM54,70a3.5,3.5 0,1 1,-0.1 0zM28,40a3.5,3.5 0,1 1,-0.1 0zM80,40a3.5,3.5 0,1 1,-0.1 0zM36,96a3.5,3.5 0,1 1,-0.1 0zM72,96a3.5,3.5 0,1 1,-0.1 0z" />
+</vector>
