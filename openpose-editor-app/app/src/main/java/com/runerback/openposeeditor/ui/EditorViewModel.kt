@@ -41,6 +41,12 @@ class EditorViewModel : ViewModel() {
 
     private var animationJob: Job? = null
 
+    private var dragStartScreenX = 0f
+    private var dragStartScreenY = 0f
+    private val dragStartJointWorldPos = Vector3f()
+    private val dragStartParentWorldPos = Vector3f()
+    private val dragStartCameraPos = Vector3f()
+
     init {
         KeypointGroup.entries.forEach { group ->
             val visible = group == KeypointGroup.BODY
@@ -74,23 +80,32 @@ class EditorViewModel : ViewModel() {
         editorState.selectedJointId.value = jointId
     }
 
-    fun moveSelectedJointByScreenDelta(dx: Float, dy: Float, width: Int, height: Int) {
+    fun beginJointDrag(screenX: Float, screenY: Float, width: Int, height: Int) {
         val id = editorState.selectedJointId.value ?: return
         val kp = skeleton.keypointById(id) ?: return
         val parentId = kp.parentId ?: return
 
         val positions = skeleton.computeWorldPositions()
-        val currentPos = positions[id] ?: return
-        val parentPos = positions[parentId] ?: return
+        dragStartJointWorldPos.set(positions[id] ?: return)
+        dragStartParentWorldPos.set(positions[parentId] ?: return)
+        dragStartCameraPos.set(viewportCamera.position)
+        dragStartScreenX = screenX
+        dragStartScreenY = screenY
+    }
+
+    fun moveSelectedJointByScreenDelta(totalDx: Float, totalDy: Float, width: Int, height: Int) {
+        val id = editorState.selectedJointId.value ?: return
+        val kp = skeleton.keypointById(id) ?: return
         val radius = kp.restLocalPosition.length()
         if (radius < 0.0001f) return
 
-        val viewDir = Vector3f(viewportCamera.target).sub(viewportCamera.position).normalize()
-        val (screenX, screenY) = viewportCamera.project(currentPos, width, height)
-        val ray = viewportCamera.rayFromScreen(screenX + dx, screenY + dy, width, height)
-        val hit = intersectRayPlane(ray.origin, ray.direction, currentPos, viewDir) ?: return
+        val newScreenX = dragStartScreenX + totalDx
+        val newScreenY = dragStartScreenY + totalDy
+        val ray = viewportCamera.rayFromScreen(newScreenX, newScreenY, width, height)
+        val cameraToJoint = Vector3f(dragStartJointWorldPos).sub(dragStartCameraPos).normalize()
+        val hit = intersectRayPlane(ray.origin, ray.direction, dragStartJointWorldPos, cameraToJoint) ?: return
 
-        val desiredDir = Vector3f(hit).sub(parentPos).normalize()
+        val desiredDir = Vector3f(hit).sub(dragStartParentWorldPos).normalize()
         if (!desiredDir.isFinite) return
         val rotation = Quaternionf().rotationTo(Vector3f(kp.restLocalPosition).normalize(), desiredDir)
         kp.localRotation.set(rotation)
@@ -207,8 +222,10 @@ class EditorViewModel : ViewModel() {
     }
 
     fun resetViewportCamera() {
-        val default = CameraState(180f, 0f, 4f, Vector3f(0f, 1f, 0f))
-        applyCameraState(default)
+        viewportAzimuth.floatValue = 180f
+        viewportElevation.floatValue = 0f
+        updateViewportCamera()
+        frameGroup(null, animate = false)
     }
 
     private fun animateTo(target: CameraState, durationMs: Long = 600) {
