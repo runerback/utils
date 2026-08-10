@@ -493,6 +493,8 @@ private fun createGLSurfaceView(context: Context, viewModel: EditorViewModel): P
 
 private var lastX = 0f
 private var lastY = 0f
+private var dragStartX = 0f
+private var dragStartY = 0f
 private var pinchStartDistance = 0f
 private var isPinching = false
 
@@ -575,17 +577,22 @@ private fun handlePoseTouch(
             LogBuffer.add(message)
             viewModel.selectJoint(jointId)
             renderer.selectedJointId = jointId
+            dragStartX = event.x
+            dragStartY = event.y
             lastX = event.x
             lastY = event.y
+            if (jointId != null) {
+                viewModel.beginJointDrag(event.x, event.y, width, height)
+            }
             glSurfaceView.requestRender()
         }
         MotionEvent.ACTION_MOVE -> {
             val jointId = viewModel.editorState.selectedJointId.value
             if (jointId != null && event.pointerCount == 1) {
-                val dx = event.x - lastX
-                val dy = event.y - lastY
-                if (dx != 0f || dy != 0f) {
-                    viewModel.moveSelectedJointByScreenDelta(dx, dy, width, height)
+                val totalDx = event.x - dragStartX
+                val totalDy = event.y - dragStartY
+                if (totalDx != 0f || totalDy != 0f) {
+                    viewModel.moveSelectedJointByScreenDelta(totalDx, totalDy, width, height)
                     glSurfaceView.requestRender()
                 }
             }
