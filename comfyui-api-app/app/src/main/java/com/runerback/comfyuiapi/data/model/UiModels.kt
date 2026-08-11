@@ -32,7 +32,9 @@ sealed class GenerationStatus {
     data object Connecting : GenerationStatus()
     data class Running(
         val currentNode: String? = null,
-        val progress: Pair<Int, Int>? = null
+        val progress: Pair<Int, Int>? = null,
+        val currentBatch: Int? = null,
+        val totalBatches: Int? = null
     ) : GenerationStatus()
     data class Completed(val promptId: String) : GenerationStatus()
     data class Error(val message: String) : GenerationStatus()
@@ -50,7 +52,8 @@ data class UiState(
     val generationStatus: GenerationStatus = GenerationStatus.Idle,
     val preview: ImageBitmap? = null,
     val outputs: List<OutputImage> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val batchCount: Int = 1
 )
 
 data class OutputImage(

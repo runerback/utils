@@ -164,10 +164,15 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun onBatchCountChange(count: Int) {
+        _uiState.update { it.copy(batchCount = count.coerceAtLeast(1)) }
+    }
+
     fun generate() {
         val workflow = loadedWorkflow ?: return
         val serverUrl = _uiState.value.serverUrl
-        LogBuffer.add("generate: serverUrl=$serverUrl, workflow nodes=${workflow.size}")
+        val totalBatches = _uiState.value.batchCount.coerceAtLeast(1)
+        LogBuffer.add("generate: serverUrl=$serverUrl, workflow nodes=${workflow.size}, batches=$totalBatches")
         if (serverUrl.isBlank()) {
             _uiState.update { it.copy(errorMessage = "Server URL is required") }
             return
@@ -183,14 +188,14 @@ class MainViewModel @Inject constructor(
                 )
             }
 
-            val currentState = _uiState.value
-            val pending = currentState.pendingUploads
+            val initialState = _uiState.value
+            val pending = initialState.pendingUploads
             LogBuffer.add("generate: pending uploads=${pending.size}")
 
             val uploadReplacements = mutableMapOf<ParameterKey, JsonElement>()
 
             for ((key, uri) in pending) {
-                val param = currentState.parameters.find {
+                val param = initialState.parameters.find {
                     ParameterKey(it.nodeId, it.path) == key
                 } ?: continue
                 val uploadType = (param.type as? FieldType.UploadType)?.uploadType ?: "input"
@@ -213,55 +218,86 @@ class MainViewModel @Inject constructor(
                 }
             }
 
-            val valuesWithUploads = currentState.currentValues.toMutableMap().apply {
-                putAll(uploadReplacements)
-            }
-            _uiState.update { it.copy(currentValues = valuesWithUploads) }
+            var batchFailed = false
 
-            val patched = repository.patchWorkflow(workflow, valuesWithUploads)
-            LogBuffer.add("generate: patched workflow, queueing prompt")
+            for (batchIndex in 0 until totalBatches) {
+                if (batchIndex > 0) {
+                    LogBuffer.add("generate: randomizing seeds for batch ${batchIndex + 1}")
+                    randomizeSeeds()
+                }
 
-            repository.generate(serverUrl, patched).collect { result ->
-                when (result) {
-                    is GenerationResult.Connecting -> {
-                        LogBuffer.add("generate: connecting")
-                        _uiState.update { it.copy(generationStatus = GenerationStatus.Connecting) }
-                    }
-                    is GenerationResult.Running -> {
-                        LogBuffer.add("generate: running node=${result.currentNode} progress=${result.progress}")
-                        _uiState.update { state ->
-                            state.copy(
-                                generationStatus = GenerationStatus.Running(
-                                    currentNode = result.currentNode,
-                                    progress = result.progress
+                val currentState = _uiState.value
+                val valuesWithUploads = currentState.currentValues.toMutableMap().apply {
+                    putAll(uploadReplacements)
+                }
+                _uiState.update { it.copy(currentValues = valuesWithUploads) }
+
+                val patched = repository.patchWorkflow(workflow, valuesWithUploads)
+                LogBuffer.add("generate: patched workflow, queueing prompt batch ${batchIndex + 1}/$totalBatches")
+
+                repository.generate(serverUrl, patched).collect { result ->
+                    when (result) {
+                        is GenerationResult.Connecting -> {
+                            LogBuffer.add("generate: connecting batch ${batchIndex + 1}")
+                            _uiState.update { state ->
+                                state.copy(
+                                    generationStatus = GenerationStatus.Running(
+                                        currentBatch = batchIndex + 1,
+                                        totalBatches = totalBatches
+                                    )
                                 )
-                            )
+                            }
                         }
-                    }
-                    is GenerationResult.Preview -> {
-                        LogBuffer.add("generate: preview received")
-                        _uiState.update { it.copy(preview = result.image) }
-                    }
-                    is GenerationResult.Completed -> {
-                        LogBuffer.add("generate: completed, outputs=${result.outputs.size}")
-                        _uiState.update {
-                            it.copy(
-                                generationStatus = GenerationStatus.Completed(""),
-                                outputs = result.outputs
-                            )
+                        is GenerationResult.Running -> {
+                            LogBuffer.add("generate: running batch ${batchIndex + 1} node=${result.currentNode} progress=${result.progress}")
+                            _uiState.update { state ->
+                                state.copy(
+                                    generationStatus = GenerationStatus.Running(
+                                        currentNode = result.currentNode,
+                                        progress = result.progress,
+                                        currentBatch = batchIndex + 1,
+                                        totalBatches = totalBatches
+                                    )
+                                )
+                            }
                         }
-                    }
-                    is GenerationResult.Error -> {
-                        LogBuffer.add("generate: error=${result.message}")
-                        _uiState.update {
-                            it.copy(
-                                generationStatus = GenerationStatus.Error(result.message),
-                                errorMessage = result.message
-                            )
+                        is GenerationResult.Preview -> {
+                            LogBuffer.add("generate: preview received batch ${batchIndex + 1}")
+                            _uiState.update { it.copy(preview = result.image) }
+                        }
+                        is GenerationResult.Completed -> {
+                            LogBuffer.add("generate: completed batch ${batchIndex + 1}, outputs=${result.outputs.size}")
+                            _uiState.update { state ->
+                                state.copy(
+                                    generationStatus = if (batchIndex == totalBatches - 1) {
+                                        GenerationStatus.Completed("")
+                                    } else {
+                                        GenerationStatus.Running(
+                                            currentBatch = batchIndex + 1,
+                                            totalBatches = totalBatches
+                                        )
+                                    },
+                                    outputs = state.outputs + result.outputs
+                                )
+                            }
+                        }
+                        is GenerationResult.Error -> {
+                            LogBuffer.add("generate: error batch ${batchIndex + 1}: ${result.message}")
+                            _uiState.update {
+                                it.copy(
+                                    generationStatus = GenerationStatus.Error(result.message),
+                                    errorMessage = result.message
+                                )
+                            }
+                            batchFailed = true
                         }
                     }
                 }
+
+                if (batchFailed) break
             }
+
+            LogBuffer.add("generate: batch loop finished, total outputs=${_uiState.value.outputs.size}")
         }
     }
 
