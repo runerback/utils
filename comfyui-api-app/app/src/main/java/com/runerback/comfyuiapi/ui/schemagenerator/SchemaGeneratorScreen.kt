@@ -52,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.runerback.comfyuiapi.data.model.SchemaFieldRole
 import com.runerback.comfyuiapi.data.model.SchemaFieldSelection
 import com.runerback.comfyuiapi.data.model.SchemaFieldType
+import com.runerback.comfyuiapi.domain.OPTION_KIND_SOURCES
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -131,7 +132,8 @@ fun SchemaGeneratorScreen(
                         onMinChange = { field, value -> viewModel.updateMin(nodeId, field, value) },
                         onMaxChange = { field, value -> viewModel.updateMax(nodeId, field, value) },
                         onOrderChange = { field, value -> viewModel.updateOrder(nodeId, field, value) },
-                        onMultilineChange = { field, value -> viewModel.updateMultiline(nodeId, field, value) }
+                        onMultilineChange = { field, value -> viewModel.updateMultiline(nodeId, field, value) },
+                        onOptionKindChange = { field, value -> viewModel.updateOptionKind(nodeId, field, value) }
                     )
                 }
 
@@ -216,7 +218,8 @@ private fun NodeSection(
     onMinChange: (String, Long?) -> Unit,
     onMaxChange: (String, Long?) -> Unit,
     onOrderChange: (String, Int) -> Unit,
-    onMultilineChange: (String, Boolean) -> Unit
+    onMultilineChange: (String, Boolean) -> Unit,
+    onOptionKindChange: (String, String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
 
@@ -271,7 +274,8 @@ private fun NodeSection(
                             onMinChange = { onMinChange(selection.fieldName, it) },
                             onMaxChange = { onMaxChange(selection.fieldName, it) },
                             onOrderChange = { onOrderChange(selection.fieldName, it) },
-                            onMultilineChange = { onMultilineChange(selection.fieldName, it) }
+                            onMultilineChange = { onMultilineChange(selection.fieldName, it) },
+                            onOptionKindChange = { onOptionKindChange(selection.fieldName, it) }
                         )
                         HorizontalDivider()
                     }
@@ -293,7 +297,8 @@ private fun FieldEditor(
     onMinChange: (Long?) -> Unit,
     onMaxChange: (Long?) -> Unit,
     onOrderChange: (Int) -> Unit,
-    onMultilineChange: (Boolean) -> Unit
+    onMultilineChange: (Boolean) -> Unit,
+    onOptionKindChange: (String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -386,6 +391,18 @@ private fun FieldEditor(
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+
+            if (selection.role == SchemaFieldRole.Option) {
+                DropdownSelector(
+                    label = "Option kind",
+                    options = OPTION_KIND_SOURCES.keys.toList().sorted(),
+                    selected = selection.optionKind,
+                    onSelected = onOptionKindChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 48.dp, top = 8.dp)
+                )
             }
 
             if (selection.type == SchemaFieldType.Integer || selection.type == SchemaFieldType.Number) {

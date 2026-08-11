@@ -9,6 +9,9 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -97,11 +100,16 @@ class SchemaParser @Inject constructor() {
     private fun resolveType(fieldName: String, spec: JsonObject): FieldType {
         val type = (spec["type"] as? JsonPrimitive)?.content
         val role = (spec["role"] as? JsonPrimitive)?.content
+        val optionKind = (spec["optionKind"] as? JsonPrimitive)?.content
         val randomize = (spec["randomize"] as? JsonPrimitive)?.content
         val uploadType = (spec["uploadType"] as? JsonPrimitive)?.content ?: "input"
         val mimeType = (spec["mimeType"] as? JsonPrimitive)?.content ?: "*/*"
 
         return when {
+            role == "option" && optionKind != null && resolveOptionSource(optionKind) != null -> {
+                LogBuffer.add("schemaParser.resolveType: option $optionKind")
+                FieldType.OptionType(optionKind)
+            }
             role == "upload" || role == "upload_image" -> FieldType.UploadType(uploadType, mimeType)
             role == "seed" || randomize != null -> FieldType.SeedType
             fieldName == "width" || fieldName == "height" -> FieldType.DimensionType
@@ -110,6 +118,23 @@ class SchemaParser @Inject constructor() {
             else -> FieldType.StringType
         }
     }
+}
+
+fun extractOptions(objectInfo: JsonObject, nodeClass: String, fieldName: String): List<String> {
+    val nodeDef = objectInfo[nodeClass]?.jsonObject ?: return emptyList()
+    val inputDef = nodeDef["input"]?.jsonObject ?: return emptyList()
+
+    val required = inputDef["required"]?.jsonObject
+    val optional = inputDef["optional"]?.jsonObject
+
+    return extractOptionsFromGroup(required, fieldName)
+        .ifEmpty { extractOptionsFromGroup(optional, fieldName) }
+}
+
+private fun extractOptionsFromGroup(group: JsonObject?, fieldName: String): List<String> {
+    val fieldDef = group?.get(fieldName)?.jsonArray ?: return emptyList()
+    val optionsArray = fieldDef.firstOrNull()?.jsonArray ?: return emptyList()
+    return optionsArray.mapNotNull { it.jsonPrimitive.content }
 }
 
 fun resolveValue(workflow: Workflow, nodeId: String, path: List<String>): JsonElement? {

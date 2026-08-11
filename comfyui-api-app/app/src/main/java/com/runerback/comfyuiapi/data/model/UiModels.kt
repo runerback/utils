@@ -10,6 +10,7 @@ sealed class FieldType {
     data object SeedType : FieldType()
     data object DimensionType : FieldType()
     data class UploadType(val uploadType: String, val mimeType: String) : FieldType()
+    data class OptionType(val optionKind: String) : FieldType()
 }
 
 data class ParameterKey(val nodeId: String, val path: List<String>)
@@ -53,7 +54,9 @@ data class UiState(
     val preview: ImageBitmap? = null,
     val outputs: List<OutputImage> = emptyList(),
     val errorMessage: String? = null,
-    val batchCount: Int = 1
+    val batchCount: Int = 1,
+    val optionLists: Map<ParameterKey, List<String>> = emptyMap(),
+    val optionLoading: Set<ParameterKey> = emptySet()
 )
 
 data class OutputImage(

@@ -8,6 +8,7 @@ import com.runerback.comfyuiapi.data.model.SchemaFieldSelection
 import com.runerback.comfyuiapi.data.model.SchemaFieldType
 import com.runerback.comfyuiapi.data.model.SchemaGeneratorUiState
 import com.runerback.comfyuiapi.data.model.Workflow
+import com.runerback.comfyuiapi.data.model.detectOptionKind
 import com.runerback.comfyuiapi.data.model.detectSchemaFieldRole
 import com.runerback.comfyuiapi.data.model.detectSchemaFieldType
 import com.runerback.comfyuiapi.data.repository.ComfyRepository
@@ -100,6 +101,10 @@ class SchemaGeneratorViewModel @Inject constructor(
         updateSelection(nodeId, fieldName) { it.copy(multiline = multiline) }
     }
 
+    fun updateOptionKind(nodeId: String, fieldName: String, optionKind: String) {
+        updateSelection(nodeId, fieldName) { it.copy(optionKind = optionKind) }
+    }
+
     fun exportSchema(uri: Uri) {
         val selections = _uiState.value.selections
         LogBuffer.add("schemaGenerator.exportSchema: ${selections.count { it.selected }} selected")
@@ -147,7 +152,8 @@ class SchemaGeneratorViewModel @Inject constructor(
             for ((fieldName, value) in node.inputs) {
                 if (value !is JsonPrimitive) continue
                 val type = detectSchemaFieldType(value)
-                val role = detectSchemaFieldRole(fieldName, value)
+                val optionKind = detectOptionKind(fieldName)
+                val role = if (optionKind.isNotBlank()) SchemaFieldRole.Option else detectSchemaFieldRole(fieldName, value)
                 selections.add(
                     SchemaFieldSelection(
                         nodeId = nodeId,
@@ -157,6 +163,7 @@ class SchemaGeneratorViewModel @Inject constructor(
                         selected = false,
                         type = type,
                         role = role,
+                        optionKind = optionKind,
                         order = order++
                     )
                 )

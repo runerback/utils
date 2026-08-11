@@ -130,6 +130,23 @@ class ComfyApiDataSource @Inject constructor(
         }
     }
 
+    suspend fun fetchObjectInfo(serverUrl: String, nodeClass: String): Result<JsonObject> {
+        LogBuffer.add("api.fetchObjectInfo: $serverUrl/object_info/$nodeClass")
+        return try {
+            val response: HttpResponse = client.get("$serverUrl/object_info/$nodeClass")
+            val bodyText = response.bodyAsText()
+            LogBuffer.add("api.fetchObjectInfo: status=${response.status}")
+            if (response.status == HttpStatusCode.OK) {
+                Result.success(json.decodeFromString(bodyText))
+            } else {
+                Result.failure(Exception("HTTP ${response.status}: $bodyText"))
+            }
+        } catch (e: Exception) {
+            LogBuffer.add("api.fetchObjectInfo: exception ${e.message}")
+            Result.failure(e)
+        }
+    }
+
     suspend fun fetchImage(serverUrl: String, ref: ImageRef): Result<ImageBitmap> {
         LogBuffer.add("api.fetchImage: $serverUrl/view filename=${ref.filename}")
         return try {

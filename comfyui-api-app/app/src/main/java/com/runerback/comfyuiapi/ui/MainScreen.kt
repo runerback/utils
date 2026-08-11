@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import com.runerback.comfyuiapi.ui.components.GalleryPanel
 import com.runerback.comfyuiapi.ui.components.GenerationPanel
 import com.runerback.comfyuiapi.ui.components.IntFieldEditor
 import com.runerback.comfyuiapi.ui.components.LogViewDialog
+import com.runerback.comfyuiapi.ui.components.OptionFieldEditor
 import com.runerback.comfyuiapi.ui.components.PreviewPanel
 import com.runerback.comfyuiapi.ui.components.SeedFieldEditor
 import com.runerback.comfyuiapi.ui.components.SettingsDialog
@@ -130,13 +132,22 @@ fun MainScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             params.forEach { param ->
+                                val key = ParameterKey(param.nodeId, param.path)
                                 ParameterEditor(
                                     param = param,
-                                    value = uiState.currentValues[ParameterKey(param.nodeId, param.path)]
-                                        ?: param.default ?: JsonPrimitive(0),
-                                    pendingUploadUri = uiState.pendingUploads[ParameterKey(param.nodeId, param.path)],
+                                    value = uiState.currentValues[key] ?: param.default
+                                        ?: if (param.type is FieldType.StringType || param.type is FieldType.OptionType) {
+                                            JsonPrimitive("")
+                                        } else {
+                                            JsonPrimitive(0)
+                                        },
+                                    pendingUploadUri = uiState.pendingUploads[key],
+                                    options = uiState.optionLists[key] ?: emptyList(),
+                                    isLoading = uiState.optionLoading.contains(key),
                                     onValueChange = { viewModel.updateValue(param, it) },
-                                    onUploadUriSelected = { viewModel.setUploadUri(param, it) }
+                                    onUploadUriSelected = { viewModel.setUploadUri(param, it) },
+                                    onLoadOptions = { viewModel.loadOptions(param) },
+                                    onRefreshOptions = { viewModel.refreshOptions(param) }
                                 )
                             }
                         }
@@ -190,10 +201,20 @@ private fun ParameterEditor(
     param: EditableParameter,
     value: kotlinx.serialization.json.JsonElement,
     pendingUploadUri: android.net.Uri?,
+    options: List<String>,
+    isLoading: Boolean,
     onValueChange: (kotlinx.serialization.json.JsonElement) -> Unit,
-    onUploadUriSelected: (android.net.Uri) -> Unit
+    onUploadUriSelected: (android.net.Uri) -> Unit,
+    onLoadOptions: () -> Unit,
+    onRefreshOptions: () -> Unit
 ) {
     val label = param.fieldName
+
+    if (param.type is FieldType.OptionType) {
+        LaunchedEffect(param) {
+            onLoadOptions()
+        }
+    }
 
     when (val type = param.type) {
         is FieldType.StringType -> {
@@ -235,6 +256,16 @@ private fun ParameterEditor(
                 mimeType = type.mimeType,
                 selectedUri = pendingUploadUri,
                 onUriSelected = onUploadUriSelected
+            )
+        }
+        is FieldType.OptionType -> {
+            OptionFieldEditor(
+                label = label,
+                options = options,
+                selected = value.asString(),
+                onValueChange = { onValueChange(JsonPrimitive(it)) },
+                onRefresh = onRefreshOptions,
+                isLoading = isLoading
             )
         }
     }

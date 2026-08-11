@@ -1,6 +1,7 @@
 package com.runerback.comfyuiapi.data.model
 
 import android.net.Uri
+import com.runerback.comfyuiapi.domain.OPTION_KIND_SOURCES
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -8,7 +9,8 @@ import kotlinx.serialization.json.longOrNull
 enum class SchemaFieldRole(val value: String?) {
     None(null),
     Upload("upload"),
-    Seed("seed")
+    Seed("seed"),
+    Option("option")
 }
 
 enum class SchemaFieldType(val value: String) {
@@ -30,7 +32,8 @@ data class SchemaFieldSelection(
     val min: Long? = null,
     val max: Long? = null,
     val order: Int = 0,
-    val multiline: Boolean = false
+    val multiline: Boolean = false,
+    val optionKind: String = ""
 ) {
     val path: List<String>
         get() = listOf("inputs", fieldName)
@@ -57,6 +60,11 @@ fun detectSchemaFieldRole(fieldName: String, value: JsonElement): SchemaFieldRol
     return when {
         fieldName.equals("image", ignoreCase = true) && value is JsonPrimitive && value.content.isNotBlank() -> SchemaFieldRole.Upload
         fieldName.equals("seed", ignoreCase = true) -> SchemaFieldRole.Seed
+        detectOptionKind(fieldName).isNotBlank() -> SchemaFieldRole.Option
         else -> SchemaFieldRole.None
     }
+}
+
+fun detectOptionKind(fieldName: String): String {
+    return OPTION_KIND_SOURCES.entries.find { it.value.second == fieldName }?.key ?: ""
 }

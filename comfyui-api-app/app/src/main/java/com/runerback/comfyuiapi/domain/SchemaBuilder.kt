@@ -34,6 +34,9 @@ fun buildSchema(selections: List<SchemaFieldSelection>): JsonObject {
                                             put("uploadType", selection.uploadType)
                                             put("mimeType", selection.mimeType)
                                         }
+                                        if (selection.role == SchemaFieldRole.Option) {
+                                            put("optionKind", selection.optionKind)
+                                        }
                                         selection.min?.let { put("minimum", it) }
                                         selection.max?.let { put("maximum", it) }
                                         if (selection.type == SchemaFieldType.String) {

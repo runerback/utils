@@ -97,6 +97,11 @@ class ComfyRepository @Inject constructor(
         return fileDataSource.saveJsonObject(uri, schema)
     }
 
+    suspend fun fetchObjectInfo(serverUrl: String, nodeClass: String): Result<JsonObject> {
+        LogBuffer.add("repository.fetchObjectInfo: $serverUrl/object_info/$nodeClass")
+        return apiDataSource.fetchObjectInfo(serverUrl, nodeClass)
+    }
+
     fun initialValues(workflow: Workflow, parameters: List<EditableParameter>): Map<ParameterKey, JsonElement> {
         return parameters.associate { param ->
             ParameterKey(param.nodeId, param.path) to (resolveValue(workflow, param.nodeId, param.path) ?: param.default ?: kotlinx.serialization.json.JsonNull)

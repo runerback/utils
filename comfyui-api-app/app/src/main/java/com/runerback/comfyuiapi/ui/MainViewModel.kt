@@ -14,6 +14,8 @@ import com.runerback.comfyuiapi.data.model.Workflow
 import com.runerback.comfyuiapi.data.repository.ComfyRepository
 import com.runerback.comfyuiapi.data.repository.GenerationResult
 import com.runerback.comfyuiapi.data.repository.LoadResult
+import com.runerback.comfyuiapi.domain.extractOptions
+import com.runerback.comfyuiapi.domain.resolveOptionSource
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,7 +93,9 @@ class MainViewModel @Inject constructor(
                             currentValues = emptyMap(),
                             outputs = emptyList(),
                             preview = null,
-                            errorMessage = null
+                            errorMessage = null,
+                            optionLists = emptyMap(),
+                            optionLoading = emptySet()
                         )
                     }
                 }
@@ -121,7 +125,9 @@ class MainViewModel @Inject constructor(
                             currentValues = values,
                             outputs = emptyList(),
                             preview = null,
-                            errorMessage = null
+                            errorMessage = null,
+                            optionLists = emptyMap(),
+                            optionLoading = emptySet()
                         )
                     }
                 }
@@ -298,6 +304,49 @@ class MainViewModel @Inject constructor(
             }
 
             LogBuffer.add("generate: batch loop finished, total outputs=${_uiState.value.outputs.size}")
+        }
+    }
+
+    fun loadOptions(parameter: EditableParameter) {
+        fetchOptions(parameter, forceRefresh = false)
+    }
+
+    fun refreshOptions(parameter: EditableParameter) {
+        fetchOptions(parameter, forceRefresh = true)
+    }
+
+    private fun fetchOptions(parameter: EditableParameter, forceRefresh: Boolean) {
+        val optionType = parameter.type as? FieldType.OptionType ?: return
+        val optionKind = optionType.optionKind
+        val (nodeClass, fieldName) = resolveOptionSource(optionKind) ?: return
+        val key = ParameterKey(parameter.nodeId, parameter.path)
+        val serverUrl = _uiState.value.serverUrl
+
+        if (serverUrl.isBlank()) {
+            LogBuffer.add("viewModel.fetchOptions: server URL empty")
+            return
+        }
+        if (_uiState.value.optionLoading.contains(key)) return
+        if (!forceRefresh && _uiState.value.optionLists.containsKey(key)) return
+
+        _uiState.update { it.copy(optionLoading = it.optionLoading + key) }
+        viewModelScope.launch {
+            LogBuffer.add("viewModel.fetchOptions: $serverUrl/object_info/$nodeClass")
+            val result = repository.fetchObjectInfo(serverUrl, nodeClass)
+            val options = if (result.isSuccess) {
+                extractOptions(result.getOrThrow(), nodeClass, fieldName).also {
+                    LogBuffer.add("viewModel.fetchOptions: ${it.size} options")
+                }
+            } else {
+                LogBuffer.add("viewModel.fetchOptions: ${result.exceptionOrNull()?.message}")
+                emptyList()
+            }
+            _uiState.update {
+                it.copy(
+                    optionLists = it.optionLists + (key to options),
+                    optionLoading = it.optionLoading - key
+                )
+            }
         }
     }
 
