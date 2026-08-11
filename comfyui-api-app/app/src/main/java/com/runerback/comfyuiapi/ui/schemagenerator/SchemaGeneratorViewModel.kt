@@ -96,6 +96,10 @@ class SchemaGeneratorViewModel @Inject constructor(
         updateSelection(nodeId, fieldName) { it.copy(order = order) }
     }
 
+    fun updateMultiline(nodeId: String, fieldName: String, multiline: Boolean) {
+        updateSelection(nodeId, fieldName) { it.copy(multiline = multiline) }
+    }
+
     fun exportSchema(uri: Uri) {
         val selections = _uiState.value.selections
         LogBuffer.add("schemaGenerator.exportSchema: ${selections.count { it.selected }} selected")

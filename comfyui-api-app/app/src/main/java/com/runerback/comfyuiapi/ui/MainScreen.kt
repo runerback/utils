@@ -192,7 +192,7 @@ private fun ParameterEditor(
                 label = label,
                 value = value.asString(),
                 onValueChange = { onValueChange(JsonPrimitive(it)) },
-                singleLine = label.lowercase().contains("prompt").not()
+                singleLine = !param.multiline
             )
         }
         is FieldType.IntType -> {

@@ -86,7 +86,8 @@ class SchemaParser @Inject constructor() {
                         min = (spec["minimum"] as? JsonPrimitive)?.longOrNull,
                         max = (spec["maximum"] as? JsonPrimitive)?.longOrNull,
                         default = spec["default"],
-                        order = (spec["order"] as? JsonPrimitive)?.longOrNull?.toInt() ?: 0
+                        order = (spec["order"] as? JsonPrimitive)?.longOrNull?.toInt() ?: 0,
+                        multiline = (spec["multiline"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false
                     )
                 )
             }

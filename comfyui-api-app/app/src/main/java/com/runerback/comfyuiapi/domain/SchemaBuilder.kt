@@ -2,6 +2,7 @@ package com.runerback.comfyuiapi.domain
 
 import com.runerback.comfyuiapi.data.model.SchemaFieldRole
 import com.runerback.comfyuiapi.data.model.SchemaFieldSelection
+import com.runerback.comfyuiapi.data.model.SchemaFieldType
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -35,6 +36,9 @@ fun buildSchema(selections: List<SchemaFieldSelection>): JsonObject {
                                         }
                                         selection.min?.let { put("minimum", it) }
                                         selection.max?.let { put("maximum", it) }
+                                        if (selection.type == SchemaFieldType.String) {
+                                            put("multiline", selection.multiline)
+                                        }
                                         put("default", selection.currentValue)
                                         put("order", selection.order)
                                     }

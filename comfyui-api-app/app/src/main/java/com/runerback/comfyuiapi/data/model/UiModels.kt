@@ -23,7 +23,8 @@ data class EditableParameter(
     val min: Long? = null,
     val max: Long? = null,
     val default: JsonElement? = null,
-    val order: Int = 0
+    val order: Int = 0,
+    val multiline: Boolean = false
 )
 
 sealed class GenerationStatus {

@@ -29,7 +29,8 @@ data class SchemaFieldSelection(
     val mimeType: String = "*/*",
     val min: Long? = null,
     val max: Long? = null,
-    val order: Int = 0
+    val order: Int = 0,
+    val multiline: Boolean = false
 ) {
     val path: List<String>
         get() = listOf("inputs", fieldName)

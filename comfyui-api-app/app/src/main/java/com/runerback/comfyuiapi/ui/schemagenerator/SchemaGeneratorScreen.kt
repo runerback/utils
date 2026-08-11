@@ -123,7 +123,8 @@ fun SchemaGeneratorScreen(
                         onMimeTypeChange = { field, value -> viewModel.updateMimeType(nodeId, field, value) },
                         onMinChange = { field, value -> viewModel.updateMin(nodeId, field, value) },
                         onMaxChange = { field, value -> viewModel.updateMax(nodeId, field, value) },
-                        onOrderChange = { field, value -> viewModel.updateOrder(nodeId, field, value) }
+                        onOrderChange = { field, value -> viewModel.updateOrder(nodeId, field, value) },
+                        onMultilineChange = { field, value -> viewModel.updateMultiline(nodeId, field, value) }
                     )
                 }
 
@@ -207,7 +208,8 @@ private fun NodeSection(
     onMimeTypeChange: (String, String) -> Unit,
     onMinChange: (String, Long?) -> Unit,
     onMaxChange: (String, Long?) -> Unit,
-    onOrderChange: (String, Int) -> Unit
+    onOrderChange: (String, Int) -> Unit,
+    onMultilineChange: (String, Boolean) -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
 
@@ -261,7 +263,8 @@ private fun NodeSection(
                             onMimeTypeChange = { onMimeTypeChange(selection.fieldName, it) },
                             onMinChange = { onMinChange(selection.fieldName, it) },
                             onMaxChange = { onMaxChange(selection.fieldName, it) },
-                            onOrderChange = { onOrderChange(selection.fieldName, it) }
+                            onOrderChange = { onOrderChange(selection.fieldName, it) },
+                            onMultilineChange = { onMultilineChange(selection.fieldName, it) }
                         )
                         HorizontalDivider()
                     }
@@ -282,7 +285,8 @@ private fun FieldEditor(
     onMimeTypeChange: (String) -> Unit,
     onMinChange: (Long?) -> Unit,
     onMaxChange: (Long?) -> Unit,
-    onOrderChange: (Int) -> Unit
+    onOrderChange: (Int) -> Unit,
+    onMultilineChange: (Boolean) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -333,6 +337,24 @@ private fun FieldEditor(
                     },
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            if (selection.type == SchemaFieldType.String) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 48.dp, top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = selection.multiline,
+                        onCheckedChange = onMultilineChange
+                    )
+                    Text(
+                        text = "Multiline",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
 
             if (selection.role == SchemaFieldRole.Upload) {
