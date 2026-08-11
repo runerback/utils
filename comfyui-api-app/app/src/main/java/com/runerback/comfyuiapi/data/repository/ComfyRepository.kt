@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -71,6 +72,10 @@ class ComfyRepository @Inject constructor(
         }
     }
 
+    fun parseWorkflow(jsonObject: JsonObject): Workflow {
+        return jsonObject.toWorkflow(json)
+    }
+
     suspend fun loadSchema(uri: Uri, workflow: Workflow): LoadResult<List<EditableParameter>> {
         LogBuffer.add("repository.loadSchema: $uri")
         val result = fileDataSource.loadJsonObject(uri)
@@ -85,6 +90,11 @@ class ComfyRepository @Inject constructor(
             LogBuffer.add("repository.loadSchema: ${result.exceptionOrNull()?.message}")
             LoadResult.Error(result.exceptionOrNull()?.message ?: "Failed to load schema")
         }
+    }
+
+    suspend fun saveSchema(uri: Uri, schema: JsonObject): Result<Unit> {
+        LogBuffer.add("repository.saveSchema: $uri")
+        return fileDataSource.saveJsonObject(uri, schema)
     }
 
     fun initialValues(workflow: Workflow, parameters: List<EditableParameter>): Map<ParameterKey, JsonElement> {

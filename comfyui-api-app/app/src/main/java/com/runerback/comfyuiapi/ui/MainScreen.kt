@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,7 +46,10 @@ import kotlinx.serialization.json.JsonPrimitive
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
+fun MainScreen(
+    viewModel: MainViewModel,
+    onOpenSchemaGenerator: () -> Unit
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showLogView by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -55,6 +59,12 @@ fun MainScreen(viewModel: MainViewModel) {
             TopAppBar(
                 title = { Text("ComfyUI Workflow") },
                 actions = {
+                    IconButton(onClick = onOpenSchemaGenerator) {
+                        Icon(
+                            imageVector = Icons.Default.Build,
+                            contentDescription = "Schema generator"
+                        )
+                    }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(
                             imageVector = Icons.Default.Settings,

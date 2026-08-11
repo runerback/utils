@@ -32,6 +32,21 @@ class FileDataSource @Inject constructor(
         }
     }
 
+    suspend fun saveJsonObject(uri: Uri, jsonObject: JsonObject): Result<Unit> {
+        LogBuffer.add("fileDataSource.saveJsonObject: $uri")
+        return try {
+            context.contentResolver.openOutputStream(uri, "w")?.use { stream ->
+                val text = json.encodeToString(JsonObject.serializer(), jsonObject)
+                stream.write(text.toByteArray())
+                LogBuffer.add("fileDataSource.saveJsonObject: ${text.length} chars")
+                Result.success(Unit)
+            } ?: Result.failure(IOException("Cannot open $uri"))
+        } catch (e: Exception) {
+            LogBuffer.add("fileDataSource.saveJsonObject: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
     suspend fun loadBytes(uri: Uri): Result<Pair<String, ByteArray>> {
         LogBuffer.add("fileDataSource.loadBytes: $uri")
         return try {
