@@ -2,6 +2,7 @@ package com.runerback.comfyuiapi
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -28,6 +29,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             ComfyUIApiTheme {
                 var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Main) }
+
+                BackHandler(enabled = currentScreen != AppScreen.Main) {
+                    currentScreen = AppScreen.Main
+                }
 
                 when (currentScreen) {
                     AppScreen.Main -> MainScreen(
