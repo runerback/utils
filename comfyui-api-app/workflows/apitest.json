@@ -1,0 +1,58 @@
+{
+  "1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "2": {
+    "class_type": "ATS-Resize",
+    "inputs": {
+      "image": ["1", 0],
+      "interval": 1000,
+      "mode": "percent",
+      "mode.percent": 50
+    }
+  },
+  "3": {
+    "class_type": "ATS-GrayScale",
+    "inputs": {
+      "image": ["2", 0],
+      "interval": ["2", 1]
+    }
+  },
+  "4": {
+    "class_type": "ATS-Rotate",
+    "inputs": {
+      "image": ["3", 0],
+      "interval": ["3", 1],
+      "direction": "clockwise",
+      "degree": 45
+    }
+  },
+  "5": {
+    "class_type": "ATS-Crop",
+    "inputs": {
+      "image": ["4", 0],
+      "interval": ["4", 1],
+      "x": 10,
+      "y": 10,
+      "w": 100,
+      "h": 100
+    }
+  },
+  "6": {
+    "class_type": "ATS-Invert",
+    "inputs": {
+      "image": ["5", 0],
+      "interval": ["5", 1]
+    }
+  },
+  "7": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["6", 0],
+      "filename_prefix": "ats_test"
+    }
+  }
+}

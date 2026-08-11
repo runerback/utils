@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "1": {
+            "type": "object",
+            "properties": {
+                "inputs": {
+                    "type": "object",
+                    "properties": {
+                        "image": {
+                            "type": "string",
+                            "role": "upload",
+                            "uploadType": "input",
+                            "mimeType": "image/*"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
