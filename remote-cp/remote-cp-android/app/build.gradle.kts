@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.dagger.hilt.android")
     id("kotlin-kapt")
+}
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        load(file.inputStream())
+    }
 }
 
 android {
@@ -19,9 +28,24 @@ android {
         buildConfigField("String", "DEFAULT_BACKEND_URL", "\"http://10.0.2.2:5000\"")
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFilePath = localProperties.getProperty("RELEASE_STORE_FILE")
+                ?: throw GradleException("RELEASE_STORE_FILE not found in local.properties")
+            storeFile = file(storeFilePath)
+            keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+                ?: throw GradleException("RELEASE_KEY_ALIAS not found in local.properties")
+            storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+                ?: throw GradleException("RELEASE_STORE_PASSWORD not found in local.properties")
+            keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+                ?: throw GradleException("RELEASE_KEY_PASSWORD not found in local.properties")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

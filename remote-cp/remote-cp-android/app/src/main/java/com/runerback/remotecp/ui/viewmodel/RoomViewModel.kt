@@ -87,6 +87,10 @@ class RoomViewModel @Inject constructor(
             },
             onDisconnect = {
                 _uiState.update { it.copy(isConnected = false) }
+            },
+            onReconnect = {
+                _uiState.update { it.copy(isConnected = true) }
+                loadMessages()
             }
         )
     }

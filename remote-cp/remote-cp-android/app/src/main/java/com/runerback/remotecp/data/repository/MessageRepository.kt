@@ -103,13 +103,20 @@ class MessageRepository @Inject constructor(
         }
     }
 
-    fun connectSocket(onConnect: () -> Unit = {}, onDisconnect: () -> Unit = {}) {
+    fun connectSocket(
+        onConnect: () -> Unit = {},
+        onDisconnect: () -> Unit = {},
+        onReconnect: () -> Unit = {}
+    ) {
         if (!socket.connected()) {
             socket.on(Socket.EVENT_CONNECT) {
                 onConnect()
             }
             socket.on(Socket.EVENT_DISCONNECT) {
                 onDisconnect()
+            }
+            socket.on("reconnect") {
+                onReconnect()
             }
             socket.connect()
         } else {
@@ -121,6 +128,7 @@ class MessageRepository @Inject constructor(
         socket.disconnect()
         socket.off(Socket.EVENT_CONNECT)
         socket.off(Socket.EVENT_DISCONNECT)
+        socket.off("reconnect")
     }
 
     fun observeMessages(): Flow<Message> = callbackFlow {
