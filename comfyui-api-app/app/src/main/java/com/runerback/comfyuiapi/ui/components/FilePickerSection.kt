@@ -88,11 +88,7 @@ fun FilePickerSection(
             if (schemaName.isNotBlank()) {
                 IconButton(
                     onClick = {
-                        val defaultName = schemaName
-                            .substringBeforeLast(".")
-                            .takeIf { it.isNotBlank() }
-                            ?.let { "${it}_defaults.schema.json" }
-                            ?: "defaults.schema.json"
+                        val defaultName = schemaName.takeIf { it.isNotBlank() } ?: "defaults.schema.json"
                         saveDefaultsLauncher.launch(defaultName)
                     },
                     modifier = Modifier.padding(start = 4.dp)
