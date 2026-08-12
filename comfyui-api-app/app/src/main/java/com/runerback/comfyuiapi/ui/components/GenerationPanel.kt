@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -42,7 +44,10 @@ fun GenerationPanel(
             Button(
                 onClick = onGenerateClick,
                 enabled = !isRunning,
-                modifier = Modifier.weight(1f)
+                shape = RoundedCornerShape(50),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
             ) {
                 Text(
                     when (status) {
@@ -122,7 +127,7 @@ private fun BatchCountStepper(
     max: Int = 20
 ) {
     Row(
-        modifier = modifier,
+        modifier = modifier.height(48.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
@@ -134,10 +139,14 @@ private fun BatchCountStepper(
             enabled = enabled,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
-            modifier = Modifier.widthIn(min = 56.dp, max = 72.dp)
+            modifier = Modifier
+                .height(48.dp)
+                .widthIn(min = 48.dp, max = 56.dp)
         )
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.height(48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly
         ) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowUp,

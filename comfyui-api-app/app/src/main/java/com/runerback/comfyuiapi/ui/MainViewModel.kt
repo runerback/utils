@@ -123,6 +123,8 @@ class MainViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             workflowName = result.name,
+                            hasWorkflow = true,
+                            hasSchema = false,
                             parameters = emptyList(),
                             currentValues = emptyMap(),
                             outputs = emptyList(),
@@ -159,6 +161,7 @@ class MainViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             schemaName = result.name,
+                            hasSchema = true,
                             parameters = result.value.parameters,
                             currentValues = values,
                             outputs = emptyList(),
@@ -249,7 +252,6 @@ class MainViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     generationStatus = GenerationStatus.Connecting,
-                    preview = null,
                     outputs = emptyList(),
                     errorMessage = null
                 )

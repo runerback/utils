@@ -159,12 +159,14 @@ fun MainScreen(
                     }
             }
 
-            GenerationPanel(
-                status = uiState.generationStatus,
-                batchCount = uiState.batchCount,
-                onBatchCountChange = viewModel::onBatchCountChange,
-                onGenerateClick = viewModel::generate
-            )
+            if (uiState.hasWorkflow && uiState.hasSchema) {
+                GenerationPanel(
+                    status = uiState.generationStatus,
+                    batchCount = uiState.batchCount,
+                    onBatchCountChange = viewModel::onBatchCountChange,
+                    onGenerateClick = viewModel::generate
+                )
+            }
 
             PreviewPanel(preview = uiState.preview)
 

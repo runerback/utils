@@ -48,6 +48,8 @@ data class UiState(
     val generationTimeoutMs: Long = 30000L,
     val workflowName: String = "",
     val schemaName: String = "",
+    val hasWorkflow: Boolean = false,
+    val hasSchema: Boolean = false,
     val parameters: List<EditableParameter> = emptyList(),
     val currentValues: Map<ParameterKey, JsonElement> = emptyMap(),
     val pendingUploads: Map<ParameterKey, android.net.Uri> = emptyMap(),

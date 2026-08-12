@@ -38,12 +38,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
@@ -521,24 +523,40 @@ private fun OptionalNumberField(
     modifier: Modifier = Modifier
 ) {
     val coercePrecision = precision.coerceIn(0, 2)
-    var text by remember(value, coercePrecision) {
-        mutableStateOf(
-            value?.let {
-                if (coercePrecision == 0) it.toLong().toString() else String.format(java.util.Locale.US, "%.${coercePrecision}f", it)
-            } ?: ""
-        )
+    var text by remember { mutableStateOf(formatNumberValue(value, coercePrecision)) }
+    var isFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value, coercePrecision) {
+        if (!isFocused) {
+            text = formatNumberValue(value, coercePrecision)
+        }
     }
+
     OutlinedTextField(
         value = text,
-        onValueChange = {
-            text = it
-            onValueChange(it.toDoubleOrNull())
+        onValueChange = { newText ->
+            text = newText
+            when {
+                newText.isBlank() -> onValueChange(null)
+                newText.toDoubleOrNull() != null -> onValueChange(newText.toDoubleOrNull())
+            }
         },
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = if (coercePrecision == 0) KeyboardType.Number else KeyboardType.Decimal
         ),
-        modifier = modifier
+        modifier = modifier.onFocusChanged { focusState ->
+            isFocused = focusState.isFocused
+            if (!focusState.isFocused) {
+                text = formatNumberValue(value, coercePrecision)
+            }
+        }
     )
+}
+
+private fun formatNumberValue(value: Double?, precision: Int): String {
+    return value?.let {
+        if (precision == 0) it.toLong().toString() else String.format(java.util.Locale.US, "%.${precision}f", it)
+    } ?: ""
 }
