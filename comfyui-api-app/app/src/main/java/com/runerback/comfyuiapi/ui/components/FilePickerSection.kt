@@ -63,7 +63,7 @@ fun FilePickerSection(
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 12.dp),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -82,7 +82,7 @@ fun FilePickerSection(
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 12.dp),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             if (schemaName.isNotBlank()) {

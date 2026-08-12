@@ -7,7 +7,7 @@ import com.runerback.comfyuiapi.data.datasource.FileDataSource
 import com.runerback.comfyuiapi.data.datasource.SettingsDataSource
 import com.runerback.comfyuiapi.data.datasource.collectImageRefs
 import com.runerback.comfyuiapi.data.model.EditableParameter
-import com.runerback.comfyuiapi.data.model.OutputImage
+import com.runerback.comfyuiapi.data.model.GeneratedOutput
 import com.runerback.comfyuiapi.data.model.ParameterKey
 import com.runerback.comfyuiapi.data.model.Workflow
 import com.runerback.comfyuiapi.domain.SchemaParser
@@ -44,7 +44,7 @@ sealed class GenerationResult {
     data object Connecting : GenerationResult()
     data class Running(val currentNode: String?, val progress: Pair<Int, Int>?) : GenerationResult()
     data class Preview(val image: androidx.compose.ui.graphics.ImageBitmap) : GenerationResult()
-    data class Completed(val outputs: List<OutputImage>) : GenerationResult()
+    data class Completed(val outputs: List<GeneratedOutput>) : GenerationResult()
     data class Error(val message: String) : GenerationResult()
 }
 
@@ -238,7 +238,7 @@ class ComfyRepository @Inject constructor(
         }
     }
 
-    private suspend fun fetchOutputs(serverUrl: String, promptId: String): List<OutputImage> {
+    private suspend fun fetchOutputs(serverUrl: String, promptId: String): List<GeneratedOutput> {
         return try {
             LogBuffer.add("repository.fetchOutputs: $promptId")
             val historyResult = apiDataSource.fetchHistory(serverUrl, promptId)
@@ -251,12 +251,12 @@ class ComfyRepository @Inject constructor(
             val refs = history.collectImageRefs(promptId)
             LogBuffer.add("repository.fetchOutputs: ${refs.size} image refs")
 
-            val outputs = mutableListOf<OutputImage>()
+            val outputs = mutableListOf<GeneratedOutput>()
             for (ref in refs) {
                 LogBuffer.add("repository.fetchOutputs: fetching ${ref.filename}")
                 val imageResult = apiDataSource.fetchImage(serverUrl, ref)
                 imageResult.getOrNull()?.let { bitmap ->
-                    outputs.add(OutputImage(ref.filename, bitmap))
+                    outputs.add(GeneratedOutput(ref.filename, bitmap))
                 } ?: LogBuffer.add("repository.fetchOutputs: failed to fetch/decode ${ref.filename}")
             }
             outputs

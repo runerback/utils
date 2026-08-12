@@ -1,6 +1,7 @@
 package com.runerback.comfyuiapi.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,11 +17,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -33,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
@@ -41,7 +43,6 @@ import com.runerback.comfyuiapi.data.model.EditableParameter
 import com.runerback.comfyuiapi.data.model.FieldType
 import com.runerback.comfyuiapi.data.model.ParameterKey
 import com.runerback.comfyuiapi.ui.components.FilePickerSection
-import com.runerback.comfyuiapi.ui.components.GalleryPanel
 import com.runerback.comfyuiapi.ui.components.GenerationPanel
 import com.runerback.comfyuiapi.ui.components.IntFieldEditor
 import com.runerback.comfyuiapi.ui.components.LogViewDialog
@@ -61,9 +62,11 @@ import kotlinx.serialization.json.JsonPrimitive
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
-    onOpenSchemaGenerator: () -> Unit
+    onOpenSchemaGenerator: () -> Unit,
+    onOpenGallery: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val allOutputs by viewModel.allOutputs.collectAsStateWithLifecycle()
     var showLogView by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
 
@@ -72,23 +75,56 @@ fun MainScreen(
             TopAppBar(
                 title = { Text("ComfyUI Workflow") },
                 actions = {
-                    IconButton(onClick = onOpenSchemaGenerator) {
-                        Icon(
-                            imageVector = Icons.Default.Build,
-                            contentDescription = "Schema generator"
-                        )
-                    }
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
-                        )
-                    }
-                    IconButton(onClick = { showLogView = true }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Default.List,
-                            contentDescription = "Logs"
-                        )
+                    Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                        val galleryEnabled = allOutputs.isNotEmpty()
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable(
+                                    enabled = galleryEnabled,
+                                    onClick = onOpenGallery
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoLibrary,
+                                contentDescription = "Gallery",
+                                modifier = Modifier.alpha(if (galleryEnabled) 1f else 0.38f)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable(onClick = onOpenSchemaGenerator),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Build,
+                                contentDescription = "Schema generator"
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable { showSettings = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings"
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable { showLogView = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Default.List,
+                                contentDescription = "Logs"
+                            )
+                        }
                     }
                 }
             )
@@ -159,7 +195,7 @@ fun MainScreen(
                     }
             }
 
-            if (uiState.hasWorkflow && uiState.hasSchema) {
+            if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isNotEmpty()) {
                 GenerationPanel(
                     status = uiState.generationStatus,
                     batchCount = uiState.batchCount,
@@ -168,11 +204,18 @@ fun MainScreen(
                 )
             }
 
+            if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isEmpty()) {
+                Text(
+                    text = "No matching parameters found. The schema may not belong to this workflow.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
             if (uiState.preview != null) {
                 PreviewPanel(preview = uiState.preview)
             }
-
-            GalleryPanel(images = uiState.outputs)
 
             if (uiState.errorMessage != null) {
                 Text(

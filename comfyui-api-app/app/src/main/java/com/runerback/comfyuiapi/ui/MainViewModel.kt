@@ -6,8 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.runerback.comfyuiapi.data.model.EditableParameter
 import com.runerback.comfyuiapi.data.model.FieldType
+import com.runerback.comfyuiapi.data.model.GeneratedOutput
 import com.runerback.comfyuiapi.data.model.GenerationStatus
-import com.runerback.comfyuiapi.data.model.OutputImage
 import com.runerback.comfyuiapi.data.model.ParameterKey
 import com.runerback.comfyuiapi.data.model.UiState
 import com.runerback.comfyuiapi.data.model.Workflow
@@ -38,6 +38,9 @@ class MainViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    private val _allOutputs = MutableStateFlow<List<GeneratedOutput>>(emptyList())
+    val allOutputs: StateFlow<List<GeneratedOutput>> = _allOutputs.asStateFlow()
 
     private var loadedWorkflow: Workflow? = null
     private var loadedSchema: JsonObject? = null
@@ -128,7 +131,6 @@ class MainViewModel @Inject constructor(
                             hasSchema = false,
                             parameters = emptyList(),
                             currentValues = emptyMap(),
-                            outputs = emptyList(),
                             preview = null,
                             errorMessage = null,
                             fixedSeeds = emptySet(),
@@ -176,7 +178,6 @@ class MainViewModel @Inject constructor(
                             hasSchema = true,
                             parameters = result.value.parameters,
                             currentValues = values,
-                            outputs = emptyList(),
                             preview = null,
                             errorMessage = null,
                             fixedSeeds = emptySet(),
@@ -264,7 +265,6 @@ class MainViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     generationStatus = GenerationStatus.Connecting,
-                    outputs = emptyList(),
                     errorMessage = null
                 )
             }
@@ -348,6 +348,7 @@ class MainViewModel @Inject constructor(
                         }
                         is GenerationResult.Completed -> {
                             LogBuffer.add("generate: completed batch ${batchIndex + 1}, outputs=${result.outputs.size}")
+                            _allOutputs.update { it + result.outputs }
                             _uiState.update { state ->
                                 state.copy(
                                     generationStatus = if (batchIndex == totalBatches - 1) {
@@ -357,8 +358,7 @@ class MainViewModel @Inject constructor(
                                             currentBatch = batchIndex + 1,
                                             totalBatches = totalBatches
                                         )
-                                    },
-                                    outputs = state.outputs + result.outputs
+                                    }
                                 )
                             }
                             randomizeAllSeeds()
@@ -379,7 +379,7 @@ class MainViewModel @Inject constructor(
                 if (batchFailed) break
             }
 
-            LogBuffer.add("generate: batch loop finished, total outputs=${_uiState.value.outputs.size}")
+            LogBuffer.add("generate: batch loop finished, total outputs=${_allOutputs.value.size}")
         }
     }
 

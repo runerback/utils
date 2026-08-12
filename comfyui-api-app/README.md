@@ -1,8 +1,8 @@
 # ComfyUI API App
 
-An Android client for [ComfyUI](https://github.com/comfyanonymous/ComfyUI) workflows, plus a companion ComfyUI custom-node extension for building and running API test suites.
+An Android client for invoking [ComfyUI](https://github.com/comfyanonymous/ComfyUI) workflows. The goal is to simplify running complicated workflows by exposing only a handful of editable variables.
 
-The app lets you load a workflow JSON, edit its exposed parameters, upload images, queue prompts, and monitor execution over HTTP/WebSocket. It also includes a built-in schema generator for marking which workflow fields should be editable in the mobile UI.
+The app lets you load a workflow JSON and a matching `.schema.json`, edit the exposed parameters, upload images, queue prompts, and monitor execution over HTTP/WebSocket. It also includes a built-in schema generator for marking which workflow fields should be editable in the mobile UI, plus a persistent gallery of every image generated during the app's lifetime.
 
 ---
 
@@ -28,12 +28,9 @@ The app lets you load a workflow JSON, edit its exposed parameters, upload image
 │   ├── websockets_api_example.py
 │   ├── websocket-messages.ts
 │   └── upload_image_api.md
-├── workflows/
-│   └── apitest.schema.json       # Example schema for editable workflow fields
-├── build.gradle.kts
-├── settings.gradle.kts
-├── gradle.properties
-└── build.ps1                     # PowerShell build helper
+└── workflows/
+    ├apitest.json                 # Example workflow
+    └── apitest.schema.json       # Example schema for editable workflow fields
 ```
 
 ---
@@ -52,12 +49,12 @@ The app lets you load a workflow JSON, edit its exposed parameters, upload image
 
 ### Features
 
-- Load a ComfyUI workflow JSON from device storage.
-- Automatically expose editable parameters based on a sidecar `.schema.json` file.
+- Load a ComfyUI workflow JSON and its matching `.schema.json` from device storage (either order is fine; the app waits for both).
+- Automatically expose editable parameters based on the sidecar `.schema.json` file.
 - Edit text prompts, seeds, integers, options/combos, and upload local images.
 - Queue prompts to a configurable ComfyUI server.
 - Stream execution progress and latent previews via WebSocket.
-- View generated images in an in-app gallery.
+- View all generated images in a persistent masonry gallery, sorted newest-first, launched from the media icon in the top bar.
 - Built-in schema generator screen for creating `.schema.json` files without hand-editing JSON.
 - Capture fatal exceptions to an in-memory log buffer for easier field debugging.
 
@@ -144,6 +141,8 @@ The `examples/` folder contains standalone scripts for learning the ComfyUI REST
 The Android app uses an optional `.schema.json` sidecar to decide which workflow fields are editable. See `workflows/apitest.schema.json` for the supported format.
 
 You can also generate schemas inside the app from the **Schema Generator** screen.
+
+If a loaded schema does not match the current workflow, the app shows a notice instead of the Generate button.
 
 ---
 

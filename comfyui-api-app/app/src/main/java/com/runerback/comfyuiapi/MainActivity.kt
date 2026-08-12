@@ -12,6 +12,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.runerback.comfyuiapi.ui.MainScreen
 import com.runerback.comfyuiapi.ui.MainViewModel
+import com.runerback.comfyuiapi.ui.gallery.OutputGalleryScreen
 import com.runerback.comfyuiapi.ui.schemagenerator.SchemaGeneratorScreen
 import com.runerback.comfyuiapi.ui.schemagenerator.SchemaGeneratorViewModel
 import com.runerback.comfyuiapi.ui.theme.ComfyUIApiTheme
@@ -37,10 +38,15 @@ class MainActivity : ComponentActivity() {
                 when (currentScreen) {
                     AppScreen.Main -> MainScreen(
                         viewModel = mainViewModel,
-                        onOpenSchemaGenerator = { currentScreen = AppScreen.SchemaGenerator }
+                        onOpenSchemaGenerator = { currentScreen = AppScreen.SchemaGenerator },
+                        onOpenGallery = { currentScreen = AppScreen.OutputGallery }
                     )
                     AppScreen.SchemaGenerator -> SchemaGeneratorScreen(
                         viewModel = schemaGeneratorViewModel,
+                        onBack = { currentScreen = AppScreen.Main }
+                    )
+                    AppScreen.OutputGallery -> OutputGalleryScreen(
+                        viewModel = mainViewModel,
                         onBack = { currentScreen = AppScreen.Main }
                     )
                 }
@@ -51,5 +57,6 @@ class MainActivity : ComponentActivity() {
 
 private enum class AppScreen {
     Main,
-    SchemaGenerator
+    SchemaGenerator,
+    OutputGallery
 }

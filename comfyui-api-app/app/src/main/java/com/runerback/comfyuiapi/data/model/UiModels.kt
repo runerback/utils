@@ -57,14 +57,14 @@ data class UiState(
     val modifiedKeys: Set<ParameterKey> = emptySet(),
     val generationStatus: GenerationStatus = GenerationStatus.Idle,
     val preview: ImageBitmap? = null,
-    val outputs: List<OutputImage> = emptyList(),
     val errorMessage: String? = null,
     val batchCount: Int = 1,
     val optionLists: Map<ParameterKey, List<String>> = emptyMap(),
     val optionLoading: Set<ParameterKey> = emptySet()
 )
 
-data class OutputImage(
+data class GeneratedOutput(
     val nodeId: String,
-    val bitmap: ImageBitmap
+    val bitmap: ImageBitmap,
+    val createdAt: Long = System.currentTimeMillis()
 )
