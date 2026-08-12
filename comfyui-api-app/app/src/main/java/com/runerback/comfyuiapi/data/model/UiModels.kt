@@ -52,6 +52,7 @@ data class UiState(
     val currentValues: Map<ParameterKey, JsonElement> = emptyMap(),
     val pendingUploads: Map<ParameterKey, android.net.Uri> = emptyMap(),
     val fixedSeeds: Set<ParameterKey> = emptySet(),
+    val modifiedKeys: Set<ParameterKey> = emptySet(),
     val generationStatus: GenerationStatus = GenerationStatus.Idle,
     val preview: ImageBitmap? = null,
     val outputs: List<OutputImage> = emptyList(),

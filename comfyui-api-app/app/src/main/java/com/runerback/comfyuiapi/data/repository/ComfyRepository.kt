@@ -12,6 +12,7 @@ import com.runerback.comfyuiapi.data.model.ParameterKey
 import com.runerback.comfyuiapi.data.model.Workflow
 import com.runerback.comfyuiapi.domain.SchemaParser
 import com.runerback.comfyuiapi.domain.WorkflowPatcher
+import com.runerback.comfyuiapi.domain.applyDefaultsToSchema
 import com.runerback.comfyuiapi.domain.resolveValue
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import kotlinx.coroutines.TimeoutCancellationException
@@ -33,6 +34,11 @@ sealed class LoadResult<out T> {
     data class Success<T>(val value: T, val name: String) : LoadResult<T>()
     data class Error(val message: String) : LoadResult<Nothing>()
 }
+
+data class SchemaParseResult(
+    val parameters: List<EditableParameter>,
+    val schemaJson: JsonObject
+)
 
 sealed class GenerationResult {
     data object Connecting : GenerationResult()
@@ -76,7 +82,7 @@ class ComfyRepository @Inject constructor(
         return jsonObject.toWorkflow(json)
     }
 
-    suspend fun loadSchema(uri: Uri, workflow: Workflow): LoadResult<List<EditableParameter>> {
+    suspend fun loadSchema(uri: Uri, workflow: Workflow): LoadResult<SchemaParseResult> {
         LogBuffer.add("repository.loadSchema: $uri")
         val result = fileDataSource.loadJsonObject(uri)
         return if (result.isSuccess) {
@@ -85,11 +91,23 @@ class ComfyRepository @Inject constructor(
             val params = schemaParser.parse(schemaObj, workflow)
             LogBuffer.add("repository.loadSchema: ${params.size} parameters")
             params.forEach { LogBuffer.add("  param: ${it.nodeId}/${it.fieldName} path=${it.path.joinToString("/")} type=${it.type}") }
-            LoadResult.Success(params, fileDataSource.displayName(uri))
+            LoadResult.Success(SchemaParseResult(params, schemaObj), fileDataSource.displayName(uri))
         } else {
             LogBuffer.add("repository.loadSchema: ${result.exceptionOrNull()?.message}")
             LoadResult.Error(result.exceptionOrNull()?.message ?: "Failed to load schema")
         }
+    }
+
+    suspend fun saveSchemaWithDefaults(
+        uri: Uri,
+        schemaJson: JsonObject,
+        workflow: Workflow,
+        parameters: List<EditableParameter>,
+        currentValues: Map<ParameterKey, JsonElement>
+    ): Result<Unit> {
+        LogBuffer.add("repository.saveSchemaWithDefaults: $uri")
+        val updated = applyDefaultsToSchema(schemaJson, parameters, workflow, currentValues)
+        return fileDataSource.saveJsonObject(uri, updated)
     }
 
     suspend fun saveSchema(uri: Uri, schema: JsonObject): Result<Unit> {
@@ -104,7 +122,9 @@ class ComfyRepository @Inject constructor(
 
     fun initialValues(workflow: Workflow, parameters: List<EditableParameter>): Map<ParameterKey, JsonElement> {
         return parameters.associate { param ->
-            ParameterKey(param.nodeId, param.path) to (resolveValue(workflow, param.nodeId, param.path) ?: param.default ?: kotlinx.serialization.json.JsonNull)
+            ParameterKey(param.nodeId, param.path) to (
+                param.default ?: resolveValue(workflow, param.nodeId, param.path) ?: kotlinx.serialization.json.JsonNull
+            )
         }
     }
 

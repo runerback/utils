@@ -16,6 +16,7 @@ import com.runerback.comfyuiapi.data.repository.GenerationResult
 import com.runerback.comfyuiapi.data.repository.LoadResult
 import com.runerback.comfyuiapi.domain.extractOptions
 import com.runerback.comfyuiapi.domain.resolveOptionSource
+import com.runerback.comfyuiapi.domain.resolveValue
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import javax.inject.Inject
@@ -38,6 +40,7 @@ class MainViewModel @Inject constructor(
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var loadedWorkflow: Workflow? = null
+    private var loadedSchema: JsonObject? = null
 
     init {
         viewModelScope.launch {
@@ -79,6 +82,36 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun saveSchemaDefaults(uri: Uri) {
+        val schemaJson = loadedSchema ?: run {
+            _uiState.update { it.copy(errorMessage = "Load a schema first") }
+            return
+        }
+        val workflow = loadedWorkflow ?: run {
+            _uiState.update { it.copy(errorMessage = "Load a workflow first") }
+            return
+        }
+        LogBuffer.add("saveSchemaDefaults: $uri")
+        viewModelScope.launch {
+            val state = _uiState.value
+            val result = repository.saveSchemaWithDefaults(
+                uri = uri,
+                schemaJson = schemaJson,
+                workflow = workflow,
+                parameters = state.parameters,
+                currentValues = state.currentValues
+            )
+            if (result.isFailure) {
+                val msg = result.exceptionOrNull()?.message ?: "Failed to save schema defaults"
+                LogBuffer.add("saveSchemaDefaults error: $msg")
+                _uiState.update { it.copy(errorMessage = msg) }
+            } else {
+                LogBuffer.add("saveSchemaDefaults success")
+                _uiState.update { it.copy(schemaName = state.schemaName, errorMessage = null) }
+            }
+        }
+    }
+
     fun loadWorkflow(uri: Uri) {
         LogBuffer.add("loadWorkflow: $uri")
         viewModelScope.launch {
@@ -86,6 +119,7 @@ class MainViewModel @Inject constructor(
                 is LoadResult.Success -> {
                     LogBuffer.add("loadWorkflow success: ${result.value.size} nodes")
                     loadedWorkflow = result.value
+                    loadedSchema = null
                     _uiState.update {
                         it.copy(
                             workflowName = result.name,
@@ -95,6 +129,7 @@ class MainViewModel @Inject constructor(
                             preview = null,
                             errorMessage = null,
                             fixedSeeds = emptySet(),
+                            modifiedKeys = emptySet(),
                             optionLists = emptyMap(),
                             optionLoading = emptySet()
                         )
@@ -117,17 +152,20 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = repository.loadSchema(uri, workflow)) {
                 is LoadResult.Success -> {
-                    LogBuffer.add("loadSchema success: ${result.value.size} parameters")
-                    val values = repository.initialValues(workflow, result.value)
+                    LogBuffer.add("loadSchema success: ${result.value.parameters.size} parameters")
+                    loadedSchema = result.value.schemaJson
+                    val values = repository.initialValues(workflow, result.value.parameters)
+                    val modifiedKeys = computeModifiedKeys(values)
                     _uiState.update {
                         it.copy(
                             schemaName = result.name,
-                            parameters = result.value,
+                            parameters = result.value.parameters,
                             currentValues = values,
                             outputs = emptyList(),
                             preview = null,
                             errorMessage = null,
                             fixedSeeds = emptySet(),
+                            modifiedKeys = modifiedKeys,
                             optionLists = emptyMap(),
                             optionLoading = emptySet()
                         )
@@ -143,10 +181,12 @@ class MainViewModel @Inject constructor(
 
     fun updateValue(parameter: EditableParameter, value: JsonElement) {
         _uiState.update { state ->
+            val newValues = state.currentValues.toMutableMap().apply {
+                put(ParameterKey(parameter.nodeId, parameter.path), value)
+            }
             state.copy(
-                currentValues = state.currentValues.toMutableMap().apply {
-                    put(ParameterKey(parameter.nodeId, parameter.path), value)
-                }
+                currentValues = newValues,
+                modifiedKeys = computeModifiedKeys(newValues)
             )
         }
     }
@@ -173,7 +213,10 @@ class MainViewModel @Inject constructor(
                 .forEach { param ->
                     newValues[ParameterKey(param.nodeId, param.path)] = JsonPrimitive(Random.nextLong(0, Long.MAX_VALUE))
                 }
-            state.copy(currentValues = newValues)
+            state.copy(
+                currentValues = newValues,
+                modifiedKeys = computeModifiedKeys(newValues)
+            )
         }
     }
 
@@ -249,7 +292,12 @@ class MainViewModel @Inject constructor(
                 val valuesWithUploads = currentState.currentValues.toMutableMap().apply {
                     putAll(uploadReplacements)
                 }
-                _uiState.update { it.copy(currentValues = valuesWithUploads) }
+                _uiState.update {
+                    it.copy(
+                        currentValues = valuesWithUploads,
+                        modifiedKeys = computeModifiedKeys(valuesWithUploads)
+                    )
+                }
 
                 val patched = repository.patchWorkflow(workflow, valuesWithUploads)
                 LogBuffer.add("generate: patched workflow, queueing prompt batch ${batchIndex + 1}/$totalBatches")
@@ -362,6 +410,13 @@ class MainViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun computeModifiedKeys(currentValues: Map<ParameterKey, JsonElement>): Set<ParameterKey> {
+        val workflow = loadedWorkflow ?: return emptySet()
+        return currentValues.entries.mapNotNull { (key, value) ->
+            if (value != resolveValue(workflow, key)) key else null
+        }.toSet()
     }
 
     fun dismissError() {

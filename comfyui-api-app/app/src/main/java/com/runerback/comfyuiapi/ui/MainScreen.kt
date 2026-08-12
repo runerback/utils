@@ -1,12 +1,17 @@
 package com.runerback.comfyuiapi.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -26,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -104,7 +110,8 @@ fun MainScreen(
                 workflowName = uiState.workflowName,
                 schemaName = uiState.schemaName,
                 onWorkflowPicked = viewModel::loadWorkflow,
-                onSchemaPicked = viewModel::loadSchema
+                onSchemaPicked = viewModel::loadSchema,
+                onSaveSchemaDefaults = viewModel::saveSchemaDefaults
             )
 
             if (uiState.parameters.isNotEmpty()) {
@@ -140,6 +147,7 @@ fun MainScreen(
                                     options = uiState.optionLists[key] ?: emptyList(),
                                     isLoading = uiState.optionLoading.contains(key),
                                     isFixedSeed = uiState.fixedSeeds.contains(key),
+                                    isModified = uiState.modifiedKeys.contains(key),
                                     onValueChange = { viewModel.updateValue(param, it) },
                                     onUploadUriSelected = { viewModel.setUploadUri(param, it) },
                                     onLoadOptions = { viewModel.loadOptions(param) },
@@ -201,6 +209,7 @@ private fun ParameterEditor(
     options: List<String>,
     isLoading: Boolean,
     isFixedSeed: Boolean,
+    isModified: Boolean,
     onValueChange: (kotlinx.serialization.json.JsonElement) -> Unit,
     onUploadUriSelected: (android.net.Uri) -> Unit,
     onLoadOptions: () -> Unit,
@@ -215,61 +224,81 @@ private fun ParameterEditor(
         }
     }
 
-    when (val type = param.type) {
-        is FieldType.StringType -> {
-            StringFieldEditor(
-                label = label,
-                value = value.asString(),
-                onValueChange = { onValueChange(JsonPrimitive(it)) },
-                singleLine = !param.multiline
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isModified) {
+            Box(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(8.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape)
             )
         }
-        is FieldType.IntType -> {
-            IntFieldEditor(
-                label = label,
-                value = value.asNumber(),
-                min = param.min,
-                max = param.max,
-                precision = param.precision,
-                onValueChange = { onValueChange(it.toJsonPrimitive(param.precision)) }
-            )
-        }
-        is FieldType.SeedType -> {
-            SeedFieldEditor(
-                label = label,
-                value = value.asLong(),
-                fixed = isFixedSeed,
-                onValueChange = { onValueChange(JsonPrimitive(it)) },
-                onFixedChange = { onToggleFixedSeed() }
-            )
-        }
-        is FieldType.DimensionType -> {
-            IntFieldEditor(
-                label = label,
-                value = value.asNumber(),
-                min = param.min,
-                max = param.max,
-                precision = 0,
-                onValueChange = { onValueChange(it.toJsonPrimitive(0)) }
-            )
-        }
-        is FieldType.UploadType -> {
-            UploadFieldEditor(
-                label = label,
-                mimeType = type.mimeType,
-                selectedUri = pendingUploadUri,
-                onUriSelected = onUploadUriSelected
-            )
-        }
-        is FieldType.OptionType -> {
-            OptionFieldEditor(
-                label = label,
-                options = options,
-                selected = value.asString(),
-                onValueChange = { onValueChange(JsonPrimitive(it)) },
-                onRefresh = onRefreshOptions,
-                isLoading = isLoading
-            )
+
+        when (val type = param.type) {
+            is FieldType.StringType -> {
+                StringFieldEditor(
+                    label = label,
+                    value = value.asString(),
+                    onValueChange = { onValueChange(JsonPrimitive(it)) },
+                    singleLine = !param.multiline,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            is FieldType.IntType -> {
+                IntFieldEditor(
+                    label = label,
+                    value = value.asNumber(),
+                    min = param.min,
+                    max = param.max,
+                    precision = param.precision,
+                    onValueChange = { onValueChange(it.toJsonPrimitive(param.precision)) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            is FieldType.SeedType -> {
+                SeedFieldEditor(
+                    label = label,
+                    value = value.asLong(),
+                    fixed = isFixedSeed,
+                    onValueChange = { onValueChange(JsonPrimitive(it)) },
+                    onFixedChange = { onToggleFixedSeed() },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            is FieldType.DimensionType -> {
+                IntFieldEditor(
+                    label = label,
+                    value = value.asNumber(),
+                    min = param.min,
+                    max = param.max,
+                    precision = 0,
+                    onValueChange = { onValueChange(it.toJsonPrimitive(0)) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            is FieldType.UploadType -> {
+                UploadFieldEditor(
+                    label = label,
+                    mimeType = type.mimeType,
+                    selectedUri = pendingUploadUri,
+                    onUriSelected = onUploadUriSelected,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            is FieldType.OptionType -> {
+                OptionFieldEditor(
+                    label = label,
+                    options = options,
+                    selected = value.asString(),
+                    onValueChange = { onValueChange(JsonPrimitive(it)) },
+                    onRefresh = onRefreshOptions,
+                    isLoading = isLoading,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
