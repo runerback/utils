@@ -135,8 +135,18 @@ fun extractOptions(objectInfo: JsonObject, nodeClass: String, fieldName: String)
 
 private fun extractOptionsFromGroup(group: JsonObject?, fieldName: String): List<String> {
     val fieldDef = group?.get(fieldName)?.jsonArray ?: return emptyList()
-    val optionsArray = fieldDef.firstOrNull()?.jsonArray ?: return emptyList()
-    return optionsArray.mapNotNull { it.jsonPrimitive.content }
+
+    // Newer ComfyUI nodes: ["COMBO", {"options": [...]}]
+    fieldDef.getOrNull(1)?.jsonObject?.get("options")?.jsonArray?.let {
+        return it.mapNotNull { item -> item.jsonPrimitive.content }
+    }
+
+    // Older format: [["option1", "option2", ...]]
+    fieldDef.firstOrNull()?.jsonArray?.let {
+        return it.mapNotNull { item -> item.jsonPrimitive.content }
+    }
+
+    return emptyList()
 }
 
 fun resolveValue(workflow: Workflow, nodeId: String, path: List<String>): JsonElement? {
