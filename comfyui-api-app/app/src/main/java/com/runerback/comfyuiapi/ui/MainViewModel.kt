@@ -41,6 +41,7 @@ class MainViewModel @Inject constructor(
 
     private var loadedWorkflow: Workflow? = null
     private var loadedSchema: JsonObject? = null
+    private var pendingSchemaUri: Uri? = null
 
     init {
         viewModelScope.launch {
@@ -136,6 +137,10 @@ class MainViewModel @Inject constructor(
                             optionLoading = emptySet()
                         )
                     }
+                    pendingSchemaUri?.let { pending ->
+                        LogBuffer.add("loadWorkflow: processing pending schema")
+                        loadSchemaInternal(pending, result.value)
+                    }
                 }
                 is LoadResult.Error -> {
                     LogBuffer.add("loadWorkflow error: ${result.message}")
@@ -146,16 +151,23 @@ class MainViewModel @Inject constructor(
     }
 
     fun loadSchema(uri: Uri) {
-        val workflow = loadedWorkflow ?: run {
-            _uiState.update { it.copy(errorMessage = "Load a workflow first") }
+        val workflow = loadedWorkflow
+        if (workflow == null) {
+            pendingSchemaUri = uri
+            LogBuffer.add("loadSchema: pending until workflow loaded")
             return
         }
         LogBuffer.add("loadSchema: $uri")
+        loadSchemaInternal(uri, workflow)
+    }
+
+    private fun loadSchemaInternal(uri: Uri, workflow: Workflow) {
         viewModelScope.launch {
             when (val result = repository.loadSchema(uri, workflow)) {
                 is LoadResult.Success -> {
                     LogBuffer.add("loadSchema success: ${result.value.parameters.size} parameters")
                     loadedSchema = result.value.schemaJson
+                    pendingSchemaUri = null
                     val values = repository.initialValues(workflow, result.value.parameters)
                     val modifiedKeys = computeModifiedKeys(values)
                     _uiState.update {
