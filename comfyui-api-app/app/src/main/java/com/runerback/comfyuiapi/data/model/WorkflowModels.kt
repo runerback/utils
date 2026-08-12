@@ -31,6 +31,19 @@ data class WsMessage(
 )
 
 @Serializable
+data class OutputRef(
+    val filename: String,
+    val subfolder: String,
+    val type: String,
+    val kind: OutputKind
+)
+
+enum class OutputKind {
+    Image,
+    Audio
+}
+
+@Serializable
 data class ImageRef(
     val filename: String,
     val subfolder: String,

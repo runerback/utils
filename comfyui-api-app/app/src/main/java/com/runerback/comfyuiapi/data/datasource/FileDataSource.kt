@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import com.runerback.comfyuiapi.ui.components.LogBuffer
+import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,6 +59,20 @@ class FileDataSource @Inject constructor(
             } ?: Result.failure(IOException("Cannot open $uri"))
         } catch (e: Exception) {
             LogBuffer.add("fileDataSource.loadBytes: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    fun saveCachedOutput(filename: String, bytes: ByteArray): Result<Uri> {
+        LogBuffer.add("fileDataSource.saveCachedOutput: $filename ${bytes.size} bytes")
+        return try {
+            val dir = File(context.cacheDir, "outputs").apply { mkdirs() }
+            val file = File(dir, filename)
+            file.writeBytes(bytes)
+            LogBuffer.add("fileDataSource.saveCachedOutput: ${file.absolutePath}")
+            Result.success(Uri.fromFile(file))
+        } catch (e: Exception) {
+            LogBuffer.add("fileDataSource.saveCachedOutput: ${e.message}")
             Result.failure(e)
         }
     }

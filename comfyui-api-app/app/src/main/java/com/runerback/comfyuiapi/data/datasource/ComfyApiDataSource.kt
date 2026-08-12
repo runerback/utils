@@ -3,7 +3,8 @@ package com.runerback.comfyuiapi.data.datasource
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import com.runerback.comfyuiapi.data.model.ImageRef
+import com.runerback.comfyuiapi.data.model.OutputKind
+import com.runerback.comfyuiapi.data.model.OutputRef
 import com.runerback.comfyuiapi.data.model.PromptRequest
 import com.runerback.comfyuiapi.data.model.WsMessage
 import com.runerback.comfyuiapi.data.model.Workflow
@@ -26,6 +27,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readBytes
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.JsonObject
@@ -108,6 +110,7 @@ class ComfyApiDataSource @Inject constructor(
                 }
             }
         } catch (e: Exception) {
+            if (e is CancellationException) return@flow
             LogBuffer.add("api.listen: exception ${e.message}")
             emit(ComfyEvent.Error(e.message ?: "WebSocket error"))
         }
@@ -147,28 +150,33 @@ class ComfyApiDataSource @Inject constructor(
         }
     }
 
-    suspend fun fetchImage(serverUrl: String, ref: ImageRef): Result<ImageBitmap> {
+    suspend fun fetchImage(serverUrl: String, ref: OutputRef): Result<ImageBitmap> {
         LogBuffer.add("api.fetchImage: $serverUrl/view filename=${ref.filename}")
+        val bytesResult = fetchOutputFile(serverUrl, ref)
+        val bytes = bytesResult.getOrNull()
+            ?: return Result.failure(bytesResult.exceptionOrNull() ?: Exception("Failed to fetch image"))
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        return if (bitmap == null) {
+            LogBuffer.add("api.fetchImage: decode failed for ${ref.filename}")
+            Result.failure(Exception("Failed to decode image"))
+        } else {
+            LogBuffer.add("api.fetchImage: decoded ${bitmap.width}x${bitmap.height}")
+            Result.success(bitmap.asImageBitmap())
+        }
+    }
+
+    suspend fun fetchOutputFile(serverUrl: String, ref: OutputRef): Result<ByteArray> {
+        LogBuffer.add("api.fetchOutputFile: $serverUrl/view filename=${ref.filename}")
         return try {
             val bytes = client.get("$serverUrl/view") {
                 parameter("filename", ref.filename)
                 parameter("subfolder", ref.subfolder)
                 parameter("type", ref.type)
             }.body<ByteArray>()
-            LogBuffer.add("api.fetchImage: ${bytes.size} bytes")
-            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            if (bitmap == null) {
-                LogBuffer.add("api.fetchImage: decode failed for ${ref.filename}")
-                Result.failure(Exception("Failed to decode image"))
-            } else {
-                LogBuffer.add("api.fetchImage: decoded ${bitmap.width}x${bitmap.height}")
-                Result.success(bitmap.asImageBitmap())
-            }
-        } catch (e: OutOfMemoryError) {
-            LogBuffer.add("api.fetchImage: OOM ${ref.filename}")
-            Result.failure(Exception("Image too large"))
+            LogBuffer.add("api.fetchOutputFile: ${bytes.size} bytes")
+            Result.success(bytes)
         } catch (e: Exception) {
-            LogBuffer.add("api.fetchImage: exception ${e.message}")
+            LogBuffer.add("api.fetchOutputFile: exception ${e.message}")
             Result.failure(e)
         }
     }
@@ -290,23 +298,42 @@ class ComfyApiDataSource @Inject constructor(
     }
 }
 
-fun JsonObject.collectImageRefs(nodeId: String): List<ImageRef> {
+fun JsonObject.collectOutputRefs(nodeId: String): List<OutputRef> {
     val outputs = this[nodeId]?.jsonObject?.get("outputs")?.jsonObject ?: return emptyList()
-    val refs = mutableListOf<ImageRef>()
+    val refs = mutableListOf<OutputRef>()
     for ((_, outputValue) in outputs) {
         val outputObj = outputValue as? kotlinx.serialization.json.JsonObject ?: continue
-        val images = outputObj["images"]?.jsonArray ?: continue
-        for (image in images) {
-            val obj = image as? kotlinx.serialization.json.JsonObject ?: continue
+
+        val images = outputObj["images"]?.jsonArray
+        images?.forEach { image ->
+            val obj = image as? kotlinx.serialization.json.JsonObject ?: return@forEach
             refs.add(
-                ImageRef(
-                    filename = obj["filename"]?.jsonPrimitive?.content ?: continue,
+                OutputRef(
+                    filename = obj["filename"]?.jsonPrimitive?.content ?: return@forEach,
                     subfolder = obj["subfolder"]?.jsonPrimitive?.content ?: "",
-                    type = obj["type"]?.jsonPrimitive?.content ?: "output"
+                    type = obj["type"]?.jsonPrimitive?.content ?: "output",
+                    kind = OutputKind.Image
+                )
+            )
+        }
+
+        val audio = outputObj["audio"]?.jsonArray
+        audio?.forEach { item ->
+            val obj = item as? kotlinx.serialization.json.JsonObject ?: return@forEach
+            refs.add(
+                OutputRef(
+                    filename = obj["filename"]?.jsonPrimitive?.content ?: return@forEach,
+                    subfolder = obj["subfolder"]?.jsonPrimitive?.content ?: "",
+                    type = obj["type"]?.jsonPrimitive?.content ?: "output",
+                    kind = OutputKind.Audio
                 )
             )
         }
     }
-    LogBuffer.add("api.collectImageRefs: $nodeId -> ${refs.size} refs")
+    LogBuffer.add("api.collectOutputRefs: $nodeId -> ${refs.size} refs")
     return refs
+}
+
+fun JsonObject.collectImageRefs(nodeId: String): List<OutputRef> {
+    return collectOutputRefs(nodeId).filter { it.kind == OutputKind.Image }
 }

@@ -64,7 +64,9 @@ data class UiState(
 )
 
 data class GeneratedOutput(
-    val nodeId: String,
-    val bitmap: ImageBitmap,
+    val filename: String,
+    val kind: OutputKind,
+    val bitmap: ImageBitmap? = null,
+    val audioUri: android.net.Uri? = null,
     val createdAt: Long = System.currentTimeMillis()
 )

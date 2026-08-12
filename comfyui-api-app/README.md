@@ -54,7 +54,7 @@ The app lets you load a workflow JSON and a matching `.schema.json`, edit the ex
 - Edit text prompts, seeds, integers, options/combos, and upload local images.
 - Queue prompts to a configurable ComfyUI server.
 - Stream execution progress and latent previews via WebSocket.
-- View all generated images in a persistent masonry gallery, sorted newest-first, launched from the media icon in the top bar.
+- View all generated images and audio files in a persistent masonry gallery, sorted newest-first, launched from the media icon in the top bar. Tap an image to preview it full-screen; tap an audio item to play it with the built-in MediaPlayer.
 - Built-in schema generator screen for creating `.schema.json` files without hand-editing JSON.
 - Capture fatal exceptions to an in-memory log buffer for easier field debugging.
 

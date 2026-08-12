@@ -5,7 +5,8 @@ import com.runerback.comfyuiapi.data.datasource.ComfyApiDataSource
 import com.runerback.comfyuiapi.data.datasource.ComfyEvent
 import com.runerback.comfyuiapi.data.datasource.FileDataSource
 import com.runerback.comfyuiapi.data.datasource.SettingsDataSource
-import com.runerback.comfyuiapi.data.datasource.collectImageRefs
+import com.runerback.comfyuiapi.data.datasource.collectOutputRefs
+import com.runerback.comfyuiapi.data.model.OutputKind
 import com.runerback.comfyuiapi.data.model.EditableParameter
 import com.runerback.comfyuiapi.data.model.GeneratedOutput
 import com.runerback.comfyuiapi.data.model.ParameterKey
@@ -248,16 +249,32 @@ class ComfyRepository @Inject constructor(
             }
 
             val history = historyResult.getOrNull() ?: return emptyList()
-            val refs = history.collectImageRefs(promptId)
-            LogBuffer.add("repository.fetchOutputs: ${refs.size} image refs")
+            val refs = history.collectOutputRefs(promptId)
+            LogBuffer.add("repository.fetchOutputs: ${refs.size} output refs")
 
             val outputs = mutableListOf<GeneratedOutput>()
             for (ref in refs) {
-                LogBuffer.add("repository.fetchOutputs: fetching ${ref.filename}")
-                val imageResult = apiDataSource.fetchImage(serverUrl, ref)
-                imageResult.getOrNull()?.let { bitmap ->
-                    outputs.add(GeneratedOutput(ref.filename, bitmap))
-                } ?: LogBuffer.add("repository.fetchOutputs: failed to fetch/decode ${ref.filename}")
+                LogBuffer.add("repository.fetchOutputs: fetching ${ref.filename} kind=${ref.kind}")
+                when (ref.kind) {
+                    OutputKind.Image -> {
+                        val imageResult = apiDataSource.fetchImage(serverUrl, ref)
+                        imageResult.getOrNull()?.let { bitmap ->
+                            outputs.add(GeneratedOutput(filename = ref.filename, kind = OutputKind.Image, bitmap = bitmap))
+                        } ?: LogBuffer.add("repository.fetchOutputs: failed to fetch/decode ${ref.filename}")
+                    }
+                    OutputKind.Audio -> {
+                        val bytesResult = apiDataSource.fetchOutputFile(serverUrl, ref)
+                        val bytes = bytesResult.getOrNull()
+                        if (bytes == null) {
+                            LogBuffer.add("repository.fetchOutputs: failed to fetch audio ${ref.filename}")
+                        } else {
+                            val uriResult = fileDataSource.saveCachedOutput(ref.filename, bytes)
+                            uriResult.getOrNull()?.let { uri ->
+                                outputs.add(GeneratedOutput(filename = ref.filename, kind = OutputKind.Audio, audioUri = uri))
+                            } ?: LogBuffer.add("repository.fetchOutputs: failed to cache audio ${ref.filename}")
+                        }
+                    }
+                }
             }
             outputs
         } catch (e: Exception) {
