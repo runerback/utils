@@ -94,6 +94,7 @@ class MainViewModel @Inject constructor(
                             outputs = emptyList(),
                             preview = null,
                             errorMessage = null,
+                            fixedSeeds = emptySet(),
                             optionLists = emptyMap(),
                             optionLoading = emptySet()
                         )
@@ -126,6 +127,7 @@ class MainViewModel @Inject constructor(
                             outputs = emptyList(),
                             preview = null,
                             errorMessage = null,
+                            fixedSeeds = emptySet(),
                             optionLists = emptyMap(),
                             optionLoading = emptySet()
                         )
@@ -149,12 +151,28 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun toggleFixedSeed(parameter: EditableParameter) {
+        val key = ParameterKey(parameter.nodeId, parameter.path)
+        _uiState.update { state ->
+            state.copy(
+                fixedSeeds = if (state.fixedSeeds.contains(key)) {
+                    state.fixedSeeds - key
+                } else {
+                    state.fixedSeeds + key
+                }
+            )
+        }
+    }
+
     private fun randomizeAllSeeds() {
         _uiState.update { state ->
             val newValues = state.currentValues.toMutableMap()
-            state.parameters.filter { it.type == FieldType.SeedType }.forEach { param ->
-                newValues[ParameterKey(param.nodeId, param.path)] = JsonPrimitive(Random.nextLong(0, Long.MAX_VALUE))
-            }
+            state.parameters
+                .filter { it.type == FieldType.SeedType }
+                .filter { ParameterKey(it.nodeId, it.path) !in state.fixedSeeds }
+                .forEach { param ->
+                    newValues[ParameterKey(param.nodeId, param.path)] = JsonPrimitive(Random.nextLong(0, Long.MAX_VALUE))
+                }
             state.copy(currentValues = newValues)
         }
     }

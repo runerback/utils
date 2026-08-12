@@ -137,10 +137,12 @@ fun MainScreen(
                                     pendingUploadUri = uiState.pendingUploads[key],
                                     options = uiState.optionLists[key] ?: emptyList(),
                                     isLoading = uiState.optionLoading.contains(key),
+                                    isFixedSeed = uiState.fixedSeeds.contains(key),
                                     onValueChange = { viewModel.updateValue(param, it) },
                                     onUploadUriSelected = { viewModel.setUploadUri(param, it) },
                                     onLoadOptions = { viewModel.loadOptions(param) },
-                                    onRefreshOptions = { viewModel.refreshOptions(param) }
+                                    onRefreshOptions = { viewModel.refreshOptions(param) },
+                                    onToggleFixedSeed = { viewModel.toggleFixedSeed(param) }
                                 )
                             }
                         }
@@ -196,10 +198,12 @@ private fun ParameterEditor(
     pendingUploadUri: android.net.Uri?,
     options: List<String>,
     isLoading: Boolean,
+    isFixedSeed: Boolean,
     onValueChange: (kotlinx.serialization.json.JsonElement) -> Unit,
     onUploadUriSelected: (android.net.Uri) -> Unit,
     onLoadOptions: () -> Unit,
-    onRefreshOptions: () -> Unit
+    onRefreshOptions: () -> Unit,
+    onToggleFixedSeed: () -> Unit
 ) {
     val label = param.fieldName
 
@@ -231,7 +235,9 @@ private fun ParameterEditor(
             SeedFieldEditor(
                 label = label,
                 value = value.asLong(),
-                onValueChange = { onValueChange(JsonPrimitive(it)) }
+                fixed = isFixedSeed,
+                onValueChange = { onValueChange(JsonPrimitive(it)) },
+                onFixedChange = { onToggleFixedSeed() }
             )
         }
         is FieldType.DimensionType -> {

@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -106,7 +108,9 @@ fun IntFieldEditor(
 fun SeedFieldEditor(
     label: String,
     value: Long,
+    fixed: Boolean,
     onValueChange: (Long) -> Unit,
+    onFixedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var text by remember(value) { mutableStateOf(value.toString()) }
@@ -127,12 +131,21 @@ fun SeedFieldEditor(
             modifier = Modifier.weight(1f)
         )
         IconButton(
+            onClick = { onFixedChange(!fixed) },
+            modifier = Modifier.padding(start = 8.dp)
+        ) {
+            Icon(
+                imageVector = if (fixed) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                contentDescription = if (fixed) "Fixed seed" else "Random seed"
+            )
+        }
+        IconButton(
             onClick = {
                 val next = Random.nextLong(0, Long.MAX_VALUE)
                 text = next.toString()
                 onValueChange(next)
             },
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier.padding(start = 4.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Refresh,
