@@ -1,6 +1,6 @@
 {
   "1": {
-    "class_type": "NoisesNoiseSource",
+    "class_type": "Noises-NoiseSource",
     "inputs": {
       "noise_type": "brown",
       "length_seconds": 10.0,
@@ -13,21 +13,21 @@
     }
   },
   "2": {
-    "class_type": "NoisesStereoWidening",
+    "class_type": "Noises-StereoWidening",
     "inputs": {
       "audio": ["1", 0],
       "width": 0.5
     }
   },
   "3": {
-    "class_type": "NoisesLowPassFilter",
+    "class_type": "Noises-LowPass",
     "inputs": {
       "audio": ["2", 0],
       "softness": 0.6
     }
   },
   "4": {
-    "class_type": "NoisesGain",
+    "class_type": "Noises-Gain",
     "inputs": {
       "audio": ["3", 0],
       "gain": 0.5

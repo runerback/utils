@@ -113,13 +113,18 @@ import asyncio
 
 
 def test_schemas():
-    async def _load():
-        extension = nodes_mod.ComfyUINoisesExtension()
-        return await extension.get_node_list()
+    node_classes = []
+    for name in dir(nodes_mod):
+        obj = getattr(nodes_mod, name, None)
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, nodes_mod.io.ComfyNode)
+            and obj is not nodes_mod.io.ComfyNode
+        ):
+            node_classes.append(obj)
 
-    node_list = asyncio.run(_load())
-    assert len(node_list) == 9
-    for node_cls in node_list:
+    assert len(node_classes) == 9
+    for node_cls in node_classes:
         schema = node_cls.define_schema()
         assert schema.node_id
         assert schema.display_name

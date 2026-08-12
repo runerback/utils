@@ -45,7 +45,7 @@ class AudioLength(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesAudioLength",
+            node_id="Noises-AudioLength",
             display_name="Audio Length",
             category="audio/noises",
             inputs=[
@@ -80,7 +80,7 @@ class NoiseSource(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesNoiseSource",
+            node_id="Noises-NoiseSource",
             display_name="Noise Source",
             category="audio/noises",
             inputs=[
@@ -173,7 +173,7 @@ class Widening(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesWidening",
+            node_id="Noises-StereoWidening",
             display_name="Stereo Widening",
             category="audio/noises",
             inputs=[
@@ -194,7 +194,7 @@ class Reverb(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesReverb",
+            node_id="Noises-Reverb",
             display_name="Reverb",
             category="audio/noises",
             inputs=[
@@ -216,7 +216,7 @@ class LowPass(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesLowPass",
+            node_id="Noises-LowPass",
             display_name="Low Pass Filter",
             category="audio/noises",
             inputs=[
@@ -246,7 +246,7 @@ class DCBlockerNode(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesDCBlocker",
+            node_id="Noises-DCBlocker",
             display_name="DC Blocker",
             category="audio/noises",
             inputs=[
@@ -267,7 +267,7 @@ class Saturation(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesSaturation",
+            node_id="Noises-Saturation",
             display_name="Saturation",
             category="audio/noises",
             inputs=[
@@ -288,7 +288,7 @@ class WaveLFO(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesWaveLFO",
+            node_id="Noises-WaveLFO",
             display_name="Wave LFO",
             category="audio/noises",
             inputs=[
@@ -318,7 +318,7 @@ class Gain(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="NoisesGain",
+            node_id="Noises-Gain",
             display_name="Gain",
             category="audio/noises",
             inputs=[
@@ -333,23 +333,3 @@ class Gain(io.ComfyNode):
         arr, sample_rate = _audio_to_numpy(audio)
         out = apply_gain(arr, gain)
         return io.NodeOutput(_numpy_to_audio(out, sample_rate))
-
-
-class ComfyUINoisesExtension(ComfyExtension):
-    @override
-    async def get_node_list(self) -> list[type[io.ComfyNode]]:
-        return [
-            AudioLength,
-            NoiseSource,
-            Widening,
-            Reverb,
-            LowPass,
-            DCBlockerNode,
-            Saturation,
-            WaveLFO,
-            Gain,
-        ]
-
-
-async def comfy_entrypoint() -> ComfyUINoisesExtension:
-    return ComfyUINoisesExtension()

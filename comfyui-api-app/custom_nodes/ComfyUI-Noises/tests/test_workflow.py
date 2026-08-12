@@ -34,14 +34,16 @@ spec.loader.exec_module(nodes_mod)
 
 
 def _known_node_ids():
-    extension = nodes_mod.ComfyUINoisesExtension()
-    import asyncio
-
-    async def _load():
-        return await extension.get_node_list()
-
-    node_list = asyncio.run(_load())
-    return {node_cls.define_schema().node_id for node_cls in node_list}
+    node_classes = []
+    for name in dir(nodes_mod):
+        obj = getattr(nodes_mod, name, None)
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, nodes_mod.io.ComfyNode)
+            and obj is not nodes_mod.io.ComfyNode
+        ):
+            node_classes.append(obj)
+    return {cls.define_schema().node_id for cls in node_classes}
 
 
 KNOWN_NODE_IDS = _known_node_ids()
@@ -104,7 +106,7 @@ def test_workflow_duration():
         workflow = json.load(f)
 
     source = next(
-        node for node in workflow.values() if node["class_type"] == "NoisesNoiseSource"
+        node for node in workflow.values() if node["class_type"] == "Noises-NoiseSource"
     )
     assert source["inputs"]["length_seconds"] == 10.0
 
