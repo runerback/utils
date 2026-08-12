@@ -46,7 +46,9 @@ import com.runerback.comfyuiapi.ui.components.SettingsDialog
 import com.runerback.comfyuiapi.ui.components.StringFieldEditor
 import com.runerback.comfyuiapi.ui.components.UploadFieldEditor
 import com.runerback.comfyuiapi.ui.components.asLong
+import com.runerback.comfyuiapi.ui.components.asNumber
 import com.runerback.comfyuiapi.ui.components.asString
+import com.runerback.comfyuiapi.ui.components.toJsonPrimitive
 import kotlinx.serialization.json.JsonPrimitive
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -225,10 +227,11 @@ private fun ParameterEditor(
         is FieldType.IntType -> {
             IntFieldEditor(
                 label = label,
-                value = value.asLong(),
+                value = value.asNumber(),
                 min = param.min,
                 max = param.max,
-                onValueChange = { onValueChange(JsonPrimitive(it)) }
+                precision = param.precision,
+                onValueChange = { onValueChange(it.toJsonPrimitive(param.precision)) }
             )
         }
         is FieldType.SeedType -> {
@@ -243,10 +246,11 @@ private fun ParameterEditor(
         is FieldType.DimensionType -> {
             IntFieldEditor(
                 label = label,
-                value = value.asLong(),
+                value = value.asNumber(),
                 min = param.min,
                 max = param.max,
-                onValueChange = { onValueChange(JsonPrimitive(it)) }
+                precision = 0,
+                onValueChange = { onValueChange(it.toJsonPrimitive(0)) }
             )
         }
         is FieldType.UploadType -> {

@@ -90,7 +90,8 @@ class SchemaParser @Inject constructor() {
                         max = (spec["maximum"] as? JsonPrimitive)?.longOrNull,
                         default = spec["default"],
                         order = (spec["order"] as? JsonPrimitive)?.longOrNull?.toInt() ?: 0,
-                        multiline = (spec["multiline"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false
+                        multiline = (spec["multiline"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false,
+                        precision = (spec["precision"] as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 2) ?: 0
                     )
                 )
             }
@@ -104,6 +105,7 @@ class SchemaParser @Inject constructor() {
         val randomize = (spec["randomize"] as? JsonPrimitive)?.content
         val uploadType = (spec["uploadType"] as? JsonPrimitive)?.content ?: "input"
         val mimeType = (spec["mimeType"] as? JsonPrimitive)?.content ?: "*/*"
+        val precision = (spec["precision"] as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 2) ?: 0
 
         return when {
             role == "option" && optionKind != null && resolveOptionSource(optionKind) != null -> {
@@ -114,7 +116,7 @@ class SchemaParser @Inject constructor() {
             role == "seed" || randomize != null -> FieldType.SeedType
             fieldName == "width" || fieldName == "height" -> FieldType.DimensionType
             type == "string" -> FieldType.StringType
-            type == "integer" || type == "number" -> FieldType.IntType
+            type == "integer" || type == "number" -> FieldType.IntType(precision)
             else -> FieldType.StringType
         }
     }

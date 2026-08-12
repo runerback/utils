@@ -133,7 +133,8 @@ fun SchemaGeneratorScreen(
                         onMaxChange = { field, value -> viewModel.updateMax(nodeId, field, value) },
                         onOrderChange = { field, value -> viewModel.updateOrder(nodeId, field, value) },
                         onMultilineChange = { field, value -> viewModel.updateMultiline(nodeId, field, value) },
-                        onOptionKindChange = { field, value -> viewModel.updateOptionKind(nodeId, field, value) }
+                        onOptionKindChange = { field, value -> viewModel.updateOptionKind(nodeId, field, value) },
+                        onPrecisionChange = { field, value -> viewModel.updatePrecision(nodeId, field, value) }
                     )
                 }
 
@@ -219,7 +220,8 @@ private fun NodeSection(
     onMaxChange: (String, Long?) -> Unit,
     onOrderChange: (String, Int) -> Unit,
     onMultilineChange: (String, Boolean) -> Unit,
-    onOptionKindChange: (String, String) -> Unit
+    onOptionKindChange: (String, String) -> Unit,
+    onPrecisionChange: (String, Int) -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
 
@@ -275,7 +277,8 @@ private fun NodeSection(
                             onMaxChange = { onMaxChange(selection.fieldName, it) },
                             onOrderChange = { onOrderChange(selection.fieldName, it) },
                             onMultilineChange = { onMultilineChange(selection.fieldName, it) },
-                            onOptionKindChange = { onOptionKindChange(selection.fieldName, it) }
+                            onOptionKindChange = { onOptionKindChange(selection.fieldName, it) },
+                            onPrecisionChange = { onPrecisionChange(selection.fieldName, it) }
                         )
                         HorizontalDivider()
                     }
@@ -298,7 +301,8 @@ private fun FieldEditor(
     onMaxChange: (Long?) -> Unit,
     onOrderChange: (Int) -> Unit,
     onMultilineChange: (Boolean) -> Unit,
-    onOptionKindChange: (String) -> Unit
+    onOptionKindChange: (String) -> Unit,
+    onPrecisionChange: (Int) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -425,6 +429,16 @@ private fun FieldEditor(
                         modifier = Modifier.weight(1f)
                     )
                 }
+
+                DropdownSelector(
+                    label = "Precision",
+                    options = listOf("0", "1", "2"),
+                    selected = selection.precision.toString(),
+                    onSelected = { onPrecisionChange(it.toIntOrNull() ?: 0) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 48.dp, top = 8.dp)
+                )
             }
 
             OutlinedTextField(

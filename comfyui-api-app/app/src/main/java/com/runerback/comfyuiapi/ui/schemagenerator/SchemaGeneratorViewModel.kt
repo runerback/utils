@@ -105,6 +105,10 @@ class SchemaGeneratorViewModel @Inject constructor(
         updateSelection(nodeId, fieldName) { it.copy(optionKind = optionKind) }
     }
 
+    fun updatePrecision(nodeId: String, fieldName: String, precision: Int) {
+        updateSelection(nodeId, fieldName) { it.copy(precision = precision.coerceIn(0, 2)) }
+    }
+
     fun exportSchema(uri: Uri) {
         val selections = _uiState.value.selections
         LogBuffer.add("schemaGenerator.exportSchema: ${selections.count { it.selected }} selected")

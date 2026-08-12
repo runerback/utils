@@ -6,7 +6,7 @@ import kotlinx.serialization.json.JsonObject
 
 sealed class FieldType {
     data object StringType : FieldType()
-    data object IntType : FieldType()
+    data class IntType(val precision: Int = 0) : FieldType()
     data object SeedType : FieldType()
     data object DimensionType : FieldType()
     data class UploadType(val uploadType: String, val mimeType: String) : FieldType()
@@ -25,7 +25,8 @@ data class EditableParameter(
     val max: Long? = null,
     val default: JsonElement? = null,
     val order: Int = 0,
-    val multiline: Boolean = false
+    val multiline: Boolean = false,
+    val precision: Int = 0
 )
 
 sealed class GenerationStatus {

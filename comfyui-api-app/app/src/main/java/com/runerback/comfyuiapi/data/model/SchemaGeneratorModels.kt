@@ -33,7 +33,8 @@ data class SchemaFieldSelection(
     val max: Long? = null,
     val order: Int = 0,
     val multiline: Boolean = false,
-    val optionKind: String = ""
+    val optionKind: String = "",
+    val precision: Int = 0
 ) {
     val path: List<String>
         get() = listOf("inputs", fieldName)

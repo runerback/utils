@@ -33,9 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.runerback.comfyuiapi.R
+import java.util.Locale
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -60,46 +62,73 @@ fun StringFieldEditor(
 @Composable
 fun IntFieldEditor(
     label: String,
-    value: Long,
+    value: Number,
     min: Long?,
     max: Long?,
-    onValueChange: (Long) -> Unit,
+    precision: Int,
+    onValueChange: (Number) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var text by remember(value) { mutableStateOf(value.toString()) }
+    var text by remember(value, precision) { mutableStateOf(value.formatForPrecision(precision)) }
+    val coercePrecision = precision.coerceIn(0, 2)
 
     Column(modifier = modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = text,
             onValueChange = {
                 text = it
-                it.toLongOrNull()?.let { number ->
-                    onValueChange(number)
+                if (coercePrecision == 0) {
+                    it.toLongOrNull()?.let { number -> onValueChange(number) }
+                } else {
+                    it.toDoubleOrNull()?.let { number -> onValueChange(number) }
                 }
             },
             label = { Text(label) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (coercePrecision == 0) KeyboardType.Number else KeyboardType.Decimal
+            ),
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
         if (min != null && max != null && max > min) {
-            Slider(
-                value = value.coerceIn(min, max).toFloat(),
-                onValueChange = {
-                    val rounded = it.roundToInt().toLong()
-                    text = rounded.toString()
-                    onValueChange(rounded)
-                },
-                valueRange = min.toFloat()..max.toFloat(),
-                steps = (max - min - 1).toInt().coerceAtLeast(0),
-                modifier = Modifier.padding(top = 4.dp)
-            )
-            Text(
-                text = "$min … $max",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.align(Alignment.End)
-            )
+            if (coercePrecision == 0) {
+                Slider(
+                    value = value.toLong().coerceIn(min, max).toFloat(),
+                    onValueChange = {
+                        val rounded = it.roundToInt().toLong()
+                        text = rounded.toString()
+                        onValueChange(rounded)
+                    },
+                    valueRange = min.toFloat()..max.toFloat(),
+                    steps = (max - min - 1).toInt().coerceAtLeast(0),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                Text(
+                    text = "$min … $max",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.align(Alignment.End)
+                )
+            } else {
+                val minF = min.toFloat()
+                val maxF = max.toFloat()
+                val factor = 10.0.pow(coercePrecision.toDouble())
+                Slider(
+                    value = value.toDouble().coerceIn(min.toDouble(), max.toDouble()).toFloat(),
+                    onValueChange = {
+                        val rounded = (it.toDouble() * factor).roundToInt() / factor
+                        text = rounded.formatForPrecision(coercePrecision)
+                        onValueChange(rounded)
+                    },
+                    valueRange = minF..maxF,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                Text(
+                    text = "${min.formatForPrecision(coercePrecision)} … ${max.formatForPrecision(coercePrecision)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.align(Alignment.End)
+                )
+            }
         }
     }
 }
@@ -235,12 +264,12 @@ fun OptionFieldEditor(
 fun DimensionFieldEditor(
     widthLabel: String,
     heightLabel: String,
-    width: Long,
-    height: Long,
+    width: Number,
+    height: Number,
     min: Long?,
     max: Long?,
-    onWidthChange: (Long) -> Unit,
-    onHeightChange: (Long) -> Unit,
+    onWidthChange: (Number) -> Unit,
+    onHeightChange: (Number) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxWidth()) {
@@ -249,6 +278,7 @@ fun DimensionFieldEditor(
             value = width,
             min = min,
             max = max,
+            precision = 0,
             onValueChange = onWidthChange,
             modifier = Modifier.weight(1f)
         )
@@ -257,6 +287,7 @@ fun DimensionFieldEditor(
             value = height,
             min = min,
             max = max,
+            precision = 0,
             onValueChange = onHeightChange,
             modifier = Modifier
                 .weight(1f)
@@ -267,3 +298,29 @@ fun DimensionFieldEditor(
 
 fun JsonElement.asString(): String = (this as? JsonPrimitive)?.content ?: ""
 fun JsonElement.asLong(): Long = (this as? JsonPrimitive)?.longOrNull ?: 0L
+fun JsonElement.asNumber(): Number {
+    val primitive = this as? JsonPrimitive ?: return 0L
+    return primitive.longOrNull ?: primitive.content.toDoubleOrNull() ?: 0.0
+}
+
+fun Number.formatForPrecision(precision: Int): String {
+    return if (precision <= 0) {
+        toLong().toString()
+    } else {
+        String.format(Locale.US, "%.${precision}f", toDouble())
+    }
+}
+
+fun Number.toJsonPrimitive(precision: Int): JsonPrimitive {
+    return if (precision <= 0) {
+        JsonPrimitive(toLong())
+    } else {
+        JsonPrimitive(toDouble())
+    }
+}
+
+private fun Double.roundToPrecision(precision: Int): Double {
+    if (precision <= 0) return this
+    val factor = 10.0.pow(precision.toDouble())
+    return (this * factor).roundToInt() / factor
+}

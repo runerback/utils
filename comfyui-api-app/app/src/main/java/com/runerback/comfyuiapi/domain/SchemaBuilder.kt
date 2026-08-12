@@ -24,9 +24,14 @@ fun buildSchema(selections: List<SchemaFieldSelection>): JsonObject {
                         putJsonObject("inputs") {
                             put("type", "object")
                             putJsonObject("properties") {
-                                for (selection in nodeSelections.sortedBy { it.order }) {
+                                    for (selection in nodeSelections.sortedBy { it.order }) {
                                     putJsonObject(selection.fieldName) {
-                                        put("type", selection.type.value)
+                                        val effectiveType = if (selection.precision > 0) {
+                                            SchemaFieldType.Number.value
+                                        } else {
+                                            selection.type.value
+                                        }
+                                        put("type", effectiveType)
                                         if (selection.role != SchemaFieldRole.None) {
                                             put("role", selection.role.value!!)
                                         }
@@ -41,6 +46,9 @@ fun buildSchema(selections: List<SchemaFieldSelection>): JsonObject {
                                         selection.max?.let { put("maximum", it) }
                                         if (selection.type == SchemaFieldType.String) {
                                             put("multiline", selection.multiline)
+                                        }
+                                        if (selection.type == SchemaFieldType.Integer || selection.type == SchemaFieldType.Number) {
+                                            put("precision", selection.precision)
                                         }
                                         put("default", selection.currentValue)
                                         put("order", selection.order)
