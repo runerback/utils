@@ -228,8 +228,8 @@ private fun NodeSection(
     onRoleChange: (String, SchemaFieldRole) -> Unit,
     onUploadTypeChange: (String, String) -> Unit,
     onMimeTypeChange: (String, String) -> Unit,
-    onMinChange: (String, Long?) -> Unit,
-    onMaxChange: (String, Long?) -> Unit,
+    onMinChange: (String, Double?) -> Unit,
+    onMaxChange: (String, Double?) -> Unit,
     onOrderChange: (String, Int) -> Unit,
     onMultilineChange: (String, Boolean) -> Unit,
     onOptionKindChange: (String, String) -> Unit,
@@ -309,8 +309,8 @@ private fun FieldEditor(
     onRoleChange: (SchemaFieldRole) -> Unit,
     onUploadTypeChange: (String) -> Unit,
     onMimeTypeChange: (String) -> Unit,
-    onMinChange: (Long?) -> Unit,
-    onMaxChange: (Long?) -> Unit,
+    onMinChange: (Double?) -> Unit,
+    onMaxChange: (Double?) -> Unit,
     onOrderChange: (Int) -> Unit,
     onMultilineChange: (Boolean) -> Unit,
     onOptionKindChange: (String) -> Unit,
@@ -428,15 +428,17 @@ private fun FieldEditor(
                         .padding(start = 48.dp, top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OptionalLongField(
+                    OptionalNumberField(
                         label = "Min",
                         value = selection.min,
+                        precision = selection.precision,
                         onValueChange = onMinChange,
                         modifier = Modifier.weight(1f)
                     )
-                    OptionalLongField(
+                    OptionalNumberField(
                         label = "Max",
                         value = selection.max,
+                        precision = selection.precision,
                         onValueChange = onMaxChange,
                         modifier = Modifier.weight(1f)
                     )
@@ -511,22 +513,32 @@ private fun DropdownSelector(
 }
 
 @Composable
-private fun OptionalLongField(
+private fun OptionalNumberField(
     label: String,
-    value: Long?,
-    onValueChange: (Long?) -> Unit,
+    value: Double?,
+    precision: Int,
+    onValueChange: (Double?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var text by remember(value) { mutableStateOf(value?.toString() ?: "") }
+    val coercePrecision = precision.coerceIn(0, 2)
+    var text by remember(value, coercePrecision) {
+        mutableStateOf(
+            value?.let {
+                if (coercePrecision == 0) it.toLong().toString() else String.format(java.util.Locale.US, "%.${coercePrecision}f", it)
+            } ?: ""
+        )
+    }
     OutlinedTextField(
         value = text,
         onValueChange = {
             text = it
-            onValueChange(it.toLongOrNull())
+            onValueChange(it.toDoubleOrNull())
         },
         label = { Text(label) },
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (coercePrecision == 0) KeyboardType.Number else KeyboardType.Decimal
+        ),
         modifier = modifier
     )
 }

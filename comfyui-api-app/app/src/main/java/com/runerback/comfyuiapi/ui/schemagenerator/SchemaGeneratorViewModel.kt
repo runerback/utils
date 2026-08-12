@@ -85,11 +85,11 @@ class SchemaGeneratorViewModel @Inject constructor(
         updateSelection(nodeId, fieldName) { it.copy(mimeType = mimeType) }
     }
 
-    fun updateMin(nodeId: String, fieldName: String, min: Long?) {
+    fun updateMin(nodeId: String, fieldName: String, min: Double?) {
         updateSelection(nodeId, fieldName) { it.copy(min = min) }
     }
 
-    fun updateMax(nodeId: String, fieldName: String, max: Long?) {
+    fun updateMax(nodeId: String, fieldName: String, max: Double?) {
         updateSelection(nodeId, fieldName) { it.copy(max = max) }
     }
 

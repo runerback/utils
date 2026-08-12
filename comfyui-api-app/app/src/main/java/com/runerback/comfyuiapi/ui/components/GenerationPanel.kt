@@ -134,31 +134,29 @@ private fun BatchCountStepper(
             enabled = enabled,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
-            trailingIcon = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowUp,
-                        contentDescription = "Increase batch count",
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable(enabled = enabled && count < max) {
-                                onCountChange((count + 1).coerceAtMost(max))
-                            }
-                    )
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Decrease batch count",
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable(enabled = enabled && count > min) {
-                                onCountChange((count - 1).coerceAtLeast(min))
-                            }
-                    )
-                }
-            },
-            modifier = Modifier.widthIn(min = 80.dp, max = 96.dp)
+            modifier = Modifier.widthIn(min = 56.dp, max = 72.dp)
         )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowUp,
+                contentDescription = "Increase batch count",
+                modifier = Modifier
+                    .size(20.dp)
+                    .clickable(enabled = enabled && count < max) {
+                        onCountChange((count + 1).coerceAtMost(max))
+                    }
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = "Decrease batch count",
+                modifier = Modifier
+                    .size(20.dp)
+                    .clickable(enabled = enabled && count > min) {
+                        onCountChange((count - 1).coerceAtLeast(min))
+                    }
+            )
+        }
     }
 }

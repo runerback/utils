@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -86,8 +87,8 @@ class SchemaParser @Inject constructor() {
                         fieldName = leafName,
                         path = childPath,
                         type = type,
-                        min = (spec["minimum"] as? JsonPrimitive)?.longOrNull,
-                        max = (spec["maximum"] as? JsonPrimitive)?.longOrNull,
+                        min = (spec["minimum"] as? JsonPrimitive)?.doubleOrNull,
+                        max = (spec["maximum"] as? JsonPrimitive)?.doubleOrNull,
                         default = spec["default"],
                         order = (spec["order"] as? JsonPrimitive)?.longOrNull?.toInt() ?: 0,
                         multiline = (spec["multiline"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false,

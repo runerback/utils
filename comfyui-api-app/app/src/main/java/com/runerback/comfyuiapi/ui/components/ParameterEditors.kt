@@ -63,8 +63,8 @@ fun StringFieldEditor(
 fun IntFieldEditor(
     label: String,
     value: Number,
-    min: Long?,
-    max: Long?,
+    min: Double?,
+    max: Double?,
     precision: Int,
     onValueChange: (Number) -> Unit,
     modifier: Modifier = Modifier
@@ -93,19 +93,21 @@ fun IntFieldEditor(
 
         if (min != null && max != null && max > min) {
             if (coercePrecision == 0) {
+                val minL = min.toLong()
+                val maxL = max.toLong()
                 Slider(
-                    value = value.toLong().coerceIn(min, max).toFloat(),
+                    value = value.toLong().coerceIn(minL, maxL).toFloat(),
                     onValueChange = {
                         val rounded = it.roundToInt().toLong()
                         text = rounded.toString()
                         onValueChange(rounded)
                     },
-                    valueRange = min.toFloat()..max.toFloat(),
-                    steps = (max - min - 1).toInt().coerceAtLeast(0),
+                    valueRange = minL.toFloat()..maxL.toFloat(),
+                    steps = (maxL - minL - 1).toInt().coerceAtLeast(0),
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 Text(
-                    text = "$min … $max",
+                    text = "$minL … $maxL",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.align(Alignment.End)
                 )
@@ -266,8 +268,8 @@ fun DimensionFieldEditor(
     heightLabel: String,
     width: Number,
     height: Number,
-    min: Long?,
-    max: Long?,
+    min: Double?,
+    max: Double?,
     onWidthChange: (Number) -> Unit,
     onHeightChange: (Number) -> Unit,
     modifier: Modifier = Modifier
