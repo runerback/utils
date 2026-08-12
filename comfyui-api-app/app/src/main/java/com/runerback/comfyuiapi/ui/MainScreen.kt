@@ -168,7 +168,9 @@ fun MainScreen(
                 )
             }
 
-            PreviewPanel(preview = uiState.preview)
+            if (uiState.preview != null) {
+                PreviewPanel(preview = uiState.preview)
+            }
 
             GalleryPanel(images = uiState.outputs)
 
