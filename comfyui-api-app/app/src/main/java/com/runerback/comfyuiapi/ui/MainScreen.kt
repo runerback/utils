@@ -111,13 +111,6 @@ fun MainScreen(
                     style = MaterialTheme.typography.titleMedium
                 )
 
-                Button(
-                    onClick = viewModel::randomizeSeeds,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Randomize all seeds")
-                }
-
                 uiState.parameters
                     .groupBy { it.nodeId }
                     .forEach { (nodeId, params) ->

@@ -149,7 +149,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun randomizeSeeds() {
+    private fun randomizeAllSeeds() {
         _uiState.update { state ->
             val newValues = state.currentValues.toMutableMap()
             state.parameters.filter { it.type == FieldType.SeedType }.forEach { param ->
@@ -227,11 +227,6 @@ class MainViewModel @Inject constructor(
             var batchFailed = false
 
             for (batchIndex in 0 until totalBatches) {
-                if (batchIndex > 0) {
-                    LogBuffer.add("generate: randomizing seeds for batch ${batchIndex + 1}")
-                    randomizeSeeds()
-                }
-
                 val currentState = _uiState.value
                 val valuesWithUploads = currentState.currentValues.toMutableMap().apply {
                     putAll(uploadReplacements)
@@ -286,6 +281,7 @@ class MainViewModel @Inject constructor(
                                     outputs = state.outputs + result.outputs
                                 )
                             }
+                            randomizeAllSeeds()
                         }
                         is GenerationResult.Error -> {
                             LogBuffer.add("generate: error batch ${batchIndex + 1}: ${result.message}")
