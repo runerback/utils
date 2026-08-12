@@ -1,0 +1,46 @@
+{
+  "1": {
+    "class_type": "NoisesNoiseSource",
+    "inputs": {
+      "noise_type": "brown",
+      "length_seconds": 10.0,
+      "sample_rate": 44100,
+      "channels": 2,
+      "seed": 42,
+      "distribution": "normal",
+      "leak": 0.99,
+      "frequency": 440.0
+    }
+  },
+  "2": {
+    "class_type": "NoisesStereoWidening",
+    "inputs": {
+      "audio": ["1", 0],
+      "width": 0.5
+    }
+  },
+  "3": {
+    "class_type": "NoisesLowPassFilter",
+    "inputs": {
+      "audio": ["2", 0],
+      "softness": 0.6
+    }
+  },
+  "4": {
+    "class_type": "NoisesGain",
+    "inputs": {
+      "audio": ["3", 0],
+      "gain": 0.5
+    }
+  },
+  "5": {
+    "class_type": "SaveAudioAdvanced",
+    "inputs": {
+      "audio": ["4", 0],
+      "filename_prefix": "audio/noises_brown_10s",
+      "format": {
+        "format": "flac"
+      }
+    }
+  }
+}

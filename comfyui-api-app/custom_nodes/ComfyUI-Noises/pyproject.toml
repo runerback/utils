@@ -1,0 +1,11 @@
+[project]
+name = "ComfyUI-Noises"
+description = "Noise generator custom nodes for ComfyUI (brown, white, pink, tune) with chainable effects."
+version = "1.0.0"
+license = { text = "MIT" }
+dependencies = []
+
+[tool.comfy]
+PublisherId = "runerback"
+DisplayName = "ComfyUI-Noises"
+Icon = ""
