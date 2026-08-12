@@ -38,9 +38,7 @@
     "inputs": {
       "audio": ["4", 0],
       "filename_prefix": "audio/noises_brown_10s",
-      "format": {
-        "format": "flac"
-      }
+      "format": "flac"
     }
   }
 }
