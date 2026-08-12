@@ -42,6 +42,7 @@ class RoomViewModel @Inject constructor(
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var socketJob: Job? = null
+    private var hasConnectedBefore = false
 
     init {
         val savedUrl = prefs.getString("backend_url", "http://10.0.2.2:5000") ?: "http://10.0.2.2:5000"
@@ -84,13 +85,13 @@ class RoomViewModel @Inject constructor(
             onConnect = {
                 _uiState.update { it.copy(isConnected = true) }
                 observeSocketMessages()
+                if (hasConnectedBefore) {
+                    loadMessages()
+                }
+                hasConnectedBefore = true
             },
             onDisconnect = {
                 _uiState.update { it.copy(isConnected = false) }
-            },
-            onReconnect = {
-                _uiState.update { it.copy(isConnected = true) }
-                loadMessages()
             }
         )
     }
@@ -197,6 +198,7 @@ class RoomViewModel @Inject constructor(
         val trimmed = updated.take(5)
         saveRecentBackendUrls(trimmed)
         _uiState.update { it.copy(backendUrl = url, recentBackendUrls = trimmed, messages = emptyList(), error = null) }
+        hasConnectedBefore = false
         messageRepository.reconnect()
         loadMessages()
         disconnectSocket()

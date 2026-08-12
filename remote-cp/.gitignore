@@ -25,3 +25,5 @@ remote-cp-android/app/build/
 remote-cp-android/local.properties
 remote-cp-android/*.iml
 remote-cp-android/.idea/
+
+libs/
