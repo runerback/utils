@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -71,6 +72,8 @@ fun SchemaGeneratorScreen(
         onResult = { uri -> uri?.let { viewModel.exportSchema(it) } }
     )
 
+    val selectedCount = uiState.selections.count { it.selected }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -84,6 +87,24 @@ fun SchemaGeneratorScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            if (uiState.selections.isNotEmpty()) {
+                Surface(
+                    tonalElevation = 3.dp,
+                    shadowElevation = 6.dp
+                ) {
+                    Button(
+                        onClick = { exportLauncher.launch("${uiState.workflowName.substringBeforeLast(".")}_generated.schema.json") },
+                        enabled = selectedCount > 0,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text("Export schema ($selectedCount selected)")
+                    }
+                }
+            }
         }
     ) { padding ->
         val focusManager = LocalFocusManager.current
@@ -136,15 +157,6 @@ fun SchemaGeneratorScreen(
                         onOptionKindChange = { field, value -> viewModel.updateOptionKind(nodeId, field, value) },
                         onPrecisionChange = { field, value -> viewModel.updatePrecision(nodeId, field, value) }
                     )
-                }
-
-                val selectedCount = uiState.selections.count { it.selected }
-                Button(
-                    onClick = { exportLauncher.launch("${uiState.workflowName.substringBeforeLast(".")}_generated.schema.json") },
-                    enabled = selectedCount > 0,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Export schema ($selectedCount selected)")
                 }
             } else if (uiState.workflow == null && uiState.errorMessage == null) {
                 Text(
