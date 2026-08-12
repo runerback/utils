@@ -1,17 +1,18 @@
 package com.runerback.comfyuiapi.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -125,16 +126,6 @@ private fun BatchCountStepper(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        IconButton(
-            onClick = { onCountChange((count - 1).coerceAtLeast(min)) },
-            enabled = enabled && count > min
-        ) {
-            Icon(
-                imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = "Decrease batch count"
-            )
-        }
-
         OutlinedTextField(
             value = count.toString(),
             onValueChange = { text ->
@@ -143,17 +134,31 @@ private fun BatchCountStepper(
             enabled = enabled,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
-            modifier = Modifier.widthIn(min = 56.dp, max = 72.dp)
+            trailingIcon = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Increase batch count",
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(enabled = enabled && count < max) {
+                                onCountChange((count + 1).coerceAtMost(max))
+                            }
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Decrease batch count",
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(enabled = enabled && count > min) {
+                                onCountChange((count - 1).coerceAtLeast(min))
+                            }
+                    )
+                }
+            },
+            modifier = Modifier.widthIn(min = 80.dp, max = 96.dp)
         )
-
-        IconButton(
-            onClick = { onCountChange((count + 1).coerceAtMost(max)) },
-            enabled = enabled && count < max
-        ) {
-            Icon(
-                imageVector = Icons.Default.KeyboardArrowUp,
-                contentDescription = "Increase batch count"
-            )
-        }
     }
 }
