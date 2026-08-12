@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.runerback.comfyuiapi.data.model.GeneratedOutput
 import com.runerback.comfyuiapi.data.model.OutputKind
 import com.runerback.comfyuiapi.ui.MainViewModel
+import com.runerback.comfyuiapi.ui.components.LogBuffer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +65,9 @@ fun OutputGalleryScreen(
 
     val context = LocalContext.current
     val player = remember { MediaPlayer() }
-    var playingUri by remember { mutableStateOf<Uri?>(null) }
+    var activeUri by remember { mutableStateOf<Uri?>(null) }
+    var isPreparing by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -74,24 +78,50 @@ fun OutputGalleryScreen(
 
     fun stopAudio() {
         if (player.isPlaying) player.stop()
-        playingUri = null
+        activeUri = null
+        isPreparing = false
+        isPlaying = false
     }
 
     fun playAudio(uri: Uri) {
-        if (playingUri == uri && player.isPlaying) {
-            player.pause()
-            playingUri = null
+        if (activeUri == uri) {
+            if (isPreparing) return
+            if (isPlaying) {
+                player.pause()
+                isPlaying = false
+            } else {
+                player.start()
+                isPlaying = true
+            }
             return
         }
         player.reset()
         try {
+            LogBuffer.add("gallery.playAudio: $uri")
             player.setDataSource(context, uri)
-            player.setOnPreparedListener { it.start() }
-            player.setOnCompletionListener { playingUri = null }
+            player.setOnPreparedListener {
+                LogBuffer.add("gallery.playAudio: prepared")
+                it.start()
+                isPreparing = false
+                isPlaying = true
+            }
+            player.setOnCompletionListener { isPlaying = false }
+            player.setOnErrorListener { _, what, extra ->
+                LogBuffer.add("gallery.playAudio: error what=$what extra=$extra uri=$uri")
+                activeUri = null
+                isPreparing = false
+                isPlaying = false
+                true
+            }
             player.prepareAsync()
-            playingUri = uri
-        } catch (_: Exception) {
-            playingUri = null
+            activeUri = uri
+            isPreparing = true
+            isPlaying = false
+        } catch (e: Exception) {
+            LogBuffer.add("gallery.playAudio: exception ${e.message}")
+            activeUri = null
+            isPreparing = false
+            isPlaying = false
         }
     }
 
@@ -156,7 +186,8 @@ fun OutputGalleryScreen(
                 output.audioUri?.let { uri ->
                     AudioPreviewDialog(
                         output = output,
-                        isPlaying = playingUri == uri && player.isPlaying,
+                        isPlaying = activeUri == uri && isPlaying,
+                        isLoading = activeUri == uri && isPreparing,
                         onPlayToggle = { playAudio(uri) },
                         onDismiss = {
                             stopAudio()
@@ -263,6 +294,7 @@ private fun ImagePreviewDialog(
 private fun AudioPreviewDialog(
     output: GeneratedOutput,
     isPlaying: Boolean,
+    isLoading: Boolean,
     onPlayToggle: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -289,12 +321,19 @@ private fun AudioPreviewDialog(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                IconButton(onClick = onPlayToggle) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        modifier = Modifier.size(48.dp)
-                    )
+                IconButton(onClick = onPlayToggle, enabled = !isLoading) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            strokeWidth = 4.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
                 }
             }
         }
