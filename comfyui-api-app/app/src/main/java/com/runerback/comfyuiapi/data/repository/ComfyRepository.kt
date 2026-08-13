@@ -4,6 +4,7 @@ import android.net.Uri
 import com.runerback.comfyuiapi.data.datasource.ComfyApiDataSource
 import com.runerback.comfyuiapi.data.datasource.ComfyEvent
 import com.runerback.comfyuiapi.data.datasource.FileDataSource
+import com.runerback.comfyuiapi.data.datasource.ObjectInfoCacheDataSource
 import com.runerback.comfyuiapi.data.datasource.SettingsDataSource
 import com.runerback.comfyuiapi.data.datasource.collectOutputRefs
 import com.runerback.comfyuiapi.data.model.OutputKind
@@ -17,6 +18,8 @@ import com.runerback.comfyuiapi.domain.applyDefaultsToSchema
 import com.runerback.comfyuiapi.domain.resolveValue
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -55,6 +58,7 @@ class ComfyRepository @Inject constructor(
     private val fileDataSource: FileDataSource,
     private val apiDataSource: ComfyApiDataSource,
     private val settingsDataSource: SettingsDataSource,
+    private val objectInfoCache: ObjectInfoCacheDataSource,
     private val schemaParser: SchemaParser,
     private val workflowPatcher: WorkflowPatcher,
     private val json: Json
@@ -125,6 +129,60 @@ class ComfyRepository @Inject constructor(
     suspend fun fetchObjectInfo(serverUrl: String, nodeClass: String): Result<JsonObject> {
         LogBuffer.add("repository.fetchObjectInfo: $serverUrl/object_info/$nodeClass")
         return apiDataSource.fetchObjectInfo(serverUrl, nodeClass)
+    }
+
+    suspend fun fetchObjectInfos(
+        serverUrl: String,
+        classTypes: Set<String>,
+        forceRefresh: Boolean = false
+    ): Result<Map<String, JsonObject>> {
+        LogBuffer.add("repository.fetchObjectInfos: $serverUrl classes=${classTypes.size} forceRefresh=$forceRefresh")
+        if (classTypes.isEmpty()) return Result.success(emptyMap())
+
+        if (forceRefresh) {
+            classTypes.forEach { objectInfoCache.clear(serverUrl, it) }
+        }
+
+        return try {
+            val cached = mutableMapOf<String, JsonObject>()
+            val missing = mutableSetOf<String>()
+            for (classType in classTypes) {
+                val fromCache = objectInfoCache.get(serverUrl, classType)
+                if (fromCache != null) {
+                    cached[classType] = fromCache
+                } else {
+                    missing.add(classType)
+                }
+            }
+
+            if (missing.isEmpty()) {
+                LogBuffer.add("repository.fetchObjectInfos: all ${cached.size} from cache")
+                return Result.success(cached)
+            }
+
+            coroutineScope {
+                val deferreds = missing.map { classType ->
+                    async { classType to apiDataSource.fetchObjectInfo(serverUrl, classType) }
+                }
+                val results = deferreds.awaitAll()
+                var failures = 0
+                for ((classType, result) in results) {
+                    if (result.isSuccess) {
+                        val data = result.getOrThrow()
+                        cached[classType] = data
+                        objectInfoCache.put(serverUrl, classType, data)
+                    } else {
+                        failures++
+                        LogBuffer.add("repository.fetchObjectInfos: failed $classType: ${result.exceptionOrNull()?.message}")
+                    }
+                }
+                LogBuffer.add("repository.fetchObjectInfos: ${cached.size} total, $failures failures")
+                Result.success(cached)
+            }
+        } catch (e: Exception) {
+            LogBuffer.add("repository.fetchObjectInfos: exception ${e.message}")
+            Result.failure(e)
+        }
     }
 
     fun initialValues(workflow: Workflow, parameters: List<EditableParameter>): Map<ParameterKey, JsonElement> {

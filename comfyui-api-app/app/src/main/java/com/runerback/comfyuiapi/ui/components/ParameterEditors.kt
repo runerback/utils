@@ -17,14 +17,11 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,13 +29,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.runerback.comfyuiapi.R
 import java.util.Locale
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import kotlin.math.pow
-import kotlin.math.roundToInt
 import kotlin.random.Random
 
 @Composable
@@ -90,48 +84,6 @@ fun IntFieldEditor(
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
-
-        if (min != null && max != null && max > min) {
-            if (coercePrecision == 0) {
-                val minL = min.toLong()
-                val maxL = max.toLong()
-                Slider(
-                    value = value.toLong().coerceIn(minL, maxL).toFloat(),
-                    onValueChange = {
-                        val rounded = it.roundToInt().toLong()
-                        text = rounded.toString()
-                        onValueChange(rounded)
-                    },
-                    valueRange = minL.toFloat()..maxL.toFloat(),
-                    steps = (maxL - minL - 1).toInt().coerceAtLeast(0),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                Text(
-                    text = "$minL … $maxL",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.align(Alignment.End)
-                )
-            } else {
-                val minF = min.toFloat()
-                val maxF = max.toFloat()
-                val factor = 10.0.pow(coercePrecision.toDouble())
-                Slider(
-                    value = value.toDouble().coerceIn(min.toDouble(), max.toDouble()).toFloat(),
-                    onValueChange = {
-                        val rounded = (it.toDouble() * factor).roundToInt() / factor
-                        text = rounded.formatForPrecision(coercePrecision)
-                        onValueChange(rounded)
-                    },
-                    valueRange = minF..maxF,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                Text(
-                    text = "${min.formatForPrecision(coercePrecision)} … ${max.formatForPrecision(coercePrecision)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.align(Alignment.End)
-                )
-            }
-        }
     }
 }
 
@@ -139,6 +91,8 @@ fun IntFieldEditor(
 fun SeedFieldEditor(
     label: String,
     value: Long,
+    min: Double?,
+    max: Double?,
     fixed: Boolean,
     onValueChange: (Long) -> Unit,
     onFixedChange: (Boolean) -> Unit,
@@ -172,7 +126,7 @@ fun SeedFieldEditor(
         }
         IconButton(
             onClick = {
-                val next = Random.nextLong(0, Long.MAX_VALUE)
+                val next = randomSeed(min, max)
                 text = next.toString()
                 onValueChange(next)
             },
@@ -183,6 +137,16 @@ fun SeedFieldEditor(
                 contentDescription = "Randomize"
             )
         }
+    }
+}
+
+fun randomSeed(min: Double?, max: Double?): Long {
+    val minBound = (min?.toLong() ?: 0L).coerceAtLeast(0L)
+    val maxBound = max?.toLong() ?: Long.MAX_VALUE
+    return if (maxBound == Long.MAX_VALUE) {
+        Random.nextLong(minBound, Long.MAX_VALUE)
+    } else {
+        Random.nextLong(minBound, (maxBound + 1).coerceAtLeast(minBound + 1))
     }
 }
 
@@ -319,10 +283,4 @@ fun Number.toJsonPrimitive(precision: Int): JsonPrimitive {
     } else {
         JsonPrimitive(toDouble())
     }
-}
-
-private fun Double.roundToPrecision(precision: Int): Double {
-    if (precision <= 0) return this
-    val factor = 10.0.pow(precision.toDouble())
-    return (this * factor).roundToInt() / factor
 }

@@ -157,6 +157,15 @@ fun SchemaGeneratorScreen(
                 )
             }
 
+            if (uiState.workflow != null) {
+                TextButton(
+                    onClick = { viewModel.refreshObjectInfo() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Refresh bounds from server")
+                }
+            }
+
             if (canEditCurrentSchema && currentSchema != null && currentWorkflow != null) {
                 Button(
                     onClick = {

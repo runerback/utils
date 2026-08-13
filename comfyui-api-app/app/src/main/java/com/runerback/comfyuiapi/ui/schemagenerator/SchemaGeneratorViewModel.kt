@@ -14,12 +14,14 @@ import com.runerback.comfyuiapi.data.model.detectSchemaFieldType
 import com.runerback.comfyuiapi.data.repository.ComfyRepository
 import com.runerback.comfyuiapi.data.repository.LoadResult
 import com.runerback.comfyuiapi.domain.buildSchema
+import com.runerback.comfyuiapi.domain.extractBounds
 import com.runerback.comfyuiapi.domain.schemaToSelections
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
@@ -41,7 +43,8 @@ class SchemaGeneratorViewModel @Inject constructor(
             when (result) {
                 is LoadResult.Success -> {
                     val workflow = result.value
-                    val selections = buildSelections(workflow)
+                    val objectInfoMap = fetchObjectInfoMap(workflow, forceRefresh = false)
+                    val selections = buildSelections(workflow, objectInfoMap)
                     _uiState.update {
                         it.copy(
                             workflowName = result.name,
@@ -175,16 +178,53 @@ class SchemaGeneratorViewModel @Inject constructor(
         }
     }
 
-    private fun buildSelections(workflow: Workflow): List<SchemaFieldSelection> {
+    private suspend fun fetchObjectInfoMap(
+        workflow: Workflow,
+        forceRefresh: Boolean = false
+    ): Map<String, JsonObject> {
+        val serverUrl = repository.serverUrl.first()
+        if (serverUrl.isBlank()) return emptyMap()
+        val classTypes = workflow.values.map { it.class_type }.toSet()
+        if (classTypes.isEmpty()) return emptyMap()
+        val result = repository.fetchObjectInfos(serverUrl, classTypes, forceRefresh)
+        return if (result.isSuccess) {
+            result.getOrThrow()
+        } else {
+            LogBuffer.add("schemaGenerator.fetchObjectInfoMap: failed ${result.exceptionOrNull()?.message}")
+            emptyMap()
+        }
+    }
+
+    fun refreshObjectInfo() {
+        val workflow = _uiState.value.workflow ?: return
+        viewModelScope.launch {
+            val objectInfoMap = fetchObjectInfoMap(workflow, forceRefresh = true)
+            val selections = buildSelections(workflow, objectInfoMap)
+            _uiState.update {
+                it.copy(
+                    selections = selections,
+                    errorMessage = null
+                )
+            }
+            LogBuffer.add("schemaGenerator.refreshObjectInfo: ${selections.size} fields")
+        }
+    }
+
+    private fun buildSelections(
+        workflow: Workflow,
+        objectInfoMap: Map<String, JsonObject> = emptyMap()
+    ): List<SchemaFieldSelection> {
         var order = 0
         val selections = mutableListOf<SchemaFieldSelection>()
         for ((nodeId, node) in workflow) {
             val nodeLabel = node._meta?.title?.takeIf { it.isNotBlank() } ?: node.class_type
+            val objectInfo = objectInfoMap[node.class_type]
             for ((fieldName, value) in node.inputs) {
                 if (value !is JsonPrimitive) continue
                 val type = detectSchemaFieldType(value)
                 val optionKind = detectOptionKind(fieldName)
                 val role = if (optionKind.isNotBlank()) SchemaFieldRole.Option else detectSchemaFieldRole(fieldName, value)
+                val bounds = objectInfo?.let { extractBounds(it, node.class_type, fieldName) }
                 selections.add(
                     SchemaFieldSelection(
                         nodeId = nodeId,
@@ -195,7 +235,9 @@ class SchemaGeneratorViewModel @Inject constructor(
                         type = type,
                         role = role,
                         optionKind = optionKind,
-                        order = order++
+                        order = order++,
+                        min = bounds?.first,
+                        max = bounds?.second
                     )
                 )
             }

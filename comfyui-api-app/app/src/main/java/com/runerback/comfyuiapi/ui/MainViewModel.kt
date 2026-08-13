@@ -22,6 +22,7 @@ import com.runerback.comfyuiapi.domain.extractOptions
 import com.runerback.comfyuiapi.domain.resolveOptionSource
 import com.runerback.comfyuiapi.domain.resolveValue
 import com.runerback.comfyuiapi.ui.components.LogBuffer
+import com.runerback.comfyuiapi.ui.components.randomSeed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -37,7 +38,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import java.util.UUID
 import javax.inject.Inject
-import kotlin.random.Random
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -268,7 +268,7 @@ class MainViewModel @Inject constructor(
                 .filter { it.type == FieldType.SeedType }
                 .filter { ParameterKey(it.nodeId, it.path) !in state.fixedSeeds }
                 .forEach { param ->
-                    newValues[ParameterKey(param.nodeId, param.path)] = JsonPrimitive(Random.nextLong(0, Long.MAX_VALUE))
+                    newValues[ParameterKey(param.nodeId, param.path)] = JsonPrimitive(randomSeed(param.min, param.max))
                 }
             state.copy(
                 currentValues = newValues,

@@ -150,6 +150,25 @@ private fun extractOptionsFromGroup(group: JsonObject?, fieldName: String): List
     return emptyList()
 }
 
+fun extractBounds(objectInfo: JsonObject, nodeClass: String, fieldName: String): Pair<Double?, Double?>? {
+    val nodeDef = objectInfo[nodeClass]?.jsonObject ?: return null
+    val inputDef = nodeDef["input"]?.jsonObject ?: return null
+
+    val required = inputDef["required"]?.jsonObject
+    val optional = inputDef["optional"]?.jsonObject
+
+    return extractBoundsFromGroup(required, fieldName)
+        ?: extractBoundsFromGroup(optional, fieldName)
+}
+
+private fun extractBoundsFromGroup(group: JsonObject?, fieldName: String): Pair<Double?, Double?>? {
+    val fieldDef = group?.get(fieldName)?.jsonArray ?: return null
+    val meta = fieldDef.getOrNull(1)?.jsonObject ?: return null
+    val min = meta["min"]?.jsonPrimitive?.doubleOrNull
+    val max = meta["max"]?.jsonPrimitive?.doubleOrNull
+    return if (min != null || max != null) min to max else null
+}
+
 fun resolveValue(workflow: Workflow, nodeId: String, path: List<String>): JsonElement? {
     val node = workflow[nodeId] ?: return null
     var current: JsonElement = node.inputs

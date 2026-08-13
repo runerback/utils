@@ -427,6 +427,8 @@ private fun ParameterEditor(
                 SeedFieldEditor(
                     label = label,
                     value = value.asLong(),
+                    min = param.min,
+                    max = param.max,
                     fixed = isFixedSeed,
                     onValueChange = { onValueChange(JsonPrimitive(it)) },
                     onFixedChange = { onToggleFixedSeed() },
