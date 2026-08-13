@@ -14,6 +14,7 @@ import com.runerback.comfyuiapi.data.model.detectSchemaFieldType
 import com.runerback.comfyuiapi.data.repository.ComfyRepository
 import com.runerback.comfyuiapi.data.repository.LoadResult
 import com.runerback.comfyuiapi.domain.buildSchema
+import com.runerback.comfyuiapi.domain.schemaToSelections
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import javax.inject.Inject
 
@@ -45,6 +47,7 @@ class SchemaGeneratorViewModel @Inject constructor(
                             workflowName = result.name,
                             workflow = workflow,
                             selections = selections,
+                            isEditingCurrentSchema = false,
                             errorMessage = null,
                             exportedUri = null
                         )
@@ -57,7 +60,8 @@ class SchemaGeneratorViewModel @Inject constructor(
                         it.copy(
                             errorMessage = result.message,
                             workflow = null,
-                            selections = emptyList()
+                            selections = emptyList(),
+                            isEditingCurrentSchema = false
                         )
                     }
                 }
@@ -124,6 +128,29 @@ class SchemaGeneratorViewModel @Inject constructor(
                 LogBuffer.add("schemaGenerator.exportSchema: $msg")
             }
         }
+    }
+
+    fun loadSchemaForEditing(schema: JsonObject, workflow: Workflow, workflowName: String) {
+        LogBuffer.add("schemaGenerator.loadSchemaForEditing")
+        val selections = schemaToSelections(schema, workflow)
+        _uiState.update {
+            it.copy(
+                workflowName = workflowName,
+                workflow = workflow,
+                selections = selections,
+                isEditingCurrentSchema = true,
+                errorMessage = null,
+                exportedUri = null
+            )
+        }
+    }
+
+    fun buildEditedSchema(): JsonObject {
+        return buildSchema(_uiState.value.selections)
+    }
+
+    fun exitEditMode() {
+        _uiState.update { it.copy(isEditingCurrentSchema = false) }
     }
 
     fun dismissError() {

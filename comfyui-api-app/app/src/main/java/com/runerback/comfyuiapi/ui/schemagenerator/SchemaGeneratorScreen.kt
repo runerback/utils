@@ -55,12 +55,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.runerback.comfyuiapi.data.model.SchemaFieldRole
 import com.runerback.comfyuiapi.data.model.SchemaFieldSelection
 import com.runerback.comfyuiapi.data.model.SchemaFieldType
+import com.runerback.comfyuiapi.data.model.Workflow
 import com.runerback.comfyuiapi.domain.OPTION_KIND_SOURCES
+import kotlinx.serialization.json.JsonObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SchemaGeneratorScreen(
     viewModel: SchemaGeneratorViewModel,
+    canEditCurrentSchema: Boolean,
+    currentSchema: JsonObject?,
+    currentWorkflow: Workflow?,
+    currentWorkflowName: String,
+    onSchemaEdited: (JsonObject) -> Unit,
     onBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -96,14 +103,29 @@ fun SchemaGeneratorScreen(
                     tonalElevation = 3.dp,
                     shadowElevation = 6.dp
                 ) {
-                    Button(
-                        onClick = { exportLauncher.launch("${uiState.workflowName.substringBeforeLast(".")}_generated.schema.json") },
-                        enabled = selectedCount > 0,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Text("Export schema ($selectedCount selected)")
+                    if (uiState.isEditingCurrentSchema) {
+                        Button(
+                            onClick = {
+                                onSchemaEdited(viewModel.buildEditedSchema())
+                                viewModel.exitEditMode()
+                            },
+                            enabled = selectedCount > 0,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text("Apply to Main UI ($selectedCount selected)")
+                        }
+                    } else {
+                        Button(
+                            onClick = { exportLauncher.launch("${uiState.workflowName.substringBeforeLast(".")}_generated.schema.json") },
+                            enabled = selectedCount > 0,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text("Export schema ($selectedCount selected)")
+                        }
                     }
                 }
             }
@@ -133,6 +155,17 @@ fun SchemaGeneratorScreen(
                     text = "Workflow: ${uiState.workflowName}",
                     style = MaterialTheme.typography.bodySmall
                 )
+            }
+
+            if (canEditCurrentSchema && currentSchema != null && currentWorkflow != null) {
+                Button(
+                    onClick = {
+                        viewModel.loadSchemaForEditing(currentSchema, currentWorkflow, currentWorkflowName)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Edit Current Schema")
+                }
             }
 
             if (uiState.selections.isNotEmpty()) {

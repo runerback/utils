@@ -44,6 +44,7 @@ data class SchemaGeneratorUiState(
     val workflowName: String = "",
     val workflow: Workflow? = null,
     val selections: List<SchemaFieldSelection> = emptyList(),
+    val isEditingCurrentSchema: Boolean = false,
     val errorMessage: String? = null,
     val exportedUri: Uri? = null
 )

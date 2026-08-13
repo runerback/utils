@@ -13,6 +13,8 @@ val localProperties = Properties().apply {
     rootProject.file("local.properties").inputStream().use { load(it) }
 }
 
+val buildNumber = (System.currentTimeMillis() / 1000).toInt()
+
 android {
     namespace = "com.runerback.comfyuiapi"
     compileSdk = 35
@@ -30,8 +32,8 @@ android {
         applicationId = "com.runerback.comfyuiapi"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
     }
 
     buildTypes {
@@ -63,7 +65,16 @@ android {
     applicationVariants.configureEach {
         outputs.configureEach {
             val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            outputImpl.outputFileName = "comfyui-api-${buildType.name}.apk"
+            val version = defaultConfig.versionName ?: "unknown"
+            outputImpl.outputFileName = "comfyui-api-${buildType.name}-${version}.apk"
+        }
+    }
+}
+
+afterEvaluate {
+    tasks.matching { it.name.startsWith("assemble") }.configureEach {
+        doLast {
+            println("Built version: ${android.defaultConfig.versionName}")
         }
     }
 }

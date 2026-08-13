@@ -1,5 +1,7 @@
 package com.runerback.comfyuiapi.ui
 
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -75,10 +78,39 @@ fun MainScreen(
     var showSettings by remember { mutableStateOf(false) }
     var parametersExpanded by remember { mutableStateOf(true) }
 
+    val context = LocalContext.current
+    val versionName = remember {
+        try {
+            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(
+                    context.packageName,
+                    PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            packageInfo.versionName ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("ComfyUI Workflow") },
+                title = {
+                    Column {
+                        Text("ComfyUI Workflow")
+                        if (versionName.isNotBlank()) {
+                            Text(
+                                text = "v$versionName",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                },
                 actions = {
                     Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                         val galleryEnabled = allOutputs.isNotEmpty()

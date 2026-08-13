@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.runerback.comfyuiapi.ui.MainScreen
 import com.runerback.comfyuiapi.ui.MainViewModel
 import com.runerback.comfyuiapi.ui.gallery.OutputGalleryScreen
@@ -30,8 +31,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             ComfyUIApiTheme {
                 var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Main) }
+                val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
+                val canEditCurrentSchema = uiState.hasSchema && uiState.parameters.isNotEmpty()
 
                 BackHandler(enabled = currentScreen != AppScreen.Main) {
+                    if (currentScreen == AppScreen.SchemaGenerator) {
+                        schemaGeneratorViewModel.exitEditMode()
+                    }
                     currentScreen = AppScreen.Main
                 }
 
@@ -43,7 +49,18 @@ class MainActivity : ComponentActivity() {
                     )
                     AppScreen.SchemaGenerator -> SchemaGeneratorScreen(
                         viewModel = schemaGeneratorViewModel,
-                        onBack = { currentScreen = AppScreen.Main }
+                        canEditCurrentSchema = canEditCurrentSchema,
+                        currentSchema = mainViewModel.loadedSchema,
+                        currentWorkflow = mainViewModel.loadedWorkflow,
+                        currentWorkflowName = uiState.workflowName,
+                        onSchemaEdited = { newSchema ->
+                            mainViewModel.reloadSchema(newSchema)
+                            currentScreen = AppScreen.Main
+                        },
+                        onBack = {
+                            schemaGeneratorViewModel.exitEditMode()
+                            currentScreen = AppScreen.Main
+                        }
                     )
                     AppScreen.OutputGallery -> OutputGalleryScreen(
                         viewModel = mainViewModel,

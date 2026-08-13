@@ -14,6 +14,7 @@ import com.runerback.comfyuiapi.data.model.Workflow
 import com.runerback.comfyuiapi.data.repository.ComfyRepository
 import com.runerback.comfyuiapi.data.repository.GenerationResult
 import com.runerback.comfyuiapi.data.repository.LoadResult
+import com.runerback.comfyuiapi.domain.SchemaParser
 import com.runerback.comfyuiapi.domain.extractOptions
 import com.runerback.comfyuiapi.domain.resolveOptionSource
 import com.runerback.comfyuiapi.domain.resolveValue
@@ -34,7 +35,8 @@ import kotlin.random.Random
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val repository: ComfyRepository
+    private val repository: ComfyRepository,
+    private val schemaParser: SchemaParser
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState())
@@ -43,8 +45,10 @@ class MainViewModel @Inject constructor(
     private val _allOutputs = MutableStateFlow<List<GeneratedOutput>>(emptyList())
     val allOutputs: StateFlow<List<GeneratedOutput>> = _allOutputs.asStateFlow()
 
-    private var loadedWorkflow: Workflow? = null
-    private var loadedSchema: JsonObject? = null
+    var loadedWorkflow: Workflow? = null
+        private set
+    var loadedSchema: JsonObject? = null
+        private set
     private var pendingSchemaUri: Uri? = null
     private var generateJob: Job? = null
 
@@ -170,30 +174,59 @@ class MainViewModel @Inject constructor(
             when (val result = repository.loadSchema(uri, workflow)) {
                 is LoadResult.Success -> {
                     LogBuffer.add("loadSchema success: ${result.value.parameters.size} parameters")
-                    loadedSchema = result.value.schemaJson
-                    pendingSchemaUri = null
-                    val values = repository.initialValues(workflow, result.value.parameters)
-                    val modifiedKeys = computeModifiedKeys(values)
-                    _uiState.update {
-                        it.copy(
-                            schemaName = result.name,
-                            hasSchema = true,
-                            parameters = result.value.parameters,
-                            currentValues = values,
-                            preview = null,
-                            errorMessage = null,
-                            fixedSeeds = emptySet(),
-                            modifiedKeys = modifiedKeys,
-                            optionLists = emptyMap(),
-                            optionLoading = emptySet()
-                        )
-                    }
+                    applyLoadedSchema(result.value.schemaJson, result.value.parameters, result.name)
                 }
                 is LoadResult.Error -> {
                     LogBuffer.add("loadSchema error: ${result.message}")
                     _uiState.update { it.copy(errorMessage = result.message) }
                 }
             }
+        }
+    }
+
+    fun reloadSchema(schemaJson: JsonObject) {
+        val workflow = loadedWorkflow ?: run {
+            _uiState.update { it.copy(errorMessage = "Load a workflow first") }
+            return
+        }
+        LogBuffer.add("reloadSchema")
+        viewModelScope.launch {
+            val parameters = try {
+                schemaParser.parse(schemaJson, workflow)
+            } catch (e: Exception) {
+                LogBuffer.add("reloadSchema parse error: ${e.message}")
+                _uiState.update { it.copy(errorMessage = e.message ?: "Failed to parse schema") }
+                return@launch
+            }
+            if (parameters.isEmpty()) {
+                LogBuffer.add("reloadSchema: no matching parameters")
+                _uiState.update { it.copy(errorMessage = "Edited schema does not match the loaded workflow") }
+                return@launch
+            }
+            applyLoadedSchema(schemaJson, parameters, _uiState.value.schemaName)
+            LogBuffer.add("reloadSchema success: ${parameters.size} parameters")
+        }
+    }
+
+    private fun applyLoadedSchema(schemaJson: JsonObject, parameters: List<EditableParameter>, name: String) {
+        loadedSchema = schemaJson
+        pendingSchemaUri = null
+        val workflow = loadedWorkflow ?: return
+        val values = repository.initialValues(workflow, parameters)
+        val modifiedKeys = computeModifiedKeys(values)
+        _uiState.update {
+            it.copy(
+                schemaName = name,
+                hasSchema = true,
+                parameters = parameters,
+                currentValues = values,
+                preview = null,
+                errorMessage = null,
+                fixedSeeds = emptySet(),
+                modifiedKeys = modifiedKeys,
+                optionLists = emptyMap(),
+                optionLoading = emptySet()
+            )
         }
     }
 
