@@ -115,8 +115,8 @@ fun SettingsDialog(
                     Slider(
                         value = timeoutSeconds.toFloat(),
                         onValueChange = { timeoutMs = (it.toInt() * 1000).toLong() },
-                        valueRange = 5f..120f,
-                        steps = 22
+                        valueRange = 5f..600f,
+                        steps = 118
                     )
                 }
 
