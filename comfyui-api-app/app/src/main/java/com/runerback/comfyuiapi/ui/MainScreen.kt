@@ -1,5 +1,6 @@
 package com.runerback.comfyuiapi.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -17,11 +18,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -69,6 +73,7 @@ fun MainScreen(
     val allOutputs by viewModel.allOutputs.collectAsStateWithLifecycle()
     var showLogView by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var parametersExpanded by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
@@ -151,48 +156,69 @@ fun MainScreen(
             )
 
             if (uiState.parameters.isNotEmpty()) {
-                Text(
-                    text = "Parameters",
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                uiState.parameters
-                    .groupBy { it.nodeId }
-                    .forEach { (nodeId, params) ->
-                        val nodeLabel = params.first().nodeLabel
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = nodeLabel,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            params.forEach { param ->
-                                val key = ParameterKey(param.nodeId, param.path)
-                                ParameterEditor(
-                                    param = param,
-                                    value = uiState.currentValues[key] ?: param.default
-                                        ?: if (param.type is FieldType.StringType || param.type is FieldType.OptionType) {
-                                            JsonPrimitive("")
-                                        } else {
-                                            JsonPrimitive(0)
-                                        },
-                                    pendingUploadUri = uiState.pendingUploads[key],
-                                    options = uiState.optionLists[key] ?: emptyList(),
-                                    isLoading = uiState.optionLoading.contains(key),
-                                    isFixedSeed = uiState.fixedSeeds.contains(key),
-                                    isModified = uiState.modifiedKeys.contains(key),
-                                    onValueChange = { viewModel.updateValue(param, it) },
-                                    onUploadUriSelected = { viewModel.setUploadUri(param, it) },
-                                    onLoadOptions = { viewModel.loadOptions(param) },
-                                    onRefreshOptions = { viewModel.refreshOptions(param) },
-                                    onToggleFixedSeed = { viewModel.toggleFixedSeed(param) }
-                                )
-                            }
-                        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { parametersExpanded = !parametersExpanded },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Parameters",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    IconButton(onClick = { parametersExpanded = !parametersExpanded }) {
+                        Icon(
+                            imageVector = if (parametersExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (parametersExpanded) "Collapse parameters" else "Expand parameters"
+                        )
                     }
+                }
+
+                AnimatedVisibility(visible = parametersExpanded) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        uiState.parameters
+                            .groupBy { it.nodeId }
+                            .forEach { (nodeId, params) ->
+                                val nodeLabel = params.first().nodeLabel
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = nodeLabel,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    params.forEach { param ->
+                                        val key = ParameterKey(param.nodeId, param.path)
+                                        ParameterEditor(
+                                            param = param,
+                                            value = uiState.currentValues[key] ?: param.default
+                                                ?: if (param.type is FieldType.StringType || param.type is FieldType.OptionType) {
+                                                    JsonPrimitive("")
+                                                } else {
+                                                    JsonPrimitive(0)
+                                                },
+                                            pendingUploadUri = uiState.pendingUploads[key],
+                                            options = uiState.optionLists[key] ?: emptyList(),
+                                            isLoading = uiState.optionLoading.contains(key),
+                                            isFixedSeed = uiState.fixedSeeds.contains(key),
+                                            isModified = uiState.modifiedKeys.contains(key),
+                                            onValueChange = { viewModel.updateValue(param, it) },
+                                            onUploadUriSelected = { viewModel.setUploadUri(param, it) },
+                                            onLoadOptions = { viewModel.loadOptions(param) },
+                                            onRefreshOptions = { viewModel.refreshOptions(param) },
+                                            onToggleFixedSeed = { viewModel.toggleFixedSeed(param) }
+                                        )
+                                    }
+                                }
+                            }
+                    }
+                }
             }
 
             if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isNotEmpty()) {
