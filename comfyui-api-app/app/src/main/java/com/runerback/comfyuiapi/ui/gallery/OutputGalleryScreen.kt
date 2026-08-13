@@ -2,6 +2,7 @@ package com.runerback.comfyuiapi.ui.gallery
 
 import android.media.MediaPlayer
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,6 +29,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -207,6 +209,11 @@ fun OutputGalleryScreen(
             isPlaying = activeUri == output.audioUri && isPlaying,
             isLoading = activeUri == output.audioUri && isPreparing,
             onPlayToggle = { output.audioUri?.let { playAudio(it) } },
+            onDownload = {
+                viewModel.saveOutputToDownloads(output) { success, message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+            },
             onDismiss = {
                 stopAudio()
                 selectedOutput = null
@@ -283,6 +290,7 @@ private fun PreviewDialog(
     isPlaying: Boolean,
     isLoading: Boolean,
     onPlayToggle: () -> Unit,
+    onDownload: () -> Unit,
     onDismiss: () -> Unit,
     onSwipeLeft: () -> Unit,
     onSwipeRight: () -> Unit
@@ -402,6 +410,10 @@ private fun PreviewDialog(
                     }
                 }
             }
+            DownloadButton(
+                onClick = onDownload,
+                modifier = Modifier.align(Alignment.BottomEnd)
+            )
         }
     }
 }
@@ -425,4 +437,27 @@ private fun Modifier.swipeablePreview(
             totalDrag = 0f
         }
     )
+}
+
+@Composable
+private fun DownloadButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .padding(8.dp)
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Download,
+                contentDescription = "Download",
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+    }
 }

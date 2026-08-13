@@ -538,6 +538,25 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun saveOutputToDownloads(
+        output: GeneratedOutput,
+        onResult: (success: Boolean, message: String) -> Unit = { _, _ -> }
+    ) {
+        LogBuffer.add("saveOutputToDownloads: ${output.filename}")
+        viewModelScope.launch {
+            val result = repository.saveOutputToDownloads(output)
+            if (result.isSuccess) {
+                LogBuffer.add("saveOutputToDownloads: saved ${output.filename}")
+                onResult(true, "Saved ${output.filename}")
+            } else {
+                val msg = result.exceptionOrNull()?.message ?: "Failed to save ${output.filename}"
+                LogBuffer.add("saveOutputToDownloads: error $msg")
+                _uiState.update { it.copy(errorMessage = msg) }
+                onResult(false, msg)
+            }
+        }
+    }
+
     fun loadOptions(parameter: EditableParameter) {
         fetchOptions(parameter, forceRefresh = false)
     }

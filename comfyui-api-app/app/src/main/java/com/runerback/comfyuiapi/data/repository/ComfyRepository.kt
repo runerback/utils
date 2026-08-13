@@ -308,6 +308,19 @@ class ComfyRepository @Inject constructor(
         }
     }
 
+    fun saveOutputToDownloads(output: GeneratedOutput): Result<Unit> {
+        return when (output.kind) {
+            OutputKind.Image -> {
+                val bitmap = output.bitmap ?: return Result.failure(IllegalStateException("No bitmap"))
+                fileDataSource.saveToDownloads(output.filename, bitmap)
+            }
+            OutputKind.Audio -> {
+                val uri = output.audioUri ?: return Result.failure(IllegalStateException("No audio uri"))
+                fileDataSource.saveToDownloads(output.filename, uri)
+            }
+        }
+    }
+
     private suspend fun fetchOutputs(serverUrl: String, promptId: String): List<GeneratedOutput> {
         return try {
             LogBuffer.add("repository.fetchOutputs: $promptId")

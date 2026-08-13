@@ -1,8 +1,15 @@
 package com.runerback.comfyuiapi.data.datasource
 
+import android.content.ContentValues
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -73,6 +80,82 @@ class FileDataSource @Inject constructor(
             Result.success(Uri.fromFile(file))
         } catch (e: Exception) {
             LogBuffer.add("fileDataSource.saveCachedOutput: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    fun saveToDownloads(filename: String, bitmap: ImageBitmap): Result<Unit> {
+        LogBuffer.add("fileDataSource.saveToDownloads: bitmap $filename")
+        return try {
+            val androidBitmap = bitmap.asAndroidBitmap()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: return Result.failure(IOException("Failed to create download entry"))
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    androidBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                } ?: return Result.failure(IOException("Failed to open download output stream"))
+                values.clear()
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                context.contentResolver.update(uri, values, null, null)
+                LogBuffer.add("fileDataSource.saveToDownloads: saved $uri")
+            } else {
+                val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.apply { mkdirs() }
+                    ?: return Result.failure(IOException("Downloads directory not available"))
+                val file = File(dir, filename)
+                file.outputStream().use { out ->
+                    androidBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                LogBuffer.add("fileDataSource.saveToDownloads: saved ${file.absolutePath}")
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            LogBuffer.add("fileDataSource.saveToDownloads: bitmap error ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    fun saveToDownloads(filename: String, sourceUri: Uri): Result<Unit> {
+        LogBuffer.add("fileDataSource.saveToDownloads: uri $filename")
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val mimeType = context.contentResolver.getType(sourceUri) ?: "*/*"
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: return Result.failure(IOException("Failed to create download entry"))
+                context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        input.copyTo(output)
+                    } ?: throw IOException("Failed to open download output stream")
+                } ?: throw IOException("Failed to open source input stream")
+                values.clear()
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                context.contentResolver.update(uri, values, null, null)
+                LogBuffer.add("fileDataSource.saveToDownloads: saved $uri")
+            } else {
+                val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.apply { mkdirs() }
+                    ?: return Result.failure(IOException("Downloads directory not available"))
+                val file = File(dir, filename)
+                context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                    file.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: throw IOException("Failed to open source input stream")
+                LogBuffer.add("fileDataSource.saveToDownloads: saved ${file.absolutePath}")
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            LogBuffer.add("fileDataSource.saveToDownloads: uri error ${e.message}")
             Result.failure(e)
         }
     }
