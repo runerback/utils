@@ -1,3 +1,4 @@
+import hashlib
 import time
 import numpy as np
 import torch
@@ -26,6 +27,54 @@ def _ensure_min_duration(start_time: float, interval_ms: int):
     remaining = interval_ms - elapsed_ms
     if remaining > 0:
         time.sleep(remaining / 1000.0)
+
+
+def _generate_key_stream(seed_int: int, length: int) -> bytes:
+    """Generate a deterministic byte stream of exactly `length` bytes.
+
+    The stream is derived from `seed_int` via a hash chain using SHA-512.
+    Each round hashes the seed concatenated with a 4-byte big-endian counter.
+    """
+    seed_bytes = str(seed_int).encode("utf-8")
+    stream = bytearray()
+    counter = 0
+
+    while len(stream) < length:
+        counter_bytes = counter.to_bytes(4, byteorder="big", signed=False)
+        block = hashlib.sha512(seed_bytes + counter_bytes).digest()
+        stream.extend(block)
+        counter += 1
+
+    return bytes(stream[:length])
+
+
+def _transform_xor_array(arr: np.ndarray, number: int) -> np.ndarray:
+    """Deterministic pixel-wise XOR transformation for uint8 numpy arrays.
+
+    Args:
+        arr: uint8 array of shape (H, W, C) or (B, H, W, C) with C == 3 or 4.
+        number: Non-negative integer acting as the transformation key.
+
+    Returns:
+        A uint8 array of the same shape. Reversible: applying the same
+        number twice returns the original array.
+    """
+    if arr.ndim == 3:
+        h, w, c = arr.shape
+        flat = arr.reshape(1, h, w, c)
+    else:
+        flat = arr
+
+    b, h, w, c = flat.shape
+    key_stream = _generate_key_stream(number, h * w * 3)
+    key = np.frombuffer(key_stream, dtype=np.uint8).reshape((1, h, w, 3))
+
+    out = flat.copy()
+    out[..., :3] = np.bitwise_xor(out[..., :3], key)
+
+    if arr.ndim == 3:
+        return out.reshape(h, w, c)
+    return out
 
 
 class ATSResize(io.ComfyNode):
@@ -266,10 +315,56 @@ class ATSInvert(io.ComfyNode):
         return io.NodeOutput(inverted, interval)
 
 
+class ATSXor(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="ATS-Xor",
+            display_name="ATS-Xor",
+            category="api_test_suits/image",
+            description="Apply a deterministic seed-driven XOR transform to an image.",
+            inputs=[
+                io.Image.Input("image"),
+                io.Int.Input(
+                    "seed",
+                    default=12345678,
+                    min=0,
+                    max=999999999999,
+                    step=1,
+                ),
+                io.Int.Input(
+                    "interval",
+                    default=0,
+                    min=0,
+                    max=60000,
+                    step=1,
+                    optional=True,
+                    force_input=True,
+                ),
+            ],
+            outputs=[
+                io.Image.Output(),
+                io.Int.Output(display_name="interval"),
+            ],
+        )
+
+    @classmethod
+    async def execute(cls, image, seed, interval) -> io.NodeOutput:
+        start_time = time.perf_counter()
+
+        arr = np.clip(255.0 * image.cpu().numpy(), 0, 255).astype(np.uint8)
+        xored = _transform_xor_array(arr, int(seed))
+        out = torch.from_numpy(xored / 255.0).to(dtype=image.dtype, device=image.device)
+
+        _preview(out)
+        _ensure_min_duration(start_time, interval)
+        return io.NodeOutput(out, interval)
+
+
 class ApiTestSuitsExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
-        return [ATSResize, ATSGrayScale, ATSRotate, ATSCrop, ATSInvert]
+        return [ATSResize, ATSGrayScale, ATSRotate, ATSCrop, ATSInvert, ATSXor]
 
 
 async def comfy_entrypoint() -> ApiTestSuitsExtension:

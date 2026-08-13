@@ -5,10 +5,10 @@ import websocket
 import time
 import sys
 
-server_address = "127.0.0.1:8189"
+server_address = "127.0.0.1:8188"
 client_id = str(uuid.uuid4())
 
-# Workflow: Load Image -> ATS-Resize -> ATS-GrayScale -> ATS-Rotate -> ATS-Crop -> ATS-Invert -> Save Image
+# Workflow: Load Image -> ATS-Resize -> ATS-GrayScale -> ATS-Rotate -> ATS-Crop -> ATS-Invert -> ATS-Xor -> Save Image
 workflow = {
     "1": {
         "class_type": "LoadImage",
@@ -58,9 +58,17 @@ workflow = {
         }
     },
     "7": {
+        "class_type": "ATS-Xor",
+        "inputs": {
+            "image": ["6", 0],
+            "interval": ["6", 1],
+            "seed": 12345678
+        }
+    },
+    "8": {
         "class_type": "SaveImage",
         "inputs": {
-            "images": ["6", 0],
+            "images": ["7", 0],
             "filename_prefix": "ats_test"
         }
     }

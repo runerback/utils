@@ -9,7 +9,7 @@
     "class_type": "ATS-Resize",
     "inputs": {
       "image": ["1", 0],
-      "interval": 500,
+      "interval": 1000,
       "mode": "percent",
       "mode.percent": 50
     }
@@ -49,9 +49,17 @@
     }
   },
   "7": {
+    "class_type": "ATS-Xor",
+    "inputs": {
+      "image": ["6", 0],
+      "interval": ["6", 1],
+      "seed": 12345678
+    }
+  },
+  "8": {
     "class_type": "SaveImage",
     "inputs": {
-      "images": ["6", 0],
+      "images": ["7", 0],
       "filename_prefix": "ats_test"
     }
   }
