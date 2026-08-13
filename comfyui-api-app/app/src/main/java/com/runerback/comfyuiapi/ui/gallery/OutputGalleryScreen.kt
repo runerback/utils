@@ -207,55 +207,57 @@ private fun GalleryThumbnail(
     output: GeneratedOutput,
     onClick: () -> Unit
 ) {
-    when (output.kind) {
-        OutputKind.Image -> {
-            val bitmap = output.bitmap ?: return
-            val aspectRatio = remember(bitmap) {
-                val width = bitmap.width.coerceAtLeast(1)
-                val height = bitmap.height.coerceAtLeast(1)
-                width.toFloat() / height.toFloat()
-            }
-            Image(
-                bitmap = bitmap,
-                contentDescription = "Generated image",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(aspectRatio)
-                    .clickable(onClick = onClick)
-            )
-        }
-        OutputKind.Audio -> {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clickable(onClick = onClick)
-            ) {
-                Column(
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        when (output.kind) {
+            OutputKind.Image -> {
+                val bitmap = output.bitmap ?: return
+                val aspectRatio = remember(bitmap) {
+                    val width = bitmap.width.coerceAtLeast(1)
+                    val height = bitmap.height.coerceAtLeast(1)
+                    width.toFloat() / height.toFloat()
+                }
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = "Generated image",
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                        .fillMaxWidth()
+                        .aspectRatio(aspectRatio)
+                        .clickable(onClick = onClick)
+                )
+            }
+            OutputKind.Audio -> {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clickable(onClick = onClick)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = "Audio output",
-                        modifier = Modifier
-                            .fillMaxWidth(0.5f)
-                            .aspectRatio(1f)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = output.filename,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = "Audio output",
+                            modifier = Modifier
+                                .fillMaxWidth(0.5f)
+                                .aspectRatio(1f)
+                        )
+                    }
                 }
             }
         }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = output.filename,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
