@@ -2,22 +2,28 @@ package com.runerback.comfyuiapi.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +37,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.runerback.comfyuiapi.data.model.QueueState
 import com.runerback.comfyuiapi.data.model.TaskItem
@@ -48,6 +57,32 @@ private val QueueState.canClear: Boolean
 
 private val QueueState.displayItems: List<TaskItem>
     get() = items.reversed()
+
+private val QueueState.globalProgressFraction: Float?
+    get() {
+        val running = runningItem ?: return null
+        val completed = items.count { it.status == TaskStatus.Completed }
+        val runningFraction = running.progress?.let {
+            it.first.toFloat() / it.second.coerceAtLeast(1)
+        } ?: 0f
+        val total = items.size.coerceAtLeast(1)
+        return (completed + runningFraction) / total
+    }
+
+private val TaskItem.progressFraction: Float?
+    get() = if (status == TaskStatus.Running) {
+        progress?.let { it.first.toFloat() / it.second.coerceAtLeast(1) }
+    } else null
+
+private fun Modifier.progressBackground(fraction: Float?, color: Color): Modifier {
+    val safeFraction = fraction?.coerceIn(0f, 1f)?.takeIf { it > 0f } ?: return this
+    return drawBehind {
+        drawRect(
+            color = color,
+            size = Size(size.width * safeFraction, size.height)
+        )
+    }
+}
 
 @Composable
 fun TaskQueueSection(
@@ -69,9 +104,14 @@ fun TaskQueueSection(
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+            val globalProgress = queue.globalProgressFraction
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .progressBackground(
+                        fraction = globalProgress,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    )
                     .clickable { expanded = !expanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -89,18 +129,19 @@ fun TaskQueueSection(
                 }
 
                 if (!expanded) {
-                    val summary = buildString {
+                    val statusSummary = buildString {
                         queue.runningItem?.let { append("running #${it.index}") }
                         if (queue.queuedItems.isNotEmpty()) {
                             if (isNotEmpty()) append(" · ")
                             append("${queue.queuedItems.size} queued")
                         }
                     }
-                    if (summary.isNotEmpty()) {
+                    if (statusSummary.isNotEmpty()) {
                         Text(
-                            text = summary,
+                            text = statusSummary,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp)
                         )
                     }
                 }
@@ -116,8 +157,11 @@ fun TaskQueueSection(
                         )
                     }
                     if (queue.queuedItems.isNotEmpty()) {
-                        TextButton(onClick = onCancelAllQueued) {
-                            Text("Cancel all queued")
+                        IconButton(onClick = onCancelAllQueued) {
+                            Icon(
+                                imageVector = Icons.Default.Cancel,
+                                contentDescription = "Cancel all queued"
+                            )
                         }
                     }
                 }
@@ -266,7 +310,11 @@ private fun TaskQueueRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .progressBackground(
+                fraction = item.progressFraction,
+                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.10f)
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
@@ -289,13 +337,50 @@ private fun TaskQueueRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        if (item.status == TaskStatus.Queued) {
-            IconButton(onClick = onCancel) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Cancel task",
-                    tint = MaterialTheme.colorScheme.error
-                )
+        Box(
+            modifier = Modifier.size(48.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            when (item.status) {
+                TaskStatus.Queued -> {
+                    IconButton(onClick = onCancel) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancel task",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                TaskStatus.Running -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+                TaskStatus.Completed -> {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Completed",
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                TaskStatus.Cancelled -> {
+                    Icon(
+                        imageVector = Icons.Default.Cancel,
+                        contentDescription = "Cancelled",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                is TaskStatus.Failed -> {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Failed",
+                        tint = Color(0xFFFFC107),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }

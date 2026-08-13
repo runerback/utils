@@ -57,6 +57,7 @@ data class TaskItem(
     val index: Int,
     val valuesSnapshot: Map<ParameterKey, JsonElement>,
     val status: TaskStatus = TaskStatus.Queued,
+    val progress: Pair<Int, Int>? = null,
     val job: Job? = null
 )
 

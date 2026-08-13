@@ -426,6 +426,13 @@ class MainViewModel @Inject constructor(
                                         progress = result.progress,
                                         currentQueueIndex = task.index,
                                         queueSize = state.queue.items.size
+                                    ),
+                                    queue = state.queue.copy(
+                                        items = state.queue.items.map { item ->
+                                            if (item.id == task.id) {
+                                                item.copy(progress = result.progress)
+                                            } else item
+                                        }
                                     )
                                 )
                             }
@@ -457,7 +464,7 @@ class MainViewModel @Inject constructor(
             completed -> TaskStatus.Completed
             else -> TaskStatus.Failed("Task ended unexpectedly")
         }
-        updateQueueItem(task.id) { it.copy(status = finalStatus, job = null) }
+        updateQueueItem(task.id) { it.copy(status = finalStatus, progress = null, job = null) }
         LogBuffer.add("runTask: task #${task.index} finished with status=$finalStatus")
     }
 

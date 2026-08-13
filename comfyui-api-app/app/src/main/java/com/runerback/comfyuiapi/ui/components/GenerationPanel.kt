@@ -22,7 +22,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -146,41 +145,11 @@ fun GenerationPanel(
             }
         }
 
-        val queueSummary = buildString {
-            val total = queue.items.size
-            if (total > 0) {
-                append("Queue: $total")
-                if (queuedCount > 0) append(" · $queuedCount queued")
-                if (runningItem != null) append(" · running #${runningItem.index}")
-            }
-        }
-        if (queueSummary.isNotEmpty()) {
-            Text(
-                text = queueSummary,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
         when (status) {
             is GenerationStatus.Connecting -> {
                 Text("Connecting to server…", modifier = Modifier.padding(top = 8.dp))
             }
             is GenerationStatus.Running -> {
-                val progress = status.progress
-                if (progress != null) {
-                    LinearProgressIndicator(
-                        progress = { progress.first.toFloat() / progress.second.coerceAtLeast(1) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                    )
-                    Text(
-                        text = "${progress.first} / ${progress.second}",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
                 val taskInfo = buildString {
                     if (status.currentQueueIndex != null && status.queueSize != null) {
                         append("Task ${status.currentQueueIndex} / ${status.queueSize}")
@@ -194,7 +163,7 @@ fun GenerationPanel(
                     Text(
                         text = taskInfo,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }
