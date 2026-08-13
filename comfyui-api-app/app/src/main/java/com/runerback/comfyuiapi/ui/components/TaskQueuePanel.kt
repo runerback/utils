@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
@@ -35,6 +36,19 @@ import com.runerback.comfyuiapi.data.model.QueueState
 import com.runerback.comfyuiapi.data.model.TaskItem
 import com.runerback.comfyuiapi.data.model.TaskStatus
 
+private val QueueState.queuedItems: List<TaskItem>
+    get() = items.filter { it.status == TaskStatus.Queued }
+
+private val QueueState.runningItem: TaskItem?
+    get() = items.firstOrNull { it.status == TaskStatus.Running }
+
+private val QueueState.canClear: Boolean
+    get() = items.isNotEmpty() &&
+            items.none { it.status == TaskStatus.Queued || it.status == TaskStatus.Running }
+
+private val QueueState.displayItems: List<TaskItem>
+    get() = items.reversed()
+
 @Composable
 fun TaskQueueSection(
     queue: QueueState,
@@ -42,11 +56,10 @@ fun TaskQueueSection(
     onSelect: (String, Boolean) -> Unit,
     onCancelItem: (String) -> Unit,
     onCancelSelected: () -> Unit,
-    onCancelAllQueued: () -> Unit
+    onCancelAllQueued: () -> Unit,
+    onClearQueue: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
-    val queuedItems = queue.items.filter { it.status == TaskStatus.Queued }
-    val runningItem = queue.items.firstOrNull { it.status == TaskStatus.Running }
     val hasSelection = selectedIds.isNotEmpty()
 
     Card(
@@ -77,10 +90,10 @@ fun TaskQueueSection(
 
                 if (!expanded) {
                     val summary = buildString {
-                        if (runningItem != null) append("running #${runningItem.index}")
-                        if (queuedItems.isNotEmpty()) {
+                        queue.runningItem?.let { append("running #${it.index}") }
+                        if (queue.queuedItems.isNotEmpty()) {
                             if (isNotEmpty()) append(" · ")
-                            append("${queuedItems.size} queued")
+                            append("${queue.queuedItems.size} queued")
                         }
                     }
                     if (summary.isNotEmpty()) {
@@ -92,11 +105,21 @@ fun TaskQueueSection(
                     }
                 }
 
-                TextButton(
-                    onClick = onCancelAllQueued,
-                    enabled = queuedItems.isNotEmpty()
-                ) {
-                    Text("Cancel all queued")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onClearQueue,
+                        enabled = queue.canClear
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Clear queue"
+                        )
+                    }
+                    if (queue.queuedItems.isNotEmpty()) {
+                        TextButton(onClick = onCancelAllQueued) {
+                            Text("Cancel all queued")
+                        }
+                    }
                 }
             }
 
@@ -115,23 +138,16 @@ fun TaskQueueSection(
                     }
                 }
 
-                LazyColumn(
+                TaskQueueList(
+                    items = queue.displayItems,
+                    selectedIds = selectedIds,
+                    onSelect = onSelect,
+                    onCancelItem = onCancelItem,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 240.dp)
-                ) {
-                    items(queue.items, key = { it.id }) { item ->
-                        TaskQueueRow(
-                            item = item,
-                            selected = selectedIds.contains(item.id),
-                            onSelect = { checked -> onSelect(item.id, checked) },
-                            onCancel = { onCancelItem(item.id) }
-                        )
-                        if (item.id != queue.items.last().id) {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
-                        }
-                    }
-                }
+                        .heightIn(max = 240.dp),
+                    showDividers = true
+                )
             }
         }
     }
@@ -145,14 +161,31 @@ fun TaskQueueDialog(
     onSelect: (String, Boolean) -> Unit,
     onCancelSelected: () -> Unit,
     onCancelItem: (String) -> Unit,
-    onCancelAllQueued: () -> Unit
+    onCancelAllQueued: () -> Unit,
+    onClearQueue: () -> Unit
 ) {
-    val queuedItems = queue.items.filter { it.status == TaskStatus.Queued }
     val hasSelection = selectedIds.isNotEmpty()
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Task queue") },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Task queue")
+                IconButton(
+                    onClick = onClearQueue,
+                    enabled = queue.canClear
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Clear queue"
+                    )
+                }
+            }
+        },
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
@@ -168,7 +201,7 @@ fun TaskQueueDialog(
         },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                if (queuedItems.isNotEmpty()) {
+                if (queue.queuedItems.isNotEmpty()) {
                     TextButton(
                         onClick = onCancelAllQueued,
                         modifier = Modifier.align(Alignment.End)
@@ -176,23 +209,42 @@ fun TaskQueueDialog(
                         Text("Cancel all queued")
                     }
                 }
-                LazyColumn(
+                TaskQueueList(
+                    items = queue.displayItems,
+                    selectedIds = selectedIds,
+                    onSelect = onSelect,
+                    onCancelItem = onCancelItem,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 400.dp)
-                ) {
-                    items(queue.items, key = { it.id }) { item ->
-                        TaskQueueRow(
-                            item = item,
-                            selected = selectedIds.contains(item.id),
-                            onSelect = { checked -> onSelect(item.id, checked) },
-                            onCancel = { onCancelItem(item.id) }
-                        )
-                    }
-                }
+                )
             }
         }
     )
+}
+
+@Composable
+private fun TaskQueueList(
+    items: List<TaskItem>,
+    selectedIds: Set<String>,
+    onSelect: (String, Boolean) -> Unit,
+    onCancelItem: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    showDividers: Boolean = false
+) {
+    LazyColumn(modifier = modifier) {
+        items(items, key = { it.id }) { item ->
+            TaskQueueRow(
+                item = item,
+                selected = selectedIds.contains(item.id),
+                onSelect = { checked -> onSelect(item.id, checked) },
+                onCancel = { onCancelItem(item.id) }
+            )
+            if (showDividers && item.id != items.last().id) {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+            }
+        }
+    }
 }
 
 @Composable

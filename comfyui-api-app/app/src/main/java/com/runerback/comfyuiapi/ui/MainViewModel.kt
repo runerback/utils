@@ -385,10 +385,7 @@ class MainViewModel @Inject constructor(
                 val next = state.queue.items.firstOrNull { it.status == TaskStatus.Queued }
                 if (next == null) {
                     _uiState.update { state ->
-                        state.copy(
-                            generationStatus = GenerationStatus.Idle,
-                            queue = state.queue.copy(items = emptyList())
-                        )
+                        state.copy(generationStatus = GenerationStatus.Idle)
                     }
                     break
                 }
@@ -519,6 +516,17 @@ class MainViewModel @Inject constructor(
                     errorMessage = null
                 )
             }
+        }
+    }
+
+    fun clearQueue() {
+        LogBuffer.add("clearQueue")
+        _uiState.update { state ->
+            state.copy(
+                queue = QueueState(),
+                generationStatus = GenerationStatus.Idle,
+                errorMessage = null
+            )
         }
     }
 

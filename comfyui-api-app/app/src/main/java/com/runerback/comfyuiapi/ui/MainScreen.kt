@@ -226,6 +226,10 @@ fun MainScreen(
                     onCancelAllQueued = {
                         viewModel.cancelAllQueued()
                         selectedQueueIds = emptySet()
+                    },
+                    onClearQueue = {
+                        viewModel.clearQueue()
+                        selectedQueueIds = emptySet()
                     }
                 )
             }
@@ -360,6 +364,10 @@ fun MainScreen(
             },
             onCancelAllQueued = {
                 viewModel.cancelAllQueued()
+                selectedQueueIds = emptySet()
+            },
+            onClearQueue = {
+                viewModel.clearQueue()
                 selectedQueueIds = emptySet()
             }
         )
