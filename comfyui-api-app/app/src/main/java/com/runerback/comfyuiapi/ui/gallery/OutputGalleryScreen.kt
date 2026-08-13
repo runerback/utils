@@ -2,6 +2,11 @@ package com.runerback.comfyuiapi.ui.gallery
 
 import android.media.MediaPlayer
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
@@ -196,34 +202,18 @@ fun OutputGalleryScreen(
     }
 
     selectedOutput?.let { output ->
-        when (output.kind) {
-            OutputKind.Image -> {
-                output.bitmap?.let { bitmap ->
-                    ImagePreviewDialog(
-                        output = output,
-                        onDismiss = { selectedOutput = null },
-                        onSwipeLeft = ::moveToNext,
-                        onSwipeRight = ::moveToPrevious
-                    )
-                }
-            }
-            OutputKind.Audio -> {
-                output.audioUri?.let { uri ->
-                    AudioPreviewDialog(
-                        output = output,
-                        isPlaying = activeUri == uri && isPlaying,
-                        isLoading = activeUri == uri && isPreparing,
-                        onPlayToggle = { playAudio(uri) },
-                        onDismiss = {
-                            stopAudio()
-                            selectedOutput = null
-                        },
-                        onSwipeLeft = ::moveToNext,
-                        onSwipeRight = ::moveToPrevious
-                    )
-                }
-            }
-        }
+        PreviewDialog(
+            output = output,
+            isPlaying = activeUri == output.audioUri && isPlaying,
+            isLoading = activeUri == output.audioUri && isPreparing,
+            onPlayToggle = { output.audioUri?.let { playAudio(it) } },
+            onDismiss = {
+                stopAudio()
+                selectedOutput = null
+            },
+            onSwipeLeft = ::moveToNext,
+            onSwipeRight = ::moveToPrevious
+        )
     }
 }
 
@@ -288,18 +278,15 @@ private fun GalleryThumbnail(
 }
 
 @Composable
-private fun ImagePreviewDialog(
+private fun PreviewDialog(
     output: GeneratedOutput,
+    isPlaying: Boolean,
+    isLoading: Boolean,
+    onPlayToggle: () -> Unit,
     onDismiss: () -> Unit,
     onSwipeLeft: () -> Unit,
     onSwipeRight: () -> Unit
 ) {
-    val bitmap = output.bitmap ?: return
-    val aspectRatio = remember(bitmap) {
-        val width = bitmap.width.coerceAtLeast(1)
-        val height = bitmap.height.coerceAtLeast(1)
-        width.toFloat() / height.toFloat()
-    }
     Dialog(onDismissRequest = onDismiss) {
         BoxWithConstraints(
             modifier = Modifier
@@ -311,102 +298,107 @@ private fun ImagePreviewDialog(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            val maxWidth = maxWidth * 0.8f
-            val maxHeight = maxHeight * 0.8f
-            val heightAtMaxWidth = maxWidth / aspectRatio
-            val (dialogWidth, dialogHeight) = if (heightAtMaxWidth > maxHeight) {
-                maxHeight * aspectRatio to maxHeight
-            } else {
-                maxWidth to heightAtMaxWidth
-            }
-            Surface(
-                shape = RectangleShape,
-                modifier = Modifier
-                    .size(dialogWidth, dialogHeight)
-                    .swipeablePreview(
-                        onSwipeLeft = onSwipeLeft,
-                        onSwipeRight = onSwipeRight
-                    )
-            ) {
-                Box {
-                    Image(
-                        bitmap = bitmap,
-                        contentDescription = "Preview",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Surface(
-                        color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f),
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    ) {
-                        Text(
-                            text = output.filename,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
+            val constraintsMaxWidth = maxWidth
+            val constraintsMaxHeight = maxHeight
+            AnimatedContent(
+                targetState = output,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith
+                        fadeOut(animationSpec = tween(220))
+                },
+                label = "previewContent"
+            ) { targetOutput ->
+                when (targetOutput.kind) {
+                    OutputKind.Image -> {
+                        val bitmap = targetOutput.bitmap ?: return@AnimatedContent
+                        val aspectRatio = remember(bitmap) {
+                            val width = bitmap.width.coerceAtLeast(1)
+                            val height = bitmap.height.coerceAtLeast(1)
+                            width.toFloat() / height.toFloat()
+                        }
+                        val maxImageWidth = constraintsMaxWidth * 0.8f
+                        val maxImageHeight = constraintsMaxHeight * 0.8f
+                        val heightAtMaxWidth = maxImageWidth / aspectRatio
+                        val (dialogWidth, dialogHeight) = if (heightAtMaxWidth > maxImageHeight) {
+                            maxImageHeight * aspectRatio to maxImageHeight
+                        } else {
+                            maxImageWidth to heightAtMaxWidth
+                        }
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Surface(
+                                shape = RectangleShape,
+                                modifier = Modifier
+                                    .size(dialogWidth, dialogHeight)
+                                    .swipeablePreview(
+                                        onSwipeLeft = onSwipeLeft,
+                                        onSwipeRight = onSwipeRight
+                                    )
+                            ) {
+                                Image(
+                                    bitmap = bitmap,
+                                    contentDescription = "Preview",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = targetOutput.filename,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.width(dialogWidth)
+                            )
+                        }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AudioPreviewDialog(
-    output: GeneratedOutput,
-    isPlaying: Boolean,
-    isLoading: Boolean,
-    onPlayToggle: () -> Unit,
-    onDismiss: () -> Unit,
-    onSwipeLeft: () -> Unit,
-    onSwipeRight: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = MaterialTheme.shapes.extraLarge,
-            modifier = Modifier
-                .fillMaxWidth()
-                .swipeablePreview(
-                    onSwipeLeft = onSwipeLeft,
-                    onSwipeRight = onSwipeRight
-                )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MusicNote,
-                    contentDescription = "Audio output",
-                    modifier = Modifier.size(64.dp)
-                )
-                Text(
-                    text = output.filename,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                IconButton(onClick = onPlayToggle, enabled = !isLoading) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(48.dp),
-                            strokeWidth = 4.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(48.dp)
-                        )
+                    OutputKind.Audio -> {
+                        Card(
+                            shape = MaterialTheme.shapes.extraLarge,
+                            modifier = Modifier
+                                .fillMaxWidth(0.8f)
+                                .swipeablePreview(
+                                    onSwipeLeft = onSwipeLeft,
+                                    onSwipeRight = onSwipeRight
+                                )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = "Audio output",
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Text(
+                                    text = targetOutput.filename,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                IconButton(onClick = onPlayToggle, enabled = !isLoading) {
+                                    if (isLoading) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(48.dp),
+                                            strokeWidth = 4.dp
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            contentDescription = if (isPlaying) "Pause" else "Play",
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
