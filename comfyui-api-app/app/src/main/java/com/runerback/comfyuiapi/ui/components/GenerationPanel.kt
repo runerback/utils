@@ -3,6 +3,7 @@ package com.runerback.comfyuiapi.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +16,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -23,22 +27,35 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.runerback.comfyuiapi.data.model.GenerationStatus
+import com.runerback.comfyuiapi.data.model.QueueState
+import com.runerback.comfyuiapi.data.model.TaskStatus
 
 @Composable
 fun GenerationPanel(
     status: GenerationStatus,
+    queue: QueueState,
     batchCount: Int,
     onBatchCountChange: (Int) -> Unit,
     onGenerateClick: () -> Unit,
-    onCancelClick: () -> Unit,
+    onCancelCurrentClick: () -> Unit,
+    onCancelAllQueuedClick: () -> Unit,
+    onCancelAllClick: () -> Unit,
+    onShowQueueClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isRunning = status is GenerationStatus.Connecting || status is GenerationStatus.Running
+    val runningItem = queue.items.firstOrNull { it.status == TaskStatus.Running }
+    val queuedCount = queue.items.count { it.status == TaskStatus.Queued }
+    var menuExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -47,7 +64,7 @@ fun GenerationPanel(
         ) {
             Button(
                 onClick = onGenerateClick,
-                enabled = !isRunning,
+                enabled = true,
                 shape = RoundedCornerShape(50),
                 modifier = Modifier
                     .weight(1f)
@@ -65,24 +82,84 @@ fun GenerationPanel(
             BatchCountStepper(
                 count = batchCount,
                 onCountChange = onBatchCountChange,
-                enabled = !isRunning,
+                enabled = true,
                 modifier = Modifier.padding(start = 8.dp)
             )
 
-            AnimatedVisibility(visible = isRunning) {
+            AnimatedVisibility(visible = isRunning || queuedCount > 0) {
                 IconButton(
-                    onClick = onCancelClick,
+                    onClick = onShowQueueClick,
                     modifier = Modifier
                         .padding(start = 8.dp)
                         .size(48.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Cancel generation",
-                        tint = MaterialTheme.colorScheme.error
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Queue options"
                     )
                 }
             }
+
+            AnimatedVisibility(visible = isRunning) {
+                Box {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancel",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Cancel current task") },
+                            onClick = {
+                                menuExpanded = false
+                                onCancelCurrentClick()
+                            },
+                            enabled = runningItem != null
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Cancel all queued") },
+                            onClick = {
+                                menuExpanded = false
+                                onCancelAllQueuedClick()
+                            },
+                            enabled = queuedCount > 0
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Cancel all") },
+                            onClick = {
+                                menuExpanded = false
+                                onCancelAllClick()
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        val queueSummary = buildString {
+            val total = queue.items.size
+            if (total > 0) {
+                append("Queue: $total")
+                if (queuedCount > 0) append(" · $queuedCount queued")
+                if (runningItem != null) append(" · running #${runningItem.index}")
+            }
+        }
+        if (queueSummary.isNotEmpty()) {
+            Text(
+                text = queueSummary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
 
         when (status) {
@@ -104,18 +181,18 @@ fun GenerationPanel(
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
-                val batchInfo = buildString {
-                    if (status.currentBatch != null && status.totalBatches != null) {
-                        append("Batch ${status.currentBatch} / ${status.totalBatches}")
+                val taskInfo = buildString {
+                    if (status.currentQueueIndex != null && status.queueSize != null) {
+                        append("Task ${status.currentQueueIndex} / ${status.queueSize}")
                     }
                     if (status.currentNode != null) {
                         if (isNotEmpty()) append(" — ")
                         append("Node: ${status.currentNode}")
                     }
                 }
-                if (batchInfo.isNotEmpty()) {
+                if (taskInfo.isNotEmpty()) {
                     Text(
-                        text = batchInfo,
+                        text = taskInfo,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 4.dp)
                     )

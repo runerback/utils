@@ -9,6 +9,9 @@ import com.runerback.comfyuiapi.data.model.FieldType
 import com.runerback.comfyuiapi.data.model.GeneratedOutput
 import com.runerback.comfyuiapi.data.model.GenerationStatus
 import com.runerback.comfyuiapi.data.model.ParameterKey
+import com.runerback.comfyuiapi.data.model.QueueState
+import com.runerback.comfyuiapi.data.model.TaskItem
+import com.runerback.comfyuiapi.data.model.TaskStatus
 import com.runerback.comfyuiapi.data.model.UiState
 import com.runerback.comfyuiapi.data.model.Workflow
 import com.runerback.comfyuiapi.data.repository.ComfyRepository
@@ -20,16 +23,19 @@ import com.runerback.comfyuiapi.domain.resolveOptionSource
 import com.runerback.comfyuiapi.domain.resolveValue
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import java.util.UUID
 import javax.inject.Inject
 import kotlin.random.Random
 
@@ -50,7 +56,7 @@ class MainViewModel @Inject constructor(
     var loadedSchema: JsonObject? = null
         private set
     private var pendingSchemaUri: Uri? = null
-    private var generateJob: Job? = null
+    private var queueRunner: Job? = null
 
     init {
         viewModelScope.launch {
@@ -296,14 +302,8 @@ class MainViewModel @Inject constructor(
             return
         }
 
-        generateJob?.cancel()
-        generateJob = viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    generationStatus = GenerationStatus.Connecting,
-                    errorMessage = null
-                )
-            }
+        viewModelScope.launch {
+            _uiState.update { it.copy(errorMessage = null) }
 
             val initialState = _uiState.value
             val pending = initialState.pendingUploads
@@ -335,105 +335,186 @@ class MainViewModel @Inject constructor(
                 }
             }
 
-            var batchFailed = false
-
-            for (batchIndex in 0 until totalBatches) {
-                val currentState = _uiState.value
-                val valuesWithUploads = currentState.currentValues.toMutableMap().apply {
-                    putAll(uploadReplacements)
-                }
-                _uiState.update {
-                    it.copy(
-                        currentValues = valuesWithUploads,
-                        modifiedKeys = computeModifiedKeys(valuesWithUploads)
+            if (uploadReplacements.isNotEmpty()) {
+                _uiState.update { state ->
+                    val newValues = state.currentValues.toMutableMap().apply {
+                        putAll(uploadReplacements)
+                    }
+                    state.copy(
+                        currentValues = newValues,
+                        modifiedKeys = computeModifiedKeys(newValues)
                     )
                 }
+            }
 
-                val patched = repository.patchWorkflow(workflow, valuesWithUploads)
-                LogBuffer.add("generate: patched workflow, queueing prompt batch ${batchIndex + 1}/$totalBatches")
+            val snapshots = mutableListOf<Map<ParameterKey, JsonElement>>()
+            repeat(totalBatches) { batchIndex ->
+                if (batchIndex > 0) {
+                    randomizeAllSeeds()
+                }
+                snapshots.add(_uiState.value.currentValues)
+            }
 
+            _uiState.update { state ->
+                val startIndex = state.queue.nextIndex
+                val newItems = snapshots.mapIndexed { offset, snapshot ->
+                    TaskItem(
+                        id = UUID.randomUUID().toString(),
+                        index = startIndex + offset,
+                        valuesSnapshot = snapshot
+                    )
+                }
+                state.copy(
+                    queue = state.queue.copy(
+                        items = state.queue.items + newItems,
+                        nextIndex = startIndex + totalBatches
+                    )
+                )
+            }
+
+            LogBuffer.add("generate: enqueued $totalBatches tasks, queue size=${_uiState.value.queue.items.size}")
+            startQueueRunnerIfNeeded()
+        }
+    }
+
+    private fun startQueueRunnerIfNeeded() {
+        if (queueRunner?.isActive == true) return
+        queueRunner = viewModelScope.launch {
+            while (isActive) {
+                val state = _uiState.value
+                val next = state.queue.items.firstOrNull { it.status == TaskStatus.Queued }
+                if (next == null) {
+                    _uiState.update { state ->
+                        state.copy(
+                            generationStatus = GenerationStatus.Idle,
+                            queue = state.queue.copy(items = emptyList())
+                        )
+                    }
+                    break
+                }
+                runTask(next)
+            }
+            queueRunner = null
+        }
+    }
+
+    private suspend fun CoroutineScope.runTask(task: TaskItem) {
+        val workflow = loadedWorkflow ?: return
+        val serverUrl = _uiState.value.serverUrl
+        val patched = repository.patchWorkflow(workflow, task.valuesSnapshot)
+        LogBuffer.add("runTask: starting task #${task.index}")
+
+        var completed = false
+        var failedMessage: String? = null
+
+        val flowJob = launch {
+            try {
                 repository.generate(serverUrl, patched).collect { result ->
                     when (result) {
                         is GenerationResult.Connecting -> {
-                            LogBuffer.add("generate: connecting batch ${batchIndex + 1}")
                             _uiState.update { state ->
                                 state.copy(
                                     generationStatus = GenerationStatus.Running(
-                                        currentBatch = batchIndex + 1,
-                                        totalBatches = totalBatches
+                                        currentQueueIndex = task.index,
+                                        queueSize = state.queue.items.size
                                     )
                                 )
                             }
                         }
                         is GenerationResult.Running -> {
-                            LogBuffer.add("generate: running batch ${batchIndex + 1} node=${result.currentNode} progress=${result.progress}")
                             _uiState.update { state ->
                                 state.copy(
                                     generationStatus = GenerationStatus.Running(
                                         currentNode = result.currentNode,
                                         progress = result.progress,
-                                        currentBatch = batchIndex + 1,
-                                        totalBatches = totalBatches
+                                        currentQueueIndex = task.index,
+                                        queueSize = state.queue.items.size
                                     )
                                 )
                             }
                         }
                         is GenerationResult.Preview -> {
-                            LogBuffer.add("generate: preview received batch ${batchIndex + 1}")
                             _uiState.update { it.copy(preview = result.image) }
                         }
                         is GenerationResult.Completed -> {
-                            LogBuffer.add("generate: completed batch ${batchIndex + 1}, outputs=${result.outputs.size}")
                             _allOutputs.update { it + result.outputs }
-                            _uiState.update { state ->
-                                state.copy(
-                                    generationStatus = if (batchIndex == totalBatches - 1) {
-                                        GenerationStatus.Completed("")
-                                    } else {
-                                        GenerationStatus.Running(
-                                            currentBatch = batchIndex + 1,
-                                            totalBatches = totalBatches
-                                        )
-                                    }
-                                )
-                            }
-                            randomizeAllSeeds()
+                            completed = true
                         }
                         is GenerationResult.Error -> {
-                            LogBuffer.add("generate: error batch ${batchIndex + 1}: ${result.message}")
-                            _uiState.update {
-                                it.copy(
-                                    generationStatus = GenerationStatus.Error(result.message),
-                                    errorMessage = result.message
-                                )
-                            }
-                            batchFailed = true
+                            failedMessage = result.message
                         }
                     }
                 }
-
-                if (batchFailed) break
+            } catch (e: Exception) {
+                failedMessage = e.message ?: "Task failed"
             }
+        }
 
-            LogBuffer.add("generate: batch loop finished, total outputs=${_allOutputs.value.size}")
-            generateJob = null
+        updateQueueItem(task.id) { it.copy(status = TaskStatus.Running, job = flowJob) }
+
+        flowJob.join()
+
+        val finalStatus = when {
+            flowJob.isCancelled -> TaskStatus.Cancelled
+            failedMessage != null -> TaskStatus.Failed(failedMessage!!)
+            completed -> TaskStatus.Completed
+            else -> TaskStatus.Failed("Task ended unexpectedly")
+        }
+        updateQueueItem(task.id) { it.copy(status = finalStatus, job = null) }
+        LogBuffer.add("runTask: task #${task.index} finished with status=$finalStatus")
+    }
+
+    private fun updateQueueItem(id: String, transform: (TaskItem) -> TaskItem) {
+        _uiState.update { state ->
+            val newItems = state.queue.items.map { item ->
+                if (item.id == id) transform(item) else item
+            }
+            state.copy(queue = state.queue.copy(items = newItems))
         }
     }
 
-    fun cancelGeneration() {
+    fun cancelCurrentTask() {
         val serverUrl = _uiState.value.serverUrl
-        LogBuffer.add("cancelGeneration: serverUrl=$serverUrl")
-        generateJob?.cancel()
-        generateJob = null
+        val running = _uiState.value.queue.items.firstOrNull { it.status == TaskStatus.Running }
+        if (running == null) return
+        LogBuffer.add("cancelCurrentTask: task #${running.index}")
+        running.job?.cancel()
         viewModelScope.launch {
             if (serverUrl.isNotBlank()) {
-                val result = repository.cancelGeneration(serverUrl)
-                if (result.isFailure) {
-                    LogBuffer.add("cancelGeneration: failed ${result.exceptionOrNull()?.message}")
-                }
+                repository.cancelGeneration(serverUrl)
             }
-            _uiState.update {
-                it.copy(
+        }
+    }
+
+    fun cancelQueuedTasks(ids: List<String>) {
+        if (ids.isEmpty()) return
+        LogBuffer.add("cancelQueuedTasks: ${ids.size} tasks")
+        _uiState.update { state ->
+            val newItems = state.queue.items.filterNot { it.id in ids && it.status == TaskStatus.Queued }
+            state.copy(queue = state.queue.copy(items = newItems))
+        }
+    }
+
+    fun cancelAllQueued() {
+        LogBuffer.add("cancelAllQueued")
+        _uiState.update { state ->
+            val newItems = state.queue.items.filter { it.status != TaskStatus.Queued }
+            state.copy(queue = state.queue.copy(items = newItems))
+        }
+    }
+
+    fun cancelAll() {
+        val serverUrl = _uiState.value.serverUrl
+        LogBuffer.add("cancelAll")
+        queueRunner?.cancel()
+        queueRunner = null
+        viewModelScope.launch {
+            if (serverUrl.isNotBlank()) {
+                repository.cancelGeneration(serverUrl)
+            }
+            _uiState.update { state ->
+                state.copy(
+                    queue = QueueState(),
                     generationStatus = GenerationStatus.Cancelled,
                     errorMessage = null
                 )

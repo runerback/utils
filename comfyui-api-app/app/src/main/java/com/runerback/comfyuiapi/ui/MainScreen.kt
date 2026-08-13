@@ -58,6 +58,8 @@ import com.runerback.comfyuiapi.ui.components.PreviewPanel
 import com.runerback.comfyuiapi.ui.components.SeedFieldEditor
 import com.runerback.comfyuiapi.ui.components.SettingsDialog
 import com.runerback.comfyuiapi.ui.components.StringFieldEditor
+import com.runerback.comfyuiapi.ui.components.TaskQueueDialog
+import com.runerback.comfyuiapi.ui.components.TaskQueueSection
 import com.runerback.comfyuiapi.ui.components.UploadFieldEditor
 import com.runerback.comfyuiapi.ui.components.asLong
 import com.runerback.comfyuiapi.ui.components.asNumber
@@ -76,6 +78,8 @@ fun MainScreen(
     val allOutputs by viewModel.allOutputs.collectAsStateWithLifecycle()
     var showLogView by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
+    var selectedQueueIds by remember { mutableStateOf(setOf<String>()) }
     var parametersExpanded by remember { mutableStateOf(true) }
 
     val context = LocalContext.current
@@ -190,10 +194,39 @@ fun MainScreen(
             if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isNotEmpty()) {
                 GenerationPanel(
                     status = uiState.generationStatus,
+                    queue = uiState.queue,
                     batchCount = uiState.batchCount,
                     onBatchCountChange = viewModel::onBatchCountChange,
                     onGenerateClick = viewModel::generate,
-                    onCancelClick = viewModel::cancelGeneration
+                    onCancelCurrentClick = viewModel::cancelCurrentTask,
+                    onCancelAllQueuedClick = viewModel::cancelAllQueued,
+                    onCancelAllClick = viewModel::cancelAll,
+                    onShowQueueClick = { showQueue = true }
+                )
+            }
+
+            if (uiState.queue.items.isNotEmpty()) {
+                TaskQueueSection(
+                    queue = uiState.queue,
+                    selectedIds = selectedQueueIds,
+                    onSelect = { id, checked ->
+                        selectedQueueIds = if (checked) {
+                            selectedQueueIds + id
+                        } else {
+                            selectedQueueIds - id
+                        }
+                    },
+                    onCancelItem = { id ->
+                        viewModel.cancelQueuedTasks(listOf(id))
+                    },
+                    onCancelSelected = {
+                        viewModel.cancelQueuedTasks(selectedQueueIds.toList())
+                        selectedQueueIds = emptySet()
+                    },
+                    onCancelAllQueued = {
+                        viewModel.cancelAllQueued()
+                        selectedQueueIds = emptySet()
+                    }
                 )
             }
 
@@ -303,6 +336,32 @@ fun MainScreen(
             },
             onDismiss = { showSettings = false },
             onHistoryClick = { viewModel.onServerUrlChange(it) }
+        )
+    }
+
+    if (showQueue) {
+        TaskQueueDialog(
+            queue = uiState.queue,
+            selectedIds = selectedQueueIds,
+            onDismiss = { showQueue = false },
+            onSelect = { id, checked ->
+                selectedQueueIds = if (checked) {
+                    selectedQueueIds + id
+                } else {
+                    selectedQueueIds - id
+                }
+            },
+            onCancelSelected = {
+                viewModel.cancelQueuedTasks(selectedQueueIds.toList())
+                selectedQueueIds = emptySet()
+            },
+            onCancelItem = { id ->
+                viewModel.cancelQueuedTasks(listOf(id))
+            },
+            onCancelAllQueued = {
+                viewModel.cancelAllQueued()
+                selectedQueueIds = emptySet()
+            }
         )
     }
 }

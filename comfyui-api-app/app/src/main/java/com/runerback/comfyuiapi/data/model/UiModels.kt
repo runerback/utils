@@ -1,6 +1,7 @@
 package com.runerback.comfyuiapi.data.model
 
 import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.coroutines.Job
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
@@ -35,13 +36,34 @@ sealed class GenerationStatus {
     data class Running(
         val currentNode: String? = null,
         val progress: Pair<Int, Int>? = null,
-        val currentBatch: Int? = null,
-        val totalBatches: Int? = null
+        val currentQueueIndex: Int? = null,
+        val queueSize: Int? = null
     ) : GenerationStatus()
     data class Completed(val promptId: String) : GenerationStatus()
     data object Cancelled : GenerationStatus()
     data class Error(val message: String) : GenerationStatus()
 }
+
+sealed class TaskStatus {
+    data object Queued : TaskStatus()
+    data object Running : TaskStatus()
+    data object Completed : TaskStatus()
+    data object Cancelled : TaskStatus()
+    data class Failed(val message: String) : TaskStatus()
+}
+
+data class TaskItem(
+    val id: String,
+    val index: Int,
+    val valuesSnapshot: Map<ParameterKey, JsonElement>,
+    val status: TaskStatus = TaskStatus.Queued,
+    val job: Job? = null
+)
+
+data class QueueState(
+    val items: List<TaskItem> = emptyList(),
+    val nextIndex: Int = 1
+)
 
 data class UiState(
     val serverUrl: String = "",
@@ -61,7 +83,8 @@ data class UiState(
     val errorMessage: String? = null,
     val batchCount: Int = 1,
     val optionLists: Map<ParameterKey, List<String>> = emptyMap(),
-    val optionLoading: Set<ParameterKey> = emptySet()
+    val optionLoading: Set<ParameterKey> = emptySet(),
+    val queue: QueueState = QueueState()
 )
 
 data class GeneratedOutput(
