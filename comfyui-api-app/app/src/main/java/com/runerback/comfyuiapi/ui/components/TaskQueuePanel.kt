@@ -110,7 +110,7 @@ fun TaskQueueSection(
                     .fillMaxWidth()
                     .progressBackground(
                         fraction = globalProgress,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                     )
                     .clickable { expanded = !expanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -313,7 +313,7 @@ private fun TaskQueueRow(
             .padding(vertical = 4.dp)
             .progressBackground(
                 fraction = item.progressFraction,
-                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.10f)
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
             ),
         verticalAlignment = Alignment.CenterVertically
     ) {

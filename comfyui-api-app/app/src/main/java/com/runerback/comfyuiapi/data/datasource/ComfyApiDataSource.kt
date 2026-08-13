@@ -267,7 +267,7 @@ class ComfyApiDataSource @Inject constructor(
     private fun messageToEvent(message: WsMessage, promptId: String): ComfyEvent? {
         val data = message.data ?: return null
         val msgPromptId = data["prompt_id"]?.jsonPrimitive?.content
-        if (msgPromptId != promptId) return null
+        if (msgPromptId != null && msgPromptId != promptId) return null
 
         return when (message.type) {
             "execution_start" -> ComfyEvent.Executing(null)

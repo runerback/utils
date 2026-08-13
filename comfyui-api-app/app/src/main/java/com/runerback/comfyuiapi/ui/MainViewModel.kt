@@ -419,6 +419,7 @@ class MainViewModel @Inject constructor(
                             }
                         }
                         is GenerationResult.Running -> {
+                            LogBuffer.add("runTask: task #${task.index} node=${result.currentNode} progress=${result.progress}")
                             _uiState.update { state ->
                                 state.copy(
                                     generationStatus = GenerationStatus.Running(
