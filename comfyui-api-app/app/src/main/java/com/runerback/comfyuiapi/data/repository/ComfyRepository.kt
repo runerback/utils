@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -69,10 +70,15 @@ class ComfyRepository @Inject constructor(
         val result = fileDataSource.loadJsonObject(uri)
         return if (result.isSuccess) {
             LogBuffer.add("repository.loadWorkflow: parsed json object")
-            LoadResult.Success(
-                result.getOrThrow().toWorkflow(json),
-                fileDataSource.displayName(uri)
-            )
+            val workflowResult = result.getOrThrow().toWorkflow(json)
+            val workflow = workflowResult.getOrNull()
+            if (workflow != null) {
+                LoadResult.Success(workflow, fileDataSource.displayName(uri))
+            } else {
+                val msg = workflowResult.exceptionOrNull()?.message ?: "Failed to parse workflow"
+                LogBuffer.add("repository.loadWorkflow: $msg")
+                LoadResult.Error(msg)
+            }
         } else {
             LogBuffer.add("repository.loadWorkflow: ${result.exceptionOrNull()?.message}")
             LoadResult.Error(result.exceptionOrNull()?.message ?: "Failed to load workflow")
@@ -80,7 +86,7 @@ class ComfyRepository @Inject constructor(
     }
 
     fun parseWorkflow(jsonObject: JsonObject): Workflow {
-        return jsonObject.toWorkflow(json)
+        return jsonObject.toWorkflow(json).getOrThrow()
     }
 
     suspend fun loadSchema(uri: Uri, workflow: Workflow): LoadResult<SchemaParseResult> {
@@ -284,15 +290,38 @@ class ComfyRepository @Inject constructor(
     }
 }
 
-private fun kotlinx.serialization.json.JsonObject.toWorkflow(json: Json): Workflow {
+private fun kotlinx.serialization.json.JsonObject.toWorkflow(json: Json): Result<Workflow> {
     val map = mutableMapOf<String, com.runerback.comfyuiapi.data.model.WorkflowNode>()
+    val skipped = mutableListOf<String>()
     for ((key, value) in this) {
-        if (value is kotlinx.serialization.json.JsonObject) {
+        if (value !is kotlinx.serialization.json.JsonObject) {
+            LogBuffer.add("toWorkflow: skipping non-object key '$key'")
+            skipped.add(key)
+            continue
+        }
+        try {
             map[key] = json.decodeFromJsonElement(
                 com.runerback.comfyuiapi.data.model.WorkflowNode.serializer(),
                 value
             )
+        } catch (e: SerializationException) {
+            LogBuffer.add("toWorkflow: skipping invalid node '$key': ${e.message}")
+            skipped.add(key)
         }
     }
-    return map
+    return if (map.isEmpty()) {
+        val reason = buildString {
+            append("No valid workflow nodes found. ")
+            append("Make sure the file is a ComfyUI API/prompt JSON (not the graph editor format).")
+            if (skipped.isNotEmpty()) {
+                append(" Skipped keys: ${skipped.joinToString()}.")
+            }
+        }
+        Result.failure(IllegalArgumentException(reason))
+    } else {
+        if (skipped.isNotEmpty()) {
+            LogBuffer.add("toWorkflow: loaded ${map.size} nodes, skipped ${skipped.size} keys: ${skipped.joinToString()}")
+        }
+        Result.success(map)
+    }
 }
