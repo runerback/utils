@@ -76,6 +76,23 @@ class ComfyApiDataSource @Inject constructor(
         }
     }
 
+    suspend fun interrupt(serverUrl: String): Result<Unit> {
+        LogBuffer.add("api.interrupt: $serverUrl/interrupt")
+        return try {
+            val response: HttpResponse = client.post("$serverUrl/interrupt")
+            val bodyText = response.bodyAsText()
+            LogBuffer.add("api.interrupt: status=${response.status} body=$bodyText")
+            if (response.status == HttpStatusCode.OK) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("HTTP ${response.status}: $bodyText"))
+            }
+        } catch (e: Exception) {
+            LogBuffer.add("api.interrupt: exception ${e.message}")
+            Result.failure(e)
+        }
+    }
+
     fun listen(serverUrl: String, clientId: String, promptId: String): Flow<ComfyEvent> = flow {
         val wsUrl = serverUrlToWsUrl(serverUrl)
         LogBuffer.add("api.listen: wsUrl=$wsUrl")

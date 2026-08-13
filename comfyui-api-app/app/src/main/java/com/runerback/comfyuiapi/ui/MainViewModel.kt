@@ -19,6 +19,7 @@ import com.runerback.comfyuiapi.domain.resolveOptionSource
 import com.runerback.comfyuiapi.domain.resolveValue
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,6 +46,7 @@ class MainViewModel @Inject constructor(
     private var loadedWorkflow: Workflow? = null
     private var loadedSchema: JsonObject? = null
     private var pendingSchemaUri: Uri? = null
+    private var generateJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -261,7 +263,8 @@ class MainViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
+        generateJob?.cancel()
+        generateJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     generationStatus = GenerationStatus.Connecting,
@@ -380,6 +383,28 @@ class MainViewModel @Inject constructor(
             }
 
             LogBuffer.add("generate: batch loop finished, total outputs=${_allOutputs.value.size}")
+            generateJob = null
+        }
+    }
+
+    fun cancelGeneration() {
+        val serverUrl = _uiState.value.serverUrl
+        LogBuffer.add("cancelGeneration: serverUrl=$serverUrl")
+        generateJob?.cancel()
+        generateJob = null
+        viewModelScope.launch {
+            if (serverUrl.isNotBlank()) {
+                val result = repository.cancelGeneration(serverUrl)
+                if (result.isFailure) {
+                    LogBuffer.add("cancelGeneration: failed ${result.exceptionOrNull()?.message}")
+                }
+            }
+            _uiState.update {
+                it.copy(
+                    generationStatus = GenerationStatus.Cancelled,
+                    errorMessage = null
+                )
+            }
         }
     }
 

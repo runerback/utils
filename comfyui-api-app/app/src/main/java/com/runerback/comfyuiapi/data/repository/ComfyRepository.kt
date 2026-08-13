@@ -161,6 +161,11 @@ class ComfyRepository @Inject constructor(
         return apiDataSource.uploadImage(serverUrl, name, bytes, uploadType)
     }
 
+    suspend fun cancelGeneration(serverUrl: String): Result<Unit> {
+        LogBuffer.add("repository.cancelGeneration: $serverUrl")
+        return apiDataSource.interrupt(serverUrl)
+    }
+
     fun generate(serverUrl: String, workflow: Workflow): Flow<GenerationResult> = channelFlow {
         val clientId = settingsDataSource.ensureClientId()
         val promptId = UUID.randomUUID().toString()

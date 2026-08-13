@@ -1,5 +1,6 @@
 package com.runerback.comfyuiapi.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,10 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -32,6 +35,7 @@ fun GenerationPanel(
     batchCount: Int,
     onBatchCountChange: (Int) -> Unit,
     onGenerateClick: () -> Unit,
+    onCancelClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isRunning = status is GenerationStatus.Connecting || status is GenerationStatus.Running
@@ -64,6 +68,21 @@ fun GenerationPanel(
                 enabled = !isRunning,
                 modifier = Modifier.padding(start = 8.dp)
             )
+
+            AnimatedVisibility(visible = isRunning) {
+                IconButton(
+                    onClick = onCancelClick,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cancel generation",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
         }
 
         when (status) {
@@ -104,6 +123,13 @@ fun GenerationPanel(
             }
             is GenerationStatus.Completed -> {
                 Text("Completed", modifier = Modifier.padding(top = 8.dp))
+            }
+            is GenerationStatus.Cancelled -> {
+                Text(
+                    text = "Cancelled",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
             is GenerationStatus.Error -> {
                 Text(

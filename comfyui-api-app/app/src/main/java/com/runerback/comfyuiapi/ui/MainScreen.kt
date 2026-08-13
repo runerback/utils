@@ -155,6 +155,20 @@ fun MainScreen(
                 onSaveSchemaDefaults = viewModel::saveSchemaDefaults
             )
 
+            if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isNotEmpty()) {
+                GenerationPanel(
+                    status = uiState.generationStatus,
+                    batchCount = uiState.batchCount,
+                    onBatchCountChange = viewModel::onBatchCountChange,
+                    onGenerateClick = viewModel::generate,
+                    onCancelClick = viewModel::cancelGeneration
+                )
+            }
+
+            if (uiState.preview != null) {
+                PreviewPanel(preview = uiState.preview)
+            }
+
             if (uiState.parameters.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -221,15 +235,6 @@ fun MainScreen(
                 }
             }
 
-            if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isNotEmpty()) {
-                GenerationPanel(
-                    status = uiState.generationStatus,
-                    batchCount = uiState.batchCount,
-                    onBatchCountChange = viewModel::onBatchCountChange,
-                    onGenerateClick = viewModel::generate
-                )
-            }
-
             if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isEmpty()) {
                 Text(
                     text = "No matching parameters found. The schema may not belong to this workflow.",
@@ -237,10 +242,6 @@ fun MainScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth()
                 )
-            }
-
-            if (uiState.preview != null) {
-                PreviewPanel(preview = uiState.preview)
             }
 
             if (uiState.errorMessage != null) {

@@ -39,6 +39,7 @@ sealed class GenerationStatus {
         val totalBatches: Int? = null
     ) : GenerationStatus()
     data class Completed(val promptId: String) : GenerationStatus()
+    data object Cancelled : GenerationStatus()
     data class Error(val message: String) : GenerationStatus()
 }
 
