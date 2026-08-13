@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,12 +25,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -75,6 +80,7 @@ fun OutputGalleryScreen(
     val outputs by viewModel.allOutputs.collectAsStateWithLifecycle()
     val sortedOutputs = remember(outputs) { outputs.sortedByDescending { it.createdAt } }
     var selectedOutput by remember { mutableStateOf<GeneratedOutput?>(null) }
+    var isListView by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val player = remember { MediaPlayer() }
@@ -167,6 +173,14 @@ fun OutputGalleryScreen(
                             contentDescription = "Back"
                         )
                     }
+                },
+                actions = {
+                    IconButton(onClick = { isListView = !isListView }) {
+                        Icon(
+                            imageVector = if (isListView) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
+                            contentDescription = if (isListView) "Switch to grid view" else "Switch to list view"
+                        )
+                    }
                 }
             )
         }
@@ -183,6 +197,24 @@ fun OutputGalleryScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        } else if (isListView) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                items(sortedOutputs, key = { "${it.createdAt}_${it.filename}" }) { output ->
+                    GalleryListItem(
+                        output = output,
+                        onClick = { selectedOutput = output },
+                        onDownload = {
+                            viewModel.saveOutputToDownloads(output) { success, message ->
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                }
             }
         } else {
             LazyVerticalStaggeredGrid(
@@ -221,6 +253,68 @@ fun OutputGalleryScreen(
             onSwipeLeft = ::moveToNext,
             onSwipeRight = ::moveToPrevious
         )
+    }
+}
+
+@Composable
+private fun GalleryListItem(
+    output: GeneratedOutput,
+    onClick: () -> Unit,
+    onDownload: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        when (output.kind) {
+            OutputKind.Image -> {
+                val bitmap = output.bitmap
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = "Generated image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(56.dp)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.size(56.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+            OutputKind.Audio -> {
+                Box(
+                    modifier = Modifier.size(56.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = "Audio output",
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = output.filename,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onDownload) {
+            Icon(
+                imageVector = Icons.Default.Download,
+                contentDescription = "Download"
+            )
+        }
     }
 }
 
