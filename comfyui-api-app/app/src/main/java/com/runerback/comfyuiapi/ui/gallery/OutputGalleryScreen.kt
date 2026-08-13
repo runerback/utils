@@ -4,6 +4,7 @@ import android.media.MediaPlayer
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,8 +45,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -83,6 +86,24 @@ fun OutputGalleryScreen(
         activeUri = null
         isPreparing = false
         isPlaying = false
+    }
+
+    fun moveToNext() {
+        val current = selectedOutput ?: return
+        val index = sortedOutputs.indexOf(current)
+        if (index in 0 until sortedOutputs.lastIndex) {
+            if (current.kind == OutputKind.Audio) stopAudio()
+            selectedOutput = sortedOutputs[index + 1]
+        }
+    }
+
+    fun moveToPrevious() {
+        val current = selectedOutput ?: return
+        val index = sortedOutputs.indexOf(current)
+        if (index > 0) {
+            if (current.kind == OutputKind.Audio) stopAudio()
+            selectedOutput = sortedOutputs[index - 1]
+        }
     }
 
     fun playAudio(uri: Uri) {
@@ -179,8 +200,10 @@ fun OutputGalleryScreen(
             OutputKind.Image -> {
                 output.bitmap?.let { bitmap ->
                     ImagePreviewDialog(
-                        bitmap = bitmap,
-                        onDismiss = { selectedOutput = null }
+                        output = output,
+                        onDismiss = { selectedOutput = null },
+                        onSwipeLeft = ::moveToNext,
+                        onSwipeRight = ::moveToPrevious
                     )
                 }
             }
@@ -194,7 +217,9 @@ fun OutputGalleryScreen(
                         onDismiss = {
                             stopAudio()
                             selectedOutput = null
-                        }
+                        },
+                        onSwipeLeft = ::moveToNext,
+                        onSwipeRight = ::moveToPrevious
                     )
                 }
             }
@@ -254,6 +279,7 @@ private fun GalleryThumbnail(
         Text(
             text = output.filename,
             style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth()
@@ -263,9 +289,12 @@ private fun GalleryThumbnail(
 
 @Composable
 private fun ImagePreviewDialog(
-    bitmap: ImageBitmap,
-    onDismiss: () -> Unit
+    output: GeneratedOutput,
+    onDismiss: () -> Unit,
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit
 ) {
+    val bitmap = output.bitmap ?: return
     val aspectRatio = remember(bitmap) {
         val width = bitmap.width.coerceAtLeast(1)
         val height = bitmap.height.coerceAtLeast(1)
@@ -292,14 +321,37 @@ private fun ImagePreviewDialog(
             }
             Surface(
                 shape = RectangleShape,
-                modifier = Modifier.size(dialogWidth, dialogHeight)
+                modifier = Modifier
+                    .size(dialogWidth, dialogHeight)
+                    .swipeablePreview(
+                        onSwipeLeft = onSwipeLeft,
+                        onSwipeRight = onSwipeRight
+                    )
             ) {
-                Image(
-                    bitmap = bitmap,
-                    contentDescription = "Preview",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize()
-                )
+                Box {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = "Preview",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Surface(
+                        color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f),
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    ) {
+                        Text(
+                            text = output.filename,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -311,12 +363,19 @@ private fun AudioPreviewDialog(
     isPlaying: Boolean,
     isLoading: Boolean,
     onPlayToggle: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = MaterialTheme.shapes.extraLarge,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .swipeablePreview(
+                    onSwipeLeft = onSwipeLeft,
+                    onSwipeRight = onSwipeRight
+                )
         ) {
             Column(
                 modifier = Modifier
@@ -353,4 +412,25 @@ private fun AudioPreviewDialog(
             }
         }
     }
+}
+
+private fun Modifier.swipeablePreview(
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit
+): Modifier = pointerInput(onSwipeLeft, onSwipeRight) {
+    val threshold = 50.dp.toPx()
+    var totalDrag = 0f
+    detectHorizontalDragGestures(
+        onHorizontalDrag = { change, dragAmount ->
+            change.consume()
+            totalDrag += dragAmount
+        },
+        onDragEnd = {
+            when {
+                totalDrag < -threshold -> onSwipeLeft()
+                totalDrag > threshold -> onSwipeRight()
+            }
+            totalDrag = 0f
+        }
+    )
 }
