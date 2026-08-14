@@ -32,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
@@ -59,6 +60,7 @@ import com.runerback.files.ui.components.LogBuffer
 import com.runerback.files.ui.components.LogViewDialog
 import com.runerback.files.ui.icons.FluentuiSystemIconsCopy
 import com.runerback.files.ui.icons.FluentuiSystemIconsCut
+import com.runerback.files.ui.icons.FluentuiSystemIconsSelectAllOff
 import com.runerback.files.ui.icons.FluentuiSystemIconsTextAdd
 
 @Composable
@@ -70,6 +72,8 @@ fun FilesScreen(
     val selectedTabIndex by viewModel.selectedTabIndex.collectAsStateWithLifecycle()
     val trees by viewModel.trees.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val multiSelectActive by viewModel.multiSelectActive.collectAsStateWithLifecycle()
+    val selectedNodeIds by viewModel.selectedNodeIds.collectAsStateWithLifecycle()
     var showLogView by remember { mutableStateOf(false) }
 
     var hasFullStorageAccess by remember {
@@ -125,6 +129,12 @@ fun FilesScreen(
             LogBuffer.add("FilesScreen document picker: ${e.stackTraceToString()}")
         }
     }
+
+    val activeTab = if (tabs.isEmpty()) null else tabs.getOrNull(safeSelectedIndex)
+    val activeTabId = activeTab?.id
+    val isMultiSelectActive = activeTabId?.let { multiSelectActive[it] ?: false } ?: false
+    val activeSelectedIds = activeTabId?.let { selectedNodeIds[it] ?: emptySet() } ?: emptySet()
+    val activeTree = activeTab?.let { trees[it.id] }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -239,13 +249,30 @@ fun FilesScreen(
                         contentDescription = "Delete"
                     )
                 }
-                IconButton(onClick = { /* TODO: rename */ }) {
+                IconButton(
+                    onClick = { /* TODO: rename */ },
+                    enabled = !isMultiSelectActive
+                ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "Rename"
                     )
                 }
-                IconButton(onClick = { /* TODO: new text file */ }) {
+                IconButton(onClick = { activeTab?.let { viewModel.toggleMultiSelect(it.id) } }) {
+                    Icon(
+                        imageVector = FluentuiSystemIconsSelectAllOff,
+                        contentDescription = "Select",
+                        tint = if (isMultiSelectActive) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            LocalContentColor.current
+                        }
+                    )
+                }
+                IconButton(
+                    onClick = { /* TODO: new text file */ },
+                    enabled = !isMultiSelectActive
+                ) {
                     Icon(
                         imageVector = FluentuiSystemIconsTextAdd,
                         contentDescription = "New Text"
@@ -254,9 +281,6 @@ fun FilesScreen(
             }
         }
     ) { innerPadding ->
-        val activeTab = if (tabs.isEmpty()) null else tabs.getOrNull(safeSelectedIndex)
-        val activeTree = activeTab?.let { trees[it.id] }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -292,11 +316,20 @@ fun FilesScreen(
                         activeTree != null -> {
                             FileTree(
                                 nodes = activeTree,
+                                selectionMode = isMultiSelectActive,
+                                selectedIds = activeSelectedIds,
                                 onToggle = { node ->
                                     viewModel.toggleNode(activeTab.id, node)
                                 },
                                 onSelect = { node ->
-                                    viewModel.selectNode(activeTab.id, node)
+                                    if (isMultiSelectActive && !node.isDirectory) {
+                                        viewModel.toggleNodeSelection(activeTab.id, node)
+                                    } else {
+                                        viewModel.selectNode(activeTab.id, node)
+                                    }
+                                },
+                                onToggleSelection = { node ->
+                                    viewModel.toggleNodeSelection(activeTab.id, node)
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )

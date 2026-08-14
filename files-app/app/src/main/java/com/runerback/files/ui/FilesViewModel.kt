@@ -42,6 +42,12 @@ class FilesViewModel @Inject constructor(
 
     private val _selectedNodes = MutableStateFlow(mapOf<String, FileNode?>())
 
+    private val _multiSelectActive = MutableStateFlow(mapOf<String, Boolean>())
+    val multiSelectActive: StateFlow<Map<String, Boolean>> = _multiSelectActive.asStateFlow()
+
+    private val _selectedNodeIds = MutableStateFlow(mapOf<String, Set<String>>())
+    val selectedNodeIds: StateFlow<Map<String, Set<String>>> = _selectedNodeIds.asStateFlow()
+
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
@@ -115,6 +121,8 @@ class FilesViewModel @Inject constructor(
                 settingsDataSource.removeTab(tab.id)
                 _trees.value = _trees.value - tab.id
                 _selectedNodes.value = _selectedNodes.value - tab.id
+                _multiSelectActive.value = _multiSelectActive.value - tab.id
+                _selectedNodeIds.value = _selectedNodeIds.value - tab.id
             }
         } catch (e: Exception) {
             logError("FilesViewModel.removeTab", e)
@@ -171,6 +179,30 @@ class FilesViewModel @Inject constructor(
         } catch (e: Exception) {
             logError("FilesViewModel.selectNode", e)
         }
+    }
+
+    fun toggleMultiSelect(tabId: String) {
+        try {
+            val current = _multiSelectActive.value[tabId] ?: false
+            _multiSelectActive.value = _multiSelectActive.value + (tabId to !current)
+        } catch (e: Exception) {
+            logError("FilesViewModel.toggleMultiSelect", e)
+        }
+    }
+
+    fun toggleNodeSelection(tabId: String, node: FileNode) {
+        try {
+            if (node.isDirectory) return
+            val current = _selectedNodeIds.value[tabId] ?: emptySet()
+            val updated = if (current.contains(node.id)) current - node.id else current + node.id
+            _selectedNodeIds.value = _selectedNodeIds.value + (tabId to updated)
+        } catch (e: Exception) {
+            logError("FilesViewModel.toggleNodeSelection", e)
+        }
+    }
+
+    fun isNodeSelected(tabId: String, nodeId: String): Boolean {
+        return _selectedNodeIds.value[tabId]?.contains(nodeId) ?: false
     }
 
     fun clearError() {

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -29,8 +30,11 @@ import com.runerback.files.data.model.FileNode
 @Composable
 fun FileTree(
     nodes: List<FileNode>,
+    selectionMode: Boolean,
+    selectedIds: Set<String>,
     onToggle: (FileNode) -> Unit,
     onSelect: (FileNode) -> Unit,
+    onToggleSelection: (FileNode) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val flattened = remember(nodes) { flatten(nodes) }
@@ -40,8 +44,11 @@ fun FileTree(
             FileTreeItem(
                 node = node,
                 depth = depth,
+                selectionMode = selectionMode,
+                selectedIds = selectedIds,
                 onToggle = onToggle,
-                onSelect = onSelect
+                onSelect = onSelect,
+                onToggleSelection = onToggleSelection
             )
         }
     }
@@ -51,8 +58,11 @@ fun FileTree(
 private fun FileTreeItem(
     node: FileNode,
     depth: Int,
+    selectionMode: Boolean,
+    selectedIds: Set<String>,
     onToggle: (FileNode) -> Unit,
-    onSelect: (FileNode) -> Unit
+    onSelect: (FileNode) -> Unit,
+    onToggleSelection: (FileNode) -> Unit
 ) {
     val startPadding = 8.dp + (depth * 16).dp
 
@@ -63,6 +73,15 @@ private fun FileTreeItem(
             .padding(start = startPadding, end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (selectionMode && !node.isDirectory) {
+            Checkbox(
+                checked = selectedIds.contains(node.id),
+                onCheckedChange = { onToggleSelection(node) },
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+        }
+
         Icon(
             imageVector = when {
                 node.isDirectory && node.isExpanded -> Icons.Default.FolderOpen
