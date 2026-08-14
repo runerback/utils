@@ -308,6 +308,7 @@ private fun TaskQueueRow(
     onSelect: (Boolean) -> Unit,
     onCancel: () -> Unit
 ) {
+    var showError by remember { mutableStateOf(false) }
     val canSelect = item.status == TaskStatus.Queued
     val statusLabel = when (item.status) {
         is TaskStatus.Queued -> "Queued"
@@ -384,14 +385,29 @@ private fun TaskQueueRow(
                     )
                 }
                 is TaskStatus.Failed -> {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = "Failed",
-                        tint = Color(0xFFFFC107),
-                        modifier = Modifier.size(24.dp)
-                    )
+                    IconButton(onClick = { showError = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Failed",
+                            tint = Color(0xFFFFC107),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
+    }
+
+    if (showError && item.status is TaskStatus.Failed) {
+        AlertDialog(
+            onDismissRequest = { showError = false },
+            title = { Text("Task #${item.index} failed") },
+            text = { Text(item.status.message) },
+            confirmButton = {
+                TextButton(onClick = { showError = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }
