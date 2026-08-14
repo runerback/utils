@@ -7,6 +7,7 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.runtime.key
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Delete
@@ -29,6 +31,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -55,9 +60,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.runerback.files.BuildConfig
 import com.runerback.files.data.model.FileSource
+import com.runerback.files.data.settings.AppSettings
 import com.runerback.files.ui.components.FileTree
 import com.runerback.files.ui.components.LogBuffer
 import com.runerback.files.ui.components.LogViewDialog
+import com.runerback.files.ui.components.SettingsDialog
+import com.runerback.files.ui.components.SmbServerDialog
 import com.runerback.files.ui.icons.FluentuiSystemIconsCopy
 import com.runerback.files.ui.icons.FluentuiSystemIconsCut
 import com.runerback.files.ui.icons.FluentuiSystemIconsSelectAllOff
@@ -74,6 +82,9 @@ fun FilesScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val multiSelectActive by viewModel.multiSelectActive.collectAsStateWithLifecycle()
     val selectedNodeIds by viewModel.selectedNodeIds.collectAsStateWithLifecycle()
+    val smbDialogState by viewModel.smbDialogState.collectAsStateWithLifecycle()
+    val settingsDialogVisible by viewModel.settingsDialogVisible.collectAsStateWithLifecycle()
+    val smbTimeoutMillis by AppSettings.smbTimeoutMillis.collectAsStateWithLifecycle()
     var showLogView by remember { mutableStateOf(false) }
 
     var hasFullStorageAccess by remember {
@@ -170,7 +181,7 @@ fun FilesScreen(
                         )
                     }
                     Row (verticalAlignment = Alignment.Bottom) {
-                        IconButton(onClick = { /* TODO: open settings */ }) {
+                        IconButton(onClick = { viewModel.openSettingsDialog() }) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "Settings"
@@ -182,7 +193,7 @@ fun FilesScreen(
                                 contentDescription = "Logs"
                             )
                         }
-                        IconButton(onClick = { viewModel.addSmbTab() }) {
+                        IconButton(onClick = { viewModel.openAddSmbDialog() }) {
                             Icon(
                                 imageVector = Icons.Default.AddCircleOutline,
                                 contentDescription = "Add Server"
@@ -198,23 +209,53 @@ fun FilesScreen(
                             .height(26.dp)
                     )
                 } else {
-                    ScrollableTabRow(
-                        selectedTabIndex = safeSelectedIndex,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(26.dp),
-                        edgePadding = 0.dp
-                    ) {
-                        tabs.forEachIndexed { index, tab ->
+                    key(tabs.size) {
+                        ScrollableTabRow(
+                            selectedTabIndex = safeSelectedIndex,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(26.dp),
+                            edgePadding = 0.dp
+                        ) {
+                            tabs.forEachIndexed { index, tab ->
+                            var showMenu by remember { mutableStateOf(false) }
                             Tab(
                                 selected = safeSelectedIndex == index,
                                 onClick = { viewModel.selectTab(index) },
                                 text = { Text(tab.name) },
-                                modifier = Modifier.height(26.dp)
+                                modifier = Modifier
+                                    .height(26.dp)
+                                    .pointerInput(Unit) {
+                                        detectTapGestures(
+                                            onLongPress = { showMenu = true }
+                                        )
+                                    },
                             )
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false },
+                            ) {
+                                if (tab.source is FileSource.Smb) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        onClick = {
+                                            showMenu = false
+                                            viewModel.openEditSmbDialog(tab.id)
+                                        },
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("Remove") },
+                                    onClick = {
+                                        showMenu = false
+                                        viewModel.removeTab(index)
+                                    },
+                                )
+                            }
                         }
                     }
                 }
+            }
 
                 HorizontalDivider(
                     modifier = Modifier.fillMaxWidth(),
@@ -316,6 +357,7 @@ fun FilesScreen(
                         activeTree != null -> {
                             FileTree(
                                 nodes = activeTree,
+                                isLoading = false,
                                 selectionMode = isMultiSelectActive,
                                 selectedIds = activeSelectedIds,
                                 onToggle = { node ->
@@ -334,6 +376,18 @@ fun FilesScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
+                        activeTab.source is FileSource.Smb -> {
+                            FileTree(
+                                nodes = emptyList(),
+                                isLoading = true,
+                                selectionMode = false,
+                                selectedIds = emptySet(),
+                                onToggle = {},
+                                onSelect = {},
+                                onToggleSelection = {},
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                         else -> {
                             PlaceholderState()
                         }
@@ -345,6 +399,40 @@ fun FilesScreen(
 
     if (showLogView) {
         LogViewDialog(onDismiss = { showLogView = false })
+    }
+
+    when (val state = smbDialogState) {
+        is SmbDialogState.Add -> {
+            SmbServerDialog(
+                initialConfig = FileSource.Smb(
+                    name = "",
+                    host = "",
+                    share = "",
+                    username = "",
+                    password = "",
+                ),
+                onTestConnection = { viewModel.testSmbConnection(it) },
+                onSave = { viewModel.saveSmbServer(it) },
+                onDismiss = { viewModel.dismissSmbDialog() },
+            )
+        }
+        is SmbDialogState.Edit -> {
+            SmbServerDialog(
+                initialConfig = state.config,
+                onTestConnection = { viewModel.testSmbConnection(it) },
+                onSave = { viewModel.saveSmbServer(it) },
+                onDismiss = { viewModel.dismissSmbDialog() },
+            )
+        }
+        SmbDialogState.Hidden -> { /* no-op */ }
+    }
+
+    if (settingsDialogVisible) {
+        SettingsDialog(
+            currentSmbTimeoutMillis = smbTimeoutMillis,
+            onSave = { viewModel.saveSmbTimeoutMillis(it) },
+            onDismiss = { viewModel.dismissSettingsDialog() },
+        )
     }
 }
 

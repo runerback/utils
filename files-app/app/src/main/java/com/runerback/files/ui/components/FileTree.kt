@@ -1,6 +1,9 @@
 package com.runerback.files.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +33,7 @@ import com.runerback.files.data.model.FileNode
 @Composable
 fun FileTree(
     nodes: List<FileNode>,
+    isLoading: Boolean,
     selectionMode: Boolean,
     selectedIds: Set<String>,
     onToggle: (FileNode) -> Unit,
@@ -38,6 +42,26 @@ fun FileTree(
     modifier: Modifier = Modifier
 ) {
     val flattened = remember(nodes) { flatten(nodes) }
+
+    if (isLoading && nodes.isEmpty()) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                LoadingIndicator(modifier = Modifier.size(48.dp))
+                Text(
+                    text = "Loading...",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
 
     LazyColumn(modifier = modifier) {
         items(flattened, key = { it.first.id }) { (node, depth) ->
@@ -106,13 +130,21 @@ private fun FileTreeItem(
         if (node.isDirectory) {
             IconButton(
                 onClick = { onToggle(node) },
+                enabled = !node.isLoading,
                 modifier = Modifier.size(24.dp)
             ) {
-                Icon(
-                    imageVector = if (node.isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (node.isExpanded) "Collapse" else "Expand",
-                    modifier = Modifier.size(20.dp)
-                )
+                if (node.isLoading) {
+                    LoadingIndicator(
+                        modifier = Modifier.size(20.dp),
+                        contentDescription = "Loading"
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (node.isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (node.isExpanded) "Collapse" else "Expand",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         } else {
             Spacer(modifier = Modifier.size(24.dp))

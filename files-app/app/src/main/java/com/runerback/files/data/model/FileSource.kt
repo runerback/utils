@@ -13,6 +13,7 @@ sealed class FileSource {
 
     @Serializable
     data class Smb(
+        val name: String = "",
         val host: String,
         val share: String,
         val username: String,

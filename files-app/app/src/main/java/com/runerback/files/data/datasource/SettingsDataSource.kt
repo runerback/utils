@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.runerback.files.data.model.FileSource
@@ -42,6 +43,10 @@ class SettingsDataSource @Inject constructor(
                 defaultTabs()
             }
         }
+    }
+
+    val selectedTabIndex: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[SELECTED_TAB_INDEX] ?: 0
     }
 
     suspend fun saveTabs(tabs: List<TabConfig>) {
@@ -89,6 +94,16 @@ class SettingsDataSource @Inject constructor(
         }
     }
 
+    suspend fun saveSelectedTabIndex(index: Int) {
+        try {
+            dataStore.edit { prefs ->
+                prefs[SELECTED_TAB_INDEX] = index
+            }
+        } catch (e: Exception) {
+            LogBuffer.add("SettingsDataSource.saveSelectedTabIndex: ${e.stackTraceToString()}")
+        }
+    }
+
     private fun takePersistablePermission(uri: Uri) {
         try {
             context.contentResolver.takePersistableUriPermission(
@@ -121,5 +136,6 @@ class SettingsDataSource @Inject constructor(
 
     companion object {
         private val TABS = stringPreferencesKey("tabs")
+        private val SELECTED_TAB_INDEX = intPreferencesKey("selected_tab_index")
     }
 }

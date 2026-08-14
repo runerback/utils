@@ -105,6 +105,8 @@ dependencies {
     implementation("io.ktor:ktor-client-websockets:$ktorVersion")
     implementation("io.ktor:ktor-client-logging:$ktorVersion")
 
+    implementation("org.codelibs:jcifs:2.1.36")
+
     implementation(composeBom)
     androidTestImplementation(composeBom)
     implementation("androidx.compose.ui:ui")

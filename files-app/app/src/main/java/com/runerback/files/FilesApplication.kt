@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.runerback.files.data.settings.AppSettings
 import com.runerback.files.ui.components.LogBuffer
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
@@ -18,8 +19,8 @@ import java.util.Locale
 class FilesApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        AppSettings.init(this)
         LogBuffer.init(this)
-        LogBuffer.add("app started")
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             val crashReport = buildCrashReport(thread, throwable)

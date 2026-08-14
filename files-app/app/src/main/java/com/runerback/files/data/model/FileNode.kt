@@ -8,6 +8,7 @@ data class FileNode(
     val name: String,
     val isDirectory: Boolean,
     val isExpanded: Boolean = false,
+    val isLoading: Boolean = false,
     val children: List<FileNode>? = null,
     val metadata: FileMetadata = FileMetadata()
 )
