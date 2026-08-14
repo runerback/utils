@@ -231,7 +231,10 @@ class MainViewModel @Inject constructor(
                 fixedSeeds = emptySet(),
                 modifiedKeys = modifiedKeys,
                 optionLists = emptyMap(),
-                optionLoading = emptySet()
+                optionLoading = emptySet(),
+                pendingUploads = emptyMap(),
+                multiInputEnabled = emptySet(),
+                multiInputUris = emptyMap()
             )
         }
     }
@@ -288,6 +291,50 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun toggleMultiInput(parameter: EditableParameter) {
+        val key = ParameterKey(parameter.nodeId, parameter.path)
+        _uiState.update { state ->
+            val enabled = state.multiInputEnabled.contains(key)
+            state.copy(
+                multiInputEnabled = if (enabled) state.multiInputEnabled - key else state.multiInputEnabled + key,
+                multiInputUris = state.multiInputUris.toMutableMap().apply { remove(key) },
+                pendingUploads = state.pendingUploads.toMutableMap().apply { remove(key) }
+            )
+        }
+    }
+
+    fun setMultiInputUris(parameter: EditableParameter, uris: List<Uri>) {
+        val key = ParameterKey(parameter.nodeId, parameter.path)
+        _uiState.update { state ->
+            state.copy(
+                multiInputUris = state.multiInputUris.toMutableMap().apply {
+                    if (uris.isNotEmpty()) put(key, uris) else remove(key)
+                }
+            )
+        }
+    }
+
+    fun removeMultiInputUri(parameter: EditableParameter, uri: Uri) {
+        val key = ParameterKey(parameter.nodeId, parameter.path)
+        _uiState.update { state ->
+            val updated = state.multiInputUris[key]?.filter { it != uri }
+            state.copy(
+                multiInputUris = state.multiInputUris.toMutableMap().apply {
+                    if (updated.isNullOrEmpty()) remove(key) else put(key, updated)
+                }
+            )
+        }
+    }
+
+    fun clearMultiInputUris(parameter: EditableParameter) {
+        val key = ParameterKey(parameter.nodeId, parameter.path)
+        _uiState.update { state ->
+            state.copy(
+                multiInputUris = state.multiInputUris.toMutableMap().apply { remove(key) }
+            )
+        }
+    }
+
     fun onBatchCountChange(count: Int) {
         _uiState.update { it.copy(batchCount = count.coerceAtLeast(1)) }
     }
@@ -307,9 +354,11 @@ class MainViewModel @Inject constructor(
 
             val initialState = _uiState.value
             val pending = initialState.pendingUploads
-            LogBuffer.add("generate: pending uploads=${pending.size}")
+            val multiPending = initialState.multiInputUris
+            LogBuffer.add("generate: pending uploads=${pending.size}, multi uploads=${multiPending.size}")
 
-            val uploadReplacements = mutableMapOf<ParameterKey, JsonElement>()
+            val singleReplacements = mutableMapOf<ParameterKey, JsonElement>()
+            val multiReplacements = mutableMapOf<ParameterKey, List<JsonElement>>()
 
             for ((key, uri) in pending) {
                 val param = initialState.parameters.find {
@@ -321,7 +370,7 @@ class MainViewModel @Inject constructor(
                 if (result.isSuccess) {
                     val filename = result.getOrThrow()
                     LogBuffer.add("generate: upload success filename=$filename")
-                    uploadReplacements[key] = JsonPrimitive(filename)
+                    singleReplacements[key] = JsonPrimitive(filename)
                 } else {
                     val msg = result.exceptionOrNull()?.message ?: "Unknown upload error"
                     LogBuffer.add("generate: upload failed: $msg")
@@ -335,10 +384,49 @@ class MainViewModel @Inject constructor(
                 }
             }
 
-            if (uploadReplacements.isNotEmpty()) {
+            for ((key, uris) in multiPending) {
+                if (uris.isEmpty()) {
+                    val msg = "No images selected for multi-input $key"
+                    LogBuffer.add("generate: $msg")
+                    _uiState.update {
+                        it.copy(
+                            generationStatus = GenerationStatus.Error(msg),
+                            errorMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val param = initialState.parameters.find {
+                    ParameterKey(it.nodeId, it.path) == key
+                } ?: continue
+                val uploadType = (param.type as? FieldType.UploadType)?.uploadType ?: "input"
+                val filenames = mutableListOf<String>()
+                for (uri in uris) {
+                    LogBuffer.add("generate: uploading multi $key type=$uploadType uri=$uri")
+                    val result = repository.uploadImage(serverUrl, uri, uploadType)
+                    if (result.isSuccess) {
+                        val filename = result.getOrThrow()
+                        LogBuffer.add("generate: multi upload success filename=$filename")
+                        filenames.add(filename)
+                    } else {
+                        val msg = result.exceptionOrNull()?.message ?: "Unknown upload error"
+                        LogBuffer.add("generate: multi upload failed: $msg")
+                        _uiState.update {
+                            it.copy(
+                                generationStatus = GenerationStatus.Error("Upload failed: $msg"),
+                                errorMessage = msg
+                            )
+                        }
+                        return@launch
+                    }
+                }
+                multiReplacements[key] = filenames.map { JsonPrimitive(it) }
+            }
+
+            if (singleReplacements.isNotEmpty()) {
                 _uiState.update { state ->
                     val newValues = state.currentValues.toMutableMap().apply {
-                        putAll(uploadReplacements)
+                        putAll(singleReplacements)
                     }
                     state.copy(
                         currentValues = newValues,
@@ -348,11 +436,33 @@ class MainViewModel @Inject constructor(
             }
 
             val snapshots = mutableListOf<Map<ParameterKey, JsonElement>>()
-            repeat(totalBatches) { batchIndex ->
-                if (batchIndex > 0) {
-                    randomizeAllSeeds()
+
+            if (multiReplacements.isEmpty()) {
+                repeat(totalBatches) { batchIndex ->
+                    if (batchIndex > 0) {
+                        randomizeAllSeeds()
+                    }
+                    snapshots.add(_uiState.value.currentValues)
                 }
-                snapshots.add(_uiState.value.currentValues)
+            } else {
+                val multiKeys = multiReplacements.keys.toList()
+                val multiLists = multiKeys.map { multiReplacements.getValue(it) }
+                val product = cartesianProduct(multiLists)
+                var firstSnapshot = true
+                repeat(totalBatches) {
+                    for (combo in product) {
+                        if (!firstSnapshot) {
+                            randomizeAllSeeds()
+                        }
+                        firstSnapshot = false
+                        val snapshot = _uiState.value.currentValues.toMutableMap().apply {
+                            for ((index, key) in multiKeys.withIndex()) {
+                                put(key, combo[index])
+                            }
+                        }
+                        snapshots.add(snapshot)
+                    }
+                }
             }
 
             _uiState.update { state ->
@@ -367,12 +477,12 @@ class MainViewModel @Inject constructor(
                 state.copy(
                     queue = state.queue.copy(
                         items = state.queue.items + newItems,
-                        nextIndex = startIndex + totalBatches
+                        nextIndex = startIndex + snapshots.size
                     )
                 )
             }
 
-            LogBuffer.add("generate: enqueued $totalBatches tasks, queue size=${_uiState.value.queue.items.size}")
+            LogBuffer.add("generate: enqueued ${snapshots.size} tasks, queue size=${_uiState.value.queue.items.size}")
             startQueueRunnerIfNeeded()
         }
     }
@@ -598,6 +708,15 @@ class MainViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun <T> cartesianProduct(lists: List<List<T>>): List<List<T>> {
+        if (lists.isEmpty()) return listOf(emptyList())
+        var result = listOf(emptyList<T>())
+        for (list in lists) {
+            result = result.flatMap { prefix -> list.map { prefix + it } }
+        }
+        return result
     }
 
     private fun computeModifiedKeys(currentValues: Map<ParameterKey, JsonElement>): Set<ParameterKey> {

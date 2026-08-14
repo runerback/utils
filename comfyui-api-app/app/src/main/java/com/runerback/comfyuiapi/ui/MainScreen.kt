@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -53,6 +54,7 @@ import com.runerback.comfyuiapi.ui.components.FilePickerSection
 import com.runerback.comfyuiapi.ui.components.GenerationPanel
 import com.runerback.comfyuiapi.ui.components.IntFieldEditor
 import com.runerback.comfyuiapi.ui.components.LogViewDialog
+import com.runerback.comfyuiapi.ui.components.MultiUploadFieldEditor
 import com.runerback.comfyuiapi.ui.components.OptionFieldEditor
 import com.runerback.comfyuiapi.ui.components.PreviewPanel
 import com.runerback.comfyuiapi.ui.components.SeedFieldEditor
@@ -287,12 +289,18 @@ fun MainScreen(
                                                     JsonPrimitive(0)
                                                 },
                                             pendingUploadUri = uiState.pendingUploads[key],
+                                            multiInputEnabled = uiState.multiInputEnabled.contains(key),
+                                            multiInputUris = uiState.multiInputUris[key] ?: emptyList(),
                                             options = uiState.optionLists[key] ?: emptyList(),
                                             isLoading = uiState.optionLoading.contains(key),
                                             isFixedSeed = uiState.fixedSeeds.contains(key),
                                             isModified = uiState.modifiedKeys.contains(key),
                                             onValueChange = { viewModel.updateValue(param, it) },
                                             onUploadUriSelected = { viewModel.setUploadUri(param, it) },
+                                            onToggleMultiInput = { viewModel.toggleMultiInput(param) },
+                                            onMultiUrisSelected = { viewModel.setMultiInputUris(param, it) },
+                                            onRemoveMultiUri = { viewModel.removeMultiInputUri(param, it) },
+                                            onClearMultiUris = { viewModel.clearMultiInputUris(param) },
                                             onLoadOptions = { viewModel.loadOptions(param) },
                                             onRefreshOptions = { viewModel.refreshOptions(param) },
                                             onToggleFixedSeed = { viewModel.toggleFixedSeed(param) }
@@ -379,12 +387,18 @@ private fun ParameterEditor(
     param: EditableParameter,
     value: kotlinx.serialization.json.JsonElement,
     pendingUploadUri: android.net.Uri?,
+    multiInputEnabled: Boolean,
+    multiInputUris: List<android.net.Uri>,
     options: List<String>,
     isLoading: Boolean,
     isFixedSeed: Boolean,
     isModified: Boolean,
     onValueChange: (kotlinx.serialization.json.JsonElement) -> Unit,
     onUploadUriSelected: (android.net.Uri) -> Unit,
+    onToggleMultiInput: () -> Unit,
+    onMultiUrisSelected: (List<android.net.Uri>) -> Unit,
+    onRemoveMultiUri: (android.net.Uri) -> Unit,
+    onClearMultiUris: () -> Unit,
     onLoadOptions: () -> Unit,
     onRefreshOptions: () -> Unit,
     onToggleFixedSeed: () -> Unit
@@ -455,13 +469,43 @@ private fun ParameterEditor(
                 )
             }
             is FieldType.UploadType -> {
-                UploadFieldEditor(
-                    label = label,
-                    mimeType = type.mimeType,
-                    selectedUri = pendingUploadUri,
-                    onUriSelected = onUploadUriSelected,
-                    modifier = Modifier.weight(1f)
-                )
+                val type = param.type
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Multi-input",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Switch(
+                            checked = multiInputEnabled,
+                            onCheckedChange = { onToggleMultiInput() }
+                        )
+                    }
+
+                    if (multiInputEnabled) {
+                        MultiUploadFieldEditor(
+                            label = label,
+                            mimeType = type.mimeType,
+                            selectedUris = multiInputUris,
+                            onUrisSelected = onMultiUrisSelected,
+                            onRemoveUri = onRemoveMultiUri,
+                            onClear = onClearMultiUris,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        UploadFieldEditor(
+                            label = label,
+                            mimeType = type.mimeType,
+                            selectedUri = pendingUploadUri,
+                            onUriSelected = onUploadUriSelected,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
             }
             is FieldType.OptionType -> {
                 OptionFieldEditor(
