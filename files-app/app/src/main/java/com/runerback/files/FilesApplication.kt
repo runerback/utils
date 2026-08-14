@@ -9,6 +9,7 @@ class FilesApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         LogBuffer.init(this)
+        LogBuffer.add("app started")
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             LogBuffer.add("FATAL EXCEPTION on thread ${thread.name}: ${throwable.message}")

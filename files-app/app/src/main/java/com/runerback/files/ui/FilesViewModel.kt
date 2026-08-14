@@ -12,7 +12,7 @@ import javax.inject.Inject
 @HiltViewModel
 class FilesViewModel @Inject constructor() : ViewModel() {
 
-    private val _tabs = MutableStateFlow(listOf("Local", "SMB Office", "SMB Home"))
+    private val _tabs = MutableStateFlow(listOf("Local"))
     val tabs: StateFlow<List<String>> = _tabs.asStateFlow()
 
     private val _selectedTabIndex = MutableStateFlow(0)
