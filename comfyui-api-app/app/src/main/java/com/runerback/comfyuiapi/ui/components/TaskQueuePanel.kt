@@ -16,9 +16,10 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Warning
+import com.runerback.comfyuiapi.ui.icons.FluentuiSystemIconsDismissSquare
+import com.runerback.comfyuiapi.ui.icons.FluentuiSystemIconsDismissSquareMultiple
+import com.runerback.comfyuiapi.ui.icons.PhosphorQueue
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -118,13 +119,13 @@ fun TaskQueueSection(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = if (expanded) "Collapse queue" else "Expand queue"
+                        imageVector = PhosphorQueue,
+                        contentDescription = "Queue",
+                        modifier = Modifier.padding(end = 4.dp)
                     )
                     Text(
                         text = "Queue (${queue.items.size})",
                         style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(start = 4.dp)
                     )
                 }
 
@@ -159,7 +160,7 @@ fun TaskQueueSection(
                     if (queue.queuedItems.isNotEmpty()) {
                         IconButton(onClick = onCancelAllQueued) {
                             Icon(
-                                imageVector = Icons.Default.Cancel,
+                                imageVector = FluentuiSystemIconsDismissSquareMultiple,
                                 contentDescription = "Cancel all queued"
                             )
                         }
@@ -218,15 +219,32 @@ fun TaskQueueDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Task queue")
-                IconButton(
-                    onClick = onClearQueue,
-                    enabled = queue.canClear
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Clear queue"
+                        imageVector = PhosphorQueue,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
+                    Text("Task queue")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onClearQueue,
+                        enabled = queue.canClear
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Clear queue"
+                        )
+                    }
+                    if (queue.queuedItems.isNotEmpty()) {
+                        IconButton(onClick = onCancelAllQueued) {
+                            Icon(
+                                imageVector = FluentuiSystemIconsDismissSquareMultiple,
+                                contentDescription = "Cancel all queued"
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -245,14 +263,6 @@ fun TaskQueueDialog(
         },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                if (queue.queuedItems.isNotEmpty()) {
-                    TextButton(
-                        onClick = onCancelAllQueued,
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text("Cancel all queued")
-                    }
-                }
                 TaskQueueList(
                     items = queue.displayItems,
                     selectedIds = selectedIds,
@@ -345,7 +355,7 @@ private fun TaskQueueRow(
                 TaskStatus.Queued -> {
                     IconButton(onClick = onCancel) {
                         Icon(
-                            imageVector = Icons.Default.Close,
+                            imageVector = FluentuiSystemIconsDismissSquare,
                             contentDescription = "Cancel task",
                             tint = MaterialTheme.colorScheme.error
                         )

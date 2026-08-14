@@ -26,11 +26,11 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -67,6 +67,8 @@ import com.runerback.comfyuiapi.ui.components.asLong
 import com.runerback.comfyuiapi.ui.components.asNumber
 import com.runerback.comfyuiapi.ui.components.asString
 import com.runerback.comfyuiapi.ui.components.toJsonPrimitive
+import com.runerback.comfyuiapi.ui.icons.FluentuiSystemIconsForm
+import com.runerback.comfyuiapi.ui.icons.FluentuiSystemIconsFormMultiple
 import kotlinx.serialization.json.JsonPrimitive
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -178,156 +180,175 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .pointerInput(Unit) {
-                    detectTapGestures { focusManager.clearFocus() }
-                }
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            FilePickerSection(
-                workflowName = uiState.workflowName,
-                schemaName = uiState.schemaName,
-                onWorkflowPicked = viewModel::loadWorkflow,
-                onSchemaPicked = viewModel::loadSchema,
-                onSaveSchemaDefaults = viewModel::saveSchemaDefaults
-            )
-
-            if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isNotEmpty()) {
-                GenerationPanel(
-                    status = uiState.generationStatus,
-                    queue = uiState.queue,
-                    batchCount = uiState.batchCount,
-                    onBatchCountChange = viewModel::onBatchCountChange,
-                    onGenerateClick = viewModel::generate,
-                    onCancelCurrentClick = viewModel::cancelCurrentTask,
-                    onCancelAllQueuedClick = viewModel::cancelAllQueued,
-                    onCancelAllClick = viewModel::cancelAll,
-                    onShowQueueClick = { showQueue = true }
-                )
-            }
-
-            if (uiState.queue.items.isNotEmpty()) {
-                TaskQueueSection(
-                    queue = uiState.queue,
-                    selectedIds = selectedQueueIds,
-                    onSelect = { id, checked ->
-                        selectedQueueIds = if (checked) {
-                            selectedQueueIds + id
-                        } else {
-                            selectedQueueIds - id
-                        }
-                    },
-                    onCancelItem = { id ->
-                        viewModel.cancelQueuedTasks(listOf(id))
-                    },
-                    onCancelSelected = {
-                        viewModel.cancelQueuedTasks(selectedQueueIds.toList())
-                        selectedQueueIds = emptySet()
-                    },
-                    onCancelAllQueued = {
-                        viewModel.cancelAllQueued()
-                        selectedQueueIds = emptySet()
-                    },
-                    onClearQueue = {
-                        viewModel.clearQueue()
-                        selectedQueueIds = emptySet()
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .pointerInput(Unit) {
+                        detectTapGestures { focusManager.clearFocus() }
                     }
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                FilePickerSection(
+                    workflowName = uiState.workflowName,
+                    schemaName = uiState.schemaName,
+                    onWorkflowPicked = viewModel::loadWorkflow,
+                    onSchemaPicked = viewModel::loadSchema,
+                    onSaveSchemaDefaults = viewModel::saveSchemaDefaults
                 )
-            }
 
-            if (uiState.preview != null) {
-                PreviewPanel(preview = uiState.preview)
-            }
-
-            if (uiState.parameters.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { parametersExpanded = !parametersExpanded },
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Parameters",
-                        style = MaterialTheme.typography.titleMedium
+                if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isNotEmpty()) {
+                    GenerationPanel(
+                        status = uiState.generationStatus,
+                        queue = uiState.queue,
+                        batchCount = uiState.batchCount,
+                        onBatchCountChange = viewModel::onBatchCountChange,
+                        onGenerateClick = viewModel::generate,
+                        onCancelCurrentClick = viewModel::cancelCurrentTask,
+                        onCancelAllQueuedClick = viewModel::cancelAllQueued,
+                        onCancelAllClick = viewModel::cancelAll,
+                        onShowQueueClick = { showQueue = true }
                     )
-                    IconButton(onClick = { parametersExpanded = !parametersExpanded }) {
-                        Icon(
-                            imageVector = if (parametersExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (parametersExpanded) "Collapse parameters" else "Expand parameters"
-                        )
-                    }
                 }
 
-                AnimatedVisibility(visible = parametersExpanded) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                if (uiState.queue.items.isNotEmpty()) {
+                    TaskQueueSection(
+                        queue = uiState.queue,
+                        selectedIds = selectedQueueIds,
+                        onSelect = { id, checked ->
+                            selectedQueueIds = if (checked) {
+                                selectedQueueIds + id
+                            } else {
+                                selectedQueueIds - id
+                            }
+                        },
+                        onCancelItem = { id ->
+                            viewModel.cancelQueuedTasks(listOf(id))
+                        },
+                        onCancelSelected = {
+                            viewModel.cancelQueuedTasks(selectedQueueIds.toList())
+                            selectedQueueIds = emptySet()
+                        },
+                        onCancelAllQueued = {
+                            viewModel.cancelAllQueued()
+                            selectedQueueIds = emptySet()
+                        },
+                        onClearQueue = {
+                            viewModel.clearQueue()
+                            selectedQueueIds = emptySet()
+                        }
+                    )
+                }
+
+                if (uiState.preview != null) {
+                    PreviewPanel(preview = uiState.preview)
+                }
+
+                if (uiState.parameters.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { parametersExpanded = !parametersExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        uiState.parameters
-                            .groupBy { it.nodeId }
-                            .forEach { (nodeId, params) ->
-                                val nodeLabel = params.first().nodeLabel
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = nodeLabel,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    params.forEach { param ->
-                                        val key = ParameterKey(param.nodeId, param.path)
-                                        ParameterEditor(
-                                            param = param,
-                                            value = uiState.currentValues[key] ?: param.default
-                                                ?: if (param.type is FieldType.StringType || param.type is FieldType.OptionType) {
-                                                    JsonPrimitive("")
-                                                } else {
-                                                    JsonPrimitive(0)
-                                                },
-                                            pendingUploadUri = uiState.pendingUploads[key],
-                                            multiInputEnabled = uiState.multiInputEnabled.contains(key),
-                                            multiInputUris = uiState.multiInputUris[key] ?: emptyList(),
-                                            options = uiState.optionLists[key] ?: emptyList(),
-                                            isLoading = uiState.optionLoading.contains(key),
-                                            isFixedSeed = uiState.fixedSeeds.contains(key),
-                                            isModified = uiState.modifiedKeys.contains(key),
-                                            onValueChange = { viewModel.updateValue(param, it) },
-                                            onUploadUriSelected = { viewModel.setUploadUri(param, it) },
-                                            onToggleMultiInput = { viewModel.toggleMultiInput(param) },
-                                            onMultiUrisSelected = { viewModel.setMultiInputUris(param, it) },
-                                            onRemoveMultiUri = { viewModel.removeMultiInputUri(param, it) },
-                                            onClearMultiUris = { viewModel.clearMultiInputUris(param) },
-                                            onLoadOptions = { viewModel.loadOptions(param) },
-                                            onRefreshOptions = { viewModel.refreshOptions(param) },
-                                            onToggleFixedSeed = { viewModel.toggleFixedSeed(param) }
+                        Text(
+                            text = "Parameters",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        IconButton(onClick = { parametersExpanded = !parametersExpanded }) {
+                            Icon(
+                                imageVector = if (parametersExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (parametersExpanded) "Collapse parameters" else "Expand parameters"
+                            )
+                        }
+                    }
+
+                    AnimatedVisibility(visible = parametersExpanded) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            uiState.parameters
+                                .groupBy { it.nodeId }
+                                .forEach { (nodeId, params) ->
+                                    val nodeLabel = params.first().nodeLabel
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = nodeLabel,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.primary
                                         )
+                                        HorizontalDivider(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = MaterialTheme.colorScheme.outlineVariant
+                                        )
+                                        params.forEach { param ->
+                                            val key = ParameterKey(param.nodeId, param.path)
+                                            ParameterEditor(
+                                                param = param,
+                                                value = uiState.currentValues[key] ?: param.default
+                                                    ?: if (param.type is FieldType.StringType || param.type is FieldType.OptionType) {
+                                                        JsonPrimitive("")
+                                                    } else {
+                                                        JsonPrimitive(0)
+                                                    },
+                                                pendingUploadUri = uiState.pendingUploads[key],
+                                                multiInputEnabled = uiState.multiInputEnabled.contains(key),
+                                                multiInputUris = uiState.multiInputUris[key] ?: emptyList(),
+                                                options = uiState.optionLists[key] ?: emptyList(),
+                                                isLoading = uiState.optionLoading.contains(key),
+                                                isFixedSeed = uiState.fixedSeeds.contains(key),
+                                                isModified = uiState.modifiedKeys.contains(key),
+                                                onValueChange = { viewModel.updateValue(param, it) },
+                                                onUploadUriSelected = { viewModel.setUploadUri(param, it) },
+                                                onToggleMultiInput = { viewModel.toggleMultiInput(param) },
+                                                onMultiUrisSelected = { viewModel.setMultiInputUris(param, it) },
+                                                onRemoveMultiUri = { viewModel.removeMultiInputUri(param, it) },
+                                                onClearMultiUris = { viewModel.clearMultiInputUris(param) },
+                                                onLoadOptions = { viewModel.loadOptions(param) },
+                                                onRefreshOptions = { viewModel.refreshOptions(param) },
+                                                onToggleFixedSeed = { viewModel.toggleFixedSeed(param) }
+                                            )
+                                        }
                                     }
                                 }
-                            }
+                        }
                     }
+                }
+
+                if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isEmpty()) {
+                    Text(
+                        text = "No matching parameters found. The schema may not belong to this workflow.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                if (uiState.errorMessage != null) {
+                    Text(
+                        text = uiState.errorMessage ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
-            if (uiState.hasWorkflow && uiState.hasSchema && uiState.parameters.isEmpty()) {
-                Text(
-                    text = "No matching parameters found. The schema may not belong to this workflow.",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            if (uiState.errorMessage != null) {
-                Text(
-                    text = uiState.errorMessage ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            Text(
+                text = "MIT License",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .align(Alignment.CenterHorizontally)
+            )
         }
     }
 
@@ -470,41 +491,34 @@ private fun ParameterEditor(
             }
             is FieldType.UploadType -> {
                 val type = param.type
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Multi-input",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Switch(
-                            checked = multiInputEnabled,
-                            onCheckedChange = { onToggleMultiInput() }
+                val toggleIcon = @Composable {
+                    IconButton(onClick = onToggleMultiInput) {
+                        Icon(
+                            imageVector = if (multiInputEnabled) FluentuiSystemIconsFormMultiple else FluentuiSystemIconsForm,
+                            contentDescription = if (multiInputEnabled) "Multiple inputs" else "Single input"
                         )
                     }
-
-                    if (multiInputEnabled) {
-                        MultiUploadFieldEditor(
-                            label = label,
-                            mimeType = type.mimeType,
-                            selectedUris = multiInputUris,
-                            onUrisSelected = onMultiUrisSelected,
-                            onRemoveUri = onRemoveMultiUri,
-                            onClear = onClearMultiUris,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        UploadFieldEditor(
-                            label = label,
-                            mimeType = type.mimeType,
-                            selectedUri = pendingUploadUri,
-                            onUriSelected = onUploadUriSelected,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+                }
+                if (multiInputEnabled) {
+                    MultiUploadFieldEditor(
+                        label = label,
+                        mimeType = type.mimeType,
+                        selectedUris = multiInputUris,
+                        onUrisSelected = onMultiUrisSelected,
+                        onRemoveUri = onRemoveMultiUri,
+                        onClear = onClearMultiUris,
+                        modifier = Modifier.weight(1f),
+                        headerAction = toggleIcon
+                    )
+                } else {
+                    UploadFieldEditor(
+                        label = label,
+                        mimeType = type.mimeType,
+                        selectedUri = pendingUploadUri,
+                        onUriSelected = onUploadUriSelected,
+                        modifier = Modifier.weight(1f),
+                        headerAction = toggleIcon
+                    )
                 }
             }
             is FieldType.OptionType -> {

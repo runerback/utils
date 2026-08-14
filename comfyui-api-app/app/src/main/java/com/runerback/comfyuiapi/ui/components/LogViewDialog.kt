@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.runerback.comfyuiapi.ui.icons.FluentuiSystemIconsCopy
 import kotlinx.coroutines.delay
 
 @Composable
@@ -101,6 +102,11 @@ fun LogViewDialog(
                         },
                         enabled = logs.isNotEmpty(),
                     ) {
+                        Icon(
+                            imageVector = FluentuiSystemIconsCopy,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
                         Text(if (copied) "Copied!" else "Copy")
                     }
                     Button(

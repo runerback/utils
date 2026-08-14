@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.filled.Refresh
+import com.runerback.comfyuiapi.ui.icons.FluentuiSystemIconsPin
+import com.runerback.comfyuiapi.ui.icons.FluentuiSystemIconsPinOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -120,7 +120,7 @@ fun SeedFieldEditor(
             modifier = Modifier.padding(start = 8.dp)
         ) {
             Icon(
-                imageVector = if (fixed) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                imageVector = if (fixed) FluentuiSystemIconsPin else FluentuiSystemIconsPinOff,
                 contentDescription = if (fixed) "Fixed seed" else "Random seed"
             )
         }

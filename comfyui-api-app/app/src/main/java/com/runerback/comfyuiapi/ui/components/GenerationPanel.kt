@@ -13,10 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import com.runerback.comfyuiapi.data.model.GenerationStatus
 import com.runerback.comfyuiapi.data.model.QueueState
 import com.runerback.comfyuiapi.data.model.TaskStatus
+import com.runerback.comfyuiapi.ui.icons.FluentuiSystemIconsDismissSquare
+import com.runerback.comfyuiapi.ui.icons.PhosphorQueue
 
 @Composable
 fun GenerationPanel(
@@ -93,7 +93,7 @@ fun GenerationPanel(
                         .size(48.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.MoreVert,
+                        imageVector = PhosphorQueue,
                         contentDescription = "Queue options"
                     )
                 }
@@ -108,7 +108,7 @@ fun GenerationPanel(
                             .size(48.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Close,
+                            imageVector = FluentuiSystemIconsDismissSquare,
                             contentDescription = "Cancel",
                             tint = MaterialTheme.colorScheme.error
                         )
