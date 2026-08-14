@@ -1,19 +1,22 @@
 package com.runerback.files.data.datasource
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.runerback.files.data.model.FileSource
+import com.runerback.files.data.model.TabConfig
+import com.runerback.files.ui.components.LogBuffer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,63 +30,96 @@ class SettingsDataSource @Inject constructor(
 
     private val dataStore = context.dataStore
 
-    val serverUrl: Flow<String> = dataStore.data.map { prefs ->
-        prefs[SERVER_URL] ?: DEFAULT_URL
-    }
-
-    val clientId: Flow<String> = dataStore.data.map { prefs ->
-        prefs[CLIENT_ID] ?: UUID.randomUUID().toString()
-    }
-
-    val serverUrlHistory: Flow<List<String>> = dataStore.data.map { prefs ->
-        prefs[SERVER_URL_HISTORY]?.let { json.decodeFromString(it) } ?: emptyList()
-    }
-
-    val generationTimeoutMs: Flow<Long> = dataStore.data.map { prefs ->
-        prefs[GENERATION_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS
-    }
-
-    suspend fun setServerUrl(url: String) {
-        dataStore.edit { prefs ->
-            prefs[SERVER_URL] = url
-        }
-    }
-
-    suspend fun addServerUrlToHistory(url: String) {
-        if (url.isBlank()) return
-        val current = serverUrlHistory.first().toMutableList()
-        current.remove(url)
-        current.add(0, url)
-        dataStore.edit { prefs ->
-            prefs[SERVER_URL_HISTORY] = json.encodeToString(current.take(MAX_HISTORY))
-        }
-    }
-
-    suspend fun setGenerationTimeoutMs(ms: Long) {
-        dataStore.edit { prefs ->
-            prefs[GENERATION_TIMEOUT_MS] = ms
-        }
-    }
-
-    suspend fun ensureClientId(): String {
-        var existing: String? = null
-        dataStore.edit { prefs ->
-            existing = prefs[CLIENT_ID]
-            if (existing == null) {
-                existing = UUID.randomUUID().toString()
-                prefs[CLIENT_ID] = existing!!
+    val tabs: Flow<List<TabConfig>> = dataStore.data.map { prefs ->
+        val saved = prefs[TABS]
+        if (saved.isNullOrBlank()) {
+            defaultTabs()
+        } else {
+            try {
+                json.decodeFromString(saved)
+            } catch (e: Exception) {
+                LogBuffer.add("SettingsDataSource.tabs: failed to decode tabs: ${e.message}")
+                defaultTabs()
             }
         }
-        return existing!!
+    }
+
+    suspend fun saveTabs(tabs: List<TabConfig>) {
+        try {
+            tabs.filter { it.source is FileSource.Local }.forEach { tab ->
+                val rootUri = (tab.source as FileSource.Local).rootUri
+                if (!rootUri.toString().isNullOrEmpty()) {
+                    takePersistablePermission(rootUri)
+                }
+            }
+            dataStore.edit { prefs ->
+                prefs[TABS] = json.encodeToString(tabs)
+            }
+        } catch (e: Exception) {
+            LogBuffer.add("SettingsDataSource.saveTabs: ${e.stackTraceToString()}")
+        }
+    }
+
+    suspend fun addTab(tab: TabConfig) {
+        try {
+            val current = tabs.first() + tab
+            saveTabs(current)
+        } catch (e: Exception) {
+            LogBuffer.add("SettingsDataSource.addTab: ${e.stackTraceToString()}")
+        }
+    }
+
+    suspend fun removeTab(id: String) {
+        try {
+            val current = tabs.first().filter { it.id != id }
+            saveTabs(current)
+        } catch (e: Exception) {
+            LogBuffer.add("SettingsDataSource.removeTab: ${e.stackTraceToString()}")
+        }
+    }
+
+    suspend fun renameTab(id: String, name: String) {
+        try {
+            val current = tabs.first().map { tab ->
+                if (tab.id == id) tab.copy(name = name) else tab
+            }
+            saveTabs(current)
+        } catch (e: Exception) {
+            LogBuffer.add("SettingsDataSource.renameTab: ${e.stackTraceToString()}")
+        }
+    }
+
+    private fun takePersistablePermission(uri: Uri) {
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            LogBuffer.add("SettingsDataSource.takePersistableUriPermission: $uri read+write")
+        } catch (e: SecurityException) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                LogBuffer.add("SettingsDataSource.takePersistableUriPermission: $uri read-only")
+            } catch (e2: SecurityException) {
+                LogBuffer.add("SettingsDataSource.takePersistableUriPermission: failed for $uri: ${e2.message}")
+            }
+        }
+    }
+
+    private fun defaultTabs(): List<TabConfig> {
+        return listOf(
+            TabConfig(
+                id = java.util.UUID.randomUUID().toString(),
+                name = "Local",
+                source = FileSource.Local(Uri.EMPTY)
+            )
+        )
     }
 
     companion object {
-        private val SERVER_URL = stringPreferencesKey("server_url")
-        private val CLIENT_ID = stringPreferencesKey("client_id")
-        private val SERVER_URL_HISTORY = stringPreferencesKey("server_url_history")
-        private val GENERATION_TIMEOUT_MS = longPreferencesKey("generation_timeout_ms")
-        private const val DEFAULT_URL = "http://10.0.2.2:8188"
-        private const val MAX_HISTORY = 10
-        private const val DEFAULT_TIMEOUT_MS = 30000L
+        private val TABS = stringPreferencesKey("tabs")
     }
 }
