@@ -2,15 +2,19 @@ package com.runerback.files.ui
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import com.runerback.files.data.datasource.SettingsDataSource
-import com.runerback.files.data.model.FileNode
 import com.runerback.files.data.model.FileSource
 import com.runerback.files.data.model.TabConfig
 import com.runerback.files.data.repository.FileRepositoryFactory
 import com.runerback.files.data.repository.SMBFileRepository
 import com.runerback.files.data.settings.AppSettings
 import com.runerback.files.ui.components.LogBuffer
+import com.runerback.files.ui.tabs.LocalTabContentViewModel
+import com.runerback.files.ui.tabs.SmbTabContentViewModel
+import com.runerback.files.ui.tabs.TabContentViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,25 +45,13 @@ class FilesViewModel @Inject constructor(
     private val _selectedTabIndex = MutableStateFlow(0)
     val selectedTabIndex: StateFlow<Int> = _selectedTabIndex.asStateFlow()
 
-    private val _trees = MutableStateFlow(mapOf<String, List<FileNode>>())
-    val trees: StateFlow<Map<String, List<FileNode>>> = _trees.asStateFlow()
-
-    private val _selectedNodes = MutableStateFlow(mapOf<String, FileNode?>())
-
-    private val _multiSelectActive = MutableStateFlow(mapOf<String, Boolean>())
-    val multiSelectActive: StateFlow<Map<String, Boolean>> = _multiSelectActive.asStateFlow()
-
-    private val _selectedNodeIds = MutableStateFlow(mapOf<String, Set<String>>())
-    val selectedNodeIds: StateFlow<Map<String, Set<String>>> = _selectedNodeIds.asStateFlow()
-
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
-
     private val _smbDialogState = MutableStateFlow<SmbDialogState>(SmbDialogState.Hidden)
     val smbDialogState: StateFlow<SmbDialogState> = _smbDialogState.asStateFlow()
 
     private val _settingsDialogVisible = MutableStateFlow(false)
     val settingsDialogVisible: StateFlow<Boolean> = _settingsDialogVisible.asStateFlow()
+
+    private val tabStores = mutableMapOf<String, ViewModelStore>()
 
     init {
         viewModelScope.launch {
@@ -68,11 +60,10 @@ class FilesViewModel @Inject constructor(
                     val safeIndex = index.coerceIn(0, (tabs.value.size - 1).coerceAtLeast(0))
                     if (safeIndex != _selectedTabIndex.value) {
                         _selectedTabIndex.value = safeIndex
-                        ensureActiveTabLoaded()
                     }
                 }
             } catch (e: Exception) {
-                logError("FilesViewModel.init selectedTabIndex", e)
+                LogBuffer.add("FilesViewModel.init selectedTabIndex: ${e.stackTraceToString()}")
             }
         }
         viewModelScope.launch {
@@ -82,10 +73,9 @@ class FilesViewModel @Inject constructor(
                     if (_selectedTabIndex.value >= tabs.size) {
                         _selectedTabIndex.value = (tabs.size - 1).coerceAtLeast(0)
                     }
-                    ensureActiveTabLoaded()
                 }
             } catch (e: Exception) {
-                logError("FilesViewModel.init", e)
+                LogBuffer.add("FilesViewModel.init: ${e.stackTraceToString()}")
             }
         }
     }
@@ -97,9 +87,8 @@ class FilesViewModel @Inject constructor(
             viewModelScope.launch {
                 settingsDataSource.saveSelectedTabIndex(index)
             }
-            ensureActiveTabLoaded()
         } catch (e: Exception) {
-            logError("FilesViewModel.selectTab", e)
+            LogBuffer.add("FilesViewModel.selectTab: ${e.stackTraceToString()}")
         }
     }
 
@@ -118,7 +107,7 @@ class FilesViewModel @Inject constructor(
                 settingsDataSource.saveSelectedTabIndex(updatedTabs.lastIndex)
             }
         } catch (e: Exception) {
-            logError("FilesViewModel.addLocalTab", e)
+            LogBuffer.add("FilesViewModel.addLocalTab: ${e.stackTraceToString()}")
         }
     }
 
@@ -130,7 +119,7 @@ class FilesViewModel @Inject constructor(
         try {
             _smbDialogState.value = SmbDialogState.Add
         } catch (e: Exception) {
-            logError("FilesViewModel.openAddSmbDialog", e)
+            LogBuffer.add("FilesViewModel.openAddSmbDialog: ${e.stackTraceToString()}")
         }
     }
 
@@ -140,7 +129,7 @@ class FilesViewModel @Inject constructor(
             val source = tab.source as? FileSource.Smb ?: return
             _smbDialogState.value = SmbDialogState.Edit(tabId, source)
         } catch (e: Exception) {
-            logError("FilesViewModel.openEditSmbDialog", e)
+            LogBuffer.add("FilesViewModel.openEditSmbDialog: ${e.stackTraceToString()}")
         }
     }
 
@@ -148,7 +137,7 @@ class FilesViewModel @Inject constructor(
         try {
             _smbDialogState.value = SmbDialogState.Hidden
         } catch (e: Exception) {
-            logError("FilesViewModel.dismissSmbDialog", e)
+            LogBuffer.add("FilesViewModel.dismissSmbDialog: ${e.stackTraceToString()}")
         }
     }
 
@@ -156,7 +145,7 @@ class FilesViewModel @Inject constructor(
         try {
             _settingsDialogVisible.value = true
         } catch (e: Exception) {
-            logError("FilesViewModel.openSettingsDialog", e)
+            LogBuffer.add("FilesViewModel.openSettingsDialog: ${e.stackTraceToString()}")
         }
     }
 
@@ -164,7 +153,7 @@ class FilesViewModel @Inject constructor(
         try {
             _settingsDialogVisible.value = false
         } catch (e: Exception) {
-            logError("FilesViewModel.dismissSettingsDialog", e)
+            LogBuffer.add("FilesViewModel.dismissSettingsDialog: ${e.stackTraceToString()}")
         }
     }
 
@@ -172,7 +161,7 @@ class FilesViewModel @Inject constructor(
         try {
             AppSettings.saveSmbTimeoutMillis(timeoutMillis)
         } catch (e: Exception) {
-            logError("FilesViewModel.saveSmbTimeoutMillis", e)
+            LogBuffer.add("FilesViewModel.saveSmbTimeoutMillis: ${e.stackTraceToString()}")
         }
     }
 
@@ -189,8 +178,7 @@ class FilesViewModel @Inject constructor(
                             }
                         }
                         settingsDataSource.saveTabs(updatedTabs)
-                        _trees.value = _trees.value - state.tabId
-                        loadTree(state.tabId)
+                        clearTabStore(state.tabId)
                     }
                     SmbDialogState.Add -> {
                         val newTab = TabConfig(
@@ -203,13 +191,12 @@ class FilesViewModel @Inject constructor(
                         _selectedTabIndex.value = updatedTabs.lastIndex
                         settingsDataSource.saveTabs(updatedTabs)
                         settingsDataSource.saveSelectedTabIndex(updatedTabs.lastIndex)
-                        loadTree(newTab.id)
                     }
                     SmbDialogState.Hidden -> { /* no-op */ }
                 }
                 dismissSmbDialog()
             } catch (e: Exception) {
-                logError("FilesViewModel.saveSmbServer", e)
+                LogBuffer.add("FilesViewModel.saveSmbServer: ${e.stackTraceToString()}")
             }
         }
     }
@@ -236,16 +223,13 @@ class FilesViewModel @Inject constructor(
                 _selectedTabIndex.value
             }
             _selectedTabIndex.value = newIndex
+            clearTabStore(tab.id)
             viewModelScope.launch {
                 settingsDataSource.saveTabs(updatedTabs)
                 settingsDataSource.saveSelectedTabIndex(newIndex)
-                _trees.value = _trees.value - tab.id
-                _selectedNodes.value = _selectedNodes.value - tab.id
-                _multiSelectActive.value = _multiSelectActive.value - tab.id
-                _selectedNodeIds.value = _selectedNodeIds.value - tab.id
             }
         } catch (e: Exception) {
-            logError("FilesViewModel.removeTab", e)
+            LogBuffer.add("FilesViewModel.removeTab: ${e.stackTraceToString()}")
         }
     }
 
@@ -256,7 +240,7 @@ class FilesViewModel @Inject constructor(
                 settingsDataSource.renameTab(tab.id, name)
             }
         } catch (e: Exception) {
-            logError("FilesViewModel.renameTab", e)
+            LogBuffer.add("FilesViewModel.renameTab: ${e.stackTraceToString()}")
         }
     }
 
@@ -269,187 +253,42 @@ class FilesViewModel @Inject constructor(
                 }
                 settingsDataSource.saveTabs(updatedTabs)
                 _tabs.value = updatedTabs
-                loadTree(tabId)
+                clearTabStore(tabId)
             } catch (e: Exception) {
-                logError("FilesViewModel.setLocalRoot", e)
+                LogBuffer.add("FilesViewModel.setLocalRoot: ${e.stackTraceToString()}")
             }
         }
     }
 
-    fun toggleNode(tabId: String, node: FileNode) {
-        if (!node.isDirectory) return
-        viewModelScope.launch {
-            try {
-                val currentTree = _trees.value[tabId] ?: return@launch
-                if (node.children == null) {
-                    updateTree(tabId, currentTree, node.id) { it.copy(isLoading = true) }
-                    loadChildren(tabId, node, _trees.value[tabId] ?: currentTree)
-                } else {
-                    updateTree(tabId, currentTree, node.id) { it.copy(isExpanded = !it.isExpanded) }
-                }
-            } catch (e: Exception) {
-                logError("FilesViewModel.toggleNode", e)
-            }
-        }
+    fun getTabViewModel(tabId: String): TabContentViewModel {
+        val store = tabStores.getOrPut(tabId) { ViewModelStore() }
+        val factory = TabContentViewModelFactory(tabId, tabs.value, repositoryFactory)
+        return ViewModelProvider(store, factory)[TabContentViewModel::class.java]
     }
 
-    fun selectNode(tabId: String, node: FileNode) {
-        try {
-            _selectedNodes.value = _selectedNodes.value + (tabId to node)
-            if (node.isDirectory) {
-                toggleNode(tabId, node)
-            }
-        } catch (e: Exception) {
-            logError("FilesViewModel.selectNode", e)
-        }
+    private fun clearTabStore(tabId: String) {
+        tabStores.remove(tabId)?.clear()
     }
 
-    fun toggleMultiSelect(tabId: String) {
-        try {
-            val current = _multiSelectActive.value[tabId] ?: false
-            _multiSelectActive.value = _multiSelectActive.value + (tabId to !current)
-        } catch (e: Exception) {
-            logError("FilesViewModel.toggleMultiSelect", e)
-        }
+    override fun onCleared() {
+        tabStores.values.forEach { it.clear() }
+        tabStores.clear()
+        super.onCleared()
     }
 
-    fun toggleNodeSelection(tabId: String, node: FileNode) {
-        try {
-            if (node.isDirectory) return
-            val current = _selectedNodeIds.value[tabId] ?: emptySet()
-            val updated = if (current.contains(node.id)) current - node.id else current + node.id
-            _selectedNodeIds.value = _selectedNodeIds.value + (tabId to updated)
-        } catch (e: Exception) {
-            logError("FilesViewModel.toggleNodeSelection", e)
-        }
-    }
-
-    fun isNodeSelected(tabId: String, nodeId: String): Boolean {
-        return _selectedNodeIds.value[tabId]?.contains(nodeId) ?: false
-    }
-
-    fun clearError() {
-        _error.value = null
-    }
-
-    private fun ensureActiveTabLoaded() {
-        try {
-            val tab = tabs.value.getOrNull(selectedTabIndex.value) ?: return
-            if (_trees.value.containsKey(tab.id)) return
-            loadTree(tab.id)
-        } catch (e: Exception) {
-            logError("FilesViewModel.ensureActiveTabLoaded", e)
-        }
-    }
-
-    private fun loadTree(tabId: String) {
-        viewModelScope.launch {
-            try {
-                withTimeout(AppSettings.smbTimeoutMillis.value) {
-                    val tab = tabs.value.find { it.id == tabId } ?: return@withTimeout
-                    when (val source = tab.source) {
-                        is FileSource.Local -> {
-                            if (source.rootUri.toString().isEmpty()) return@withTimeout
-                            val repository = repositoryFactory.create(source)
-                            repository.loadRoot().onSuccess { root ->
-                                if (root.isDirectory) {
-                                    repository.listChildren(root.id).onSuccess { children ->
-                                        _trees.value = _trees.value + (tabId to children)
-                                    }.onFailure { e ->
-                                        _trees.value = _trees.value + (tabId to listOf(root))
-                                        LogBuffer.add("FilesViewModel.loadTree children: ${e.message}")
-                                        _error.value = "Failed to load root children: ${e.message}"
-                                    }
-                                } else {
-                                    _trees.value = _trees.value + (tabId to listOf(root))
-                                }
-                            }.onFailure { e ->
-                                _trees.value = _trees.value + (tabId to emptyList())
-                                LogBuffer.add("FilesViewModel.loadTree: ${e.message}")
-                                _error.value = "Failed to load local root: ${e.message}"
-                            }
-                        }
-                        is FileSource.Smb -> {
-                            val repository = repositoryFactory.create(source)
-                            repository.loadRoot().onSuccess { root ->
-                                if (root.isDirectory) {
-                                    repository.listChildren(root.id).onSuccess { children ->
-                                        _trees.value = _trees.value + (tabId to children)
-                                    }.onFailure { e ->
-                                        _trees.value = _trees.value + (tabId to listOf(root))
-                                        LogBuffer.add("FilesViewModel.loadTree SMB children: ${e.message}")
-                                        _error.value = "Failed to load SMB root children: ${e.message}"
-                                    }
-                                } else {
-                                    _trees.value = _trees.value + (tabId to listOf(root))
-                                }
-                            }.onFailure { e ->
-                                _trees.value = _trees.value + (tabId to emptyList())
-                                LogBuffer.add("FilesViewModel.loadTree SMB: ${e.message}")
-                                _error.value = "Failed to load SMB root: ${e.message}"
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                _trees.value = _trees.value + (tabId to emptyList())
-                logError("FilesViewModel.loadTree", e)
-            }
-        }
-    }
-
-    private suspend fun loadChildren(tabId: String, parent: FileNode, currentTree: List<FileNode>) {
-        try {
-            withTimeout(AppSettings.smbTimeoutMillis.value) {
-                val tab = tabs.value.find { it.id == tabId } ?: return@withTimeout
-                val repository = repositoryFactory.create(tab.source)
-                repository.listChildren(parent.id).onSuccess { children ->
-                    updateTree(tabId, currentTree, parent.id) {
-                        it.copy(isLoading = false, isExpanded = true, children = children)
-                    }
-                }.onFailure { e ->
-                    updateTree(tabId, currentTree, parent.id) { it.copy(isLoading = false) }
-                    LogBuffer.add("FilesViewModel.loadChildren: ${e.message}")
-                    _error.value = "Failed to load children: ${e.message}"
-                }
-            }
-        } catch (e: Exception) {
-            updateTree(tabId, _trees.value[tabId] ?: currentTree, parent.id) { it.copy(isLoading = false) }
-            logError("FilesViewModel.loadChildren", e)
-        }
-    }
-
-    private fun logError(tag: String, e: Throwable) {
-        val message = "$tag: ${e.message}"
-        LogBuffer.add("$tag: ${e.stackTraceToString()}")
-        _error.value = message
-    }
-
-    private fun updateTree(
-        tabId: String,
-        currentTree: List<FileNode>,
-        nodeId: String,
-        transform: (FileNode) -> FileNode
-    ) {
-        try {
-            val updatedTree = updateNode(currentTree, nodeId, transform)
-            _trees.value = _trees.value + (tabId to updatedTree)
-        } catch (e: Exception) {
-            logError("FilesViewModel.updateTree", e)
-        }
-    }
-
-    private fun updateNode(
-        nodes: List<FileNode>,
-        nodeId: String,
-        transform: (FileNode) -> FileNode
-    ): List<FileNode> {
-        return nodes.map { node ->
-            when {
-                node.id == nodeId -> transform(node)
-                node.children != null -> node.copy(children = updateNode(node.children, nodeId, transform))
-                else -> node
-            }
+    private class TabContentViewModelFactory(
+        private val tabId: String,
+        private val tabs: List<TabConfig>,
+        private val repositoryFactory: FileRepositoryFactory
+    ) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            val tab = tabs.find { it.id == tabId }
+                ?: throw IllegalArgumentException("Tab not found: $tabId")
+            @Suppress("UNCHECKED_CAST")
+            return when (val source = tab.source) {
+                is FileSource.Local -> LocalTabContentViewModel(source, repositoryFactory)
+                is FileSource.Smb -> SmbTabContentViewModel(source, repositoryFactory)
+            } as T
         }
     }
 }
