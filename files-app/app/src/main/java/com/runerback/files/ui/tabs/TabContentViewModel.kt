@@ -43,6 +43,9 @@ abstract class TabContentViewModel(
     private val _newTextDialogVisible = MutableStateFlow(false)
     val newTextDialogVisible: StateFlow<Boolean> = _newTextDialogVisible.asStateFlow()
 
+    private val _newFolderDialogVisible = MutableStateFlow(false)
+    val newFolderDialogVisible: StateFlow<Boolean> = _newFolderDialogVisible.asStateFlow()
+
     init {
         _isLoading.value = initialLoading
         if (initialLoading) {
@@ -159,6 +162,14 @@ abstract class TabContentViewModel(
         _newTextDialogVisible.value = false
     }
 
+    fun openNewFolderDialog() {
+        _newFolderDialogVisible.value = true
+    }
+
+    fun dismissNewFolderDialog() {
+        _newFolderDialogVisible.value = false
+    }
+
     fun createTextFile(name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty() || trimmed == ".txt") {
@@ -184,6 +195,35 @@ abstract class TabContentViewModel(
             } catch (e: Exception) {
                 LogBuffer.add("TabContentViewModel.createTextFile: ${e.message}")
                 _error.value = "Failed to create file: ${e.message}"
+            }
+        }
+    }
+
+    fun createFolder(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) {
+            _error.value = "Please enter a folder name"
+            return
+        }
+        val parentId = _currentFolderId.value ?: _rootId
+        if (parentId == null) {
+            _error.value = "No folder selected"
+            return
+        }
+        _newFolderDialogVisible.value = false
+        viewModelScope.launch {
+            try {
+                withTimeout(AppSettings.smbTimeoutMillis.value) {
+                    repository.createFolder(parentId, trimmed).onSuccess {
+                        refreshCurrentFolder(parentId)
+                    }.onFailure { e ->
+                        LogBuffer.add("TabContentViewModel.createFolder: ${e.message}")
+                        _error.value = "Failed to create folder: ${e.message}"
+                    }
+                }
+            } catch (e: Exception) {
+                LogBuffer.add("TabContentViewModel.createFolder: ${e.message}")
+                _error.value = "Failed to create folder: ${e.message}"
             }
         }
     }

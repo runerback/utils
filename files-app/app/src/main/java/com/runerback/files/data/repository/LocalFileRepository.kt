@@ -96,6 +96,30 @@ class LocalFileRepository(
         }
     }
 
+    override suspend fun createFolder(parentId: String, name: String): Result<FileNode> {
+        LogBuffer.add("LocalFileRepository.createFolder: parent=$parentId name=$name")
+        return runCatching {
+            if (isDirectFileAccess) {
+                val parentFile = File(parentId)
+                val folder = File(parentFile, name)
+                if (!folder.mkdir()) {
+                    throw IOException("Failed to create folder: $name")
+                }
+                fileToNode(folder)
+            } else {
+                val parentUri = Uri.parse(parentId)
+                val createdUri = DocumentsContract.createDocument(
+                    context.contentResolver,
+                    parentUri,
+                    DocumentsContract.Document.MIME_TYPE_DIR,
+                    name
+                ) ?: throw IOException("Failed to create folder: $name")
+                queryDocument(createdUri)
+                    ?: throw IOException("Cannot query created folder: $createdUri")
+            }
+        }
+    }
+
     private fun fileToNode(file: File): FileNode {
         val displayName = when {
             file.absolutePath == "/storage/emulated/0" -> "Internal storage"

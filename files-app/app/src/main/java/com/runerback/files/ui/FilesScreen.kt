@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircleOutline
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
@@ -51,6 +52,7 @@ import com.runerback.files.BuildConfig
 import com.runerback.files.data.model.FileSource
 import com.runerback.files.data.settings.AppSettings
 import com.runerback.files.ui.components.LogViewDialog
+import com.runerback.files.ui.components.NewFolderDialog
 import com.runerback.files.ui.components.NewTextFileDialog
 import com.runerback.files.ui.components.SettingsDialog
 import com.runerback.files.ui.components.SmbServerDialog
@@ -94,6 +96,12 @@ fun FilesScreen(
 
     val newTextDialogVisible by if (contentViewModel != null) {
         contentViewModel.newTextDialogVisible.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf(false) }
+    }
+
+    val newFolderDialogVisible by if (contentViewModel != null) {
+        contentViewModel.newFolderDialogVisible.collectAsStateWithLifecycle()
     } else {
         remember { mutableStateOf(false) }
     }
@@ -262,6 +270,15 @@ fun FilesScreen(
                     )
                 }
                 IconButton(
+                    onClick = { contentViewModel?.openNewFolderDialog() },
+                    enabled = !isMultiSelectActive
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CreateNewFolder,
+                        contentDescription = "New Folder"
+                    )
+                }
+                IconButton(
                     onClick = { contentViewModel?.openNewTextDialog() },
                     enabled = !isMultiSelectActive
                 ) {
@@ -346,6 +363,13 @@ fun FilesScreen(
         NewTextFileDialog(
             onSave = { contentViewModel?.createTextFile(it) },
             onDismiss = { contentViewModel?.dismissNewTextDialog() },
+        )
+    }
+
+    if (newFolderDialogVisible) {
+        NewFolderDialog(
+            onSave = { contentViewModel?.createFolder(it) },
+            onDismiss = { contentViewModel?.dismissNewFolderDialog() },
         )
     }
 }
