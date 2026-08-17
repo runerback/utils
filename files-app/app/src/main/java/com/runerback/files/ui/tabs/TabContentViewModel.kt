@@ -38,6 +38,11 @@ abstract class TabContentViewModel(
     private val _currentFolderId = MutableStateFlow<String?>(null)
     val currentFolderId: StateFlow<String?> = _currentFolderId.asStateFlow()
 
+    private var _rootId: String? = null
+
+    private val _newTextDialogVisible = MutableStateFlow(false)
+    val newTextDialogVisible: StateFlow<Boolean> = _newTextDialogVisible.asStateFlow()
+
     init {
         _isLoading.value = initialLoading
         if (initialLoading) {
@@ -52,6 +57,7 @@ abstract class TabContentViewModel(
             try {
                 withTimeout(AppSettings.smbTimeoutMillis.value) {
                     repository.loadRoot().onSuccess { root ->
+                        _rootId = root.id
                         if (root.isDirectory) {
                             repository.listChildren(root.id).onSuccess { children ->
                                 _tree.value = children
@@ -143,6 +149,64 @@ abstract class TabContentViewModel(
 
     fun resetCurrentFolder() {
         _currentFolderId.value = null
+    }
+
+    fun openNewTextDialog() {
+        _newTextDialogVisible.value = true
+    }
+
+    fun dismissNewTextDialog() {
+        _newTextDialogVisible.value = false
+    }
+
+    fun createTextFile(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || trimmed == ".txt") {
+            _error.value = "Please enter a file name"
+            return
+        }
+        val parentId = _currentFolderId.value ?: _rootId
+        if (parentId == null) {
+            _error.value = "No folder selected"
+            return
+        }
+        _newTextDialogVisible.value = false
+        viewModelScope.launch {
+            try {
+                withTimeout(AppSettings.smbTimeoutMillis.value) {
+                    repository.createFile(parentId, trimmed).onSuccess {
+                        refreshCurrentFolder(parentId)
+                    }.onFailure { e ->
+                        LogBuffer.add("TabContentViewModel.createTextFile: ${e.message}")
+                        _error.value = "Failed to create file: ${e.message}"
+                    }
+                }
+            } catch (e: Exception) {
+                LogBuffer.add("TabContentViewModel.createTextFile: ${e.message}")
+                _error.value = "Failed to create file: ${e.message}"
+            }
+        }
+    }
+
+    private fun refreshCurrentFolder(parentId: String) {
+        if (parentId == _rootId) {
+            loadRoot()
+            return
+        }
+        val currentTree = _tree.value
+        findNode(currentTree, parentId)?.let { parent ->
+            loadChildren(parent, currentTree)
+        }
+    }
+
+    private fun findNode(nodes: List<FileNode>, nodeId: String): FileNode? {
+        for (node in nodes) {
+            if (node.id == nodeId) return node
+            node.children?.let { children ->
+                findNode(children, nodeId)?.let { return it }
+            }
+        }
+        return null
     }
 
     private fun updateNode(

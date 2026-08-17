@@ -51,6 +51,7 @@ import com.runerback.files.BuildConfig
 import com.runerback.files.data.model.FileSource
 import com.runerback.files.data.settings.AppSettings
 import com.runerback.files.ui.components.LogViewDialog
+import com.runerback.files.ui.components.NewTextFileDialog
 import com.runerback.files.ui.components.SettingsDialog
 import com.runerback.files.ui.components.SmbServerDialog
 import com.runerback.files.ui.icons.FluentuiSystemIconsCopy
@@ -87,6 +88,12 @@ fun FilesScreen(
 
     val isMultiSelectActive by if (contentViewModel != null) {
         contentViewModel.multiSelectActive.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf(false) }
+    }
+
+    val newTextDialogVisible by if (contentViewModel != null) {
+        contentViewModel.newTextDialogVisible.collectAsStateWithLifecycle()
     } else {
         remember { mutableStateOf(false) }
     }
@@ -255,7 +262,7 @@ fun FilesScreen(
                     )
                 }
                 IconButton(
-                    onClick = { /* TODO: new text file */ },
+                    onClick = { contentViewModel?.openNewTextDialog() },
                     enabled = !isMultiSelectActive
                 ) {
                     Icon(
@@ -332,6 +339,13 @@ fun FilesScreen(
             currentSmbTimeoutMillis = smbTimeoutMillis,
             onSave = { viewModel.saveSmbTimeoutMillis(it) },
             onDismiss = { viewModel.dismissSettingsDialog() },
+        )
+    }
+
+    if (newTextDialogVisible) {
+        NewTextFileDialog(
+            onSave = { contentViewModel?.createTextFile(it) },
+            onDismiss = { contentViewModel?.dismissNewTextDialog() },
         )
     }
 }

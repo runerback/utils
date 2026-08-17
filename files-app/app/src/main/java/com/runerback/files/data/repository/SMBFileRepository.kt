@@ -64,6 +64,15 @@ class SMBFileRepository(
         }
     }
 
+    override suspend fun createFile(parentId: String, name: String): Result<FileNode> = withContext(Dispatchers.IO) {
+        runCatching {
+            val parentPath = parentId.trimEnd('/')
+            val file = SmbFile("$parentPath/$name", context)
+            file.createNewFile()
+            smbFileToNode(file, isRoot = false)
+        }
+    }
+
     private fun buildRootUrl(): String {
         val shareName = source.share.ifBlank { "share" }
         val path = source.rootPath.trim('/')
