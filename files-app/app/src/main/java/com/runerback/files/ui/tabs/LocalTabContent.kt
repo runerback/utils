@@ -48,6 +48,7 @@ fun LocalTabContent(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val multiSelectActive by viewModel.multiSelectActive.collectAsStateWithLifecycle()
     val selectedNodeIds by viewModel.selectedNodeIds.collectAsStateWithLifecycle()
+    val currentFolderId by viewModel.currentFolderId.collectAsStateWithLifecycle()
 
     var hasFullStorageAccess by remember {
         mutableStateOf(checkFullStorageAccess(context))
@@ -122,6 +123,7 @@ fun LocalTabContent(
                         isLoading = isLoading,
                         selectionMode = multiSelectActive,
                         selectedIds = selectedNodeIds,
+                        currentFolderId = currentFolderId,
                         onToggle = { viewModel.toggleNode(it) },
                         onSelect = { viewModel.selectNode(it) },
                         onToggleSelection = { viewModel.toggleNodeSelection(it) },

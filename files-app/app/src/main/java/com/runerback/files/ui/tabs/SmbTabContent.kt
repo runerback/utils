@@ -21,6 +21,7 @@ fun SmbTabContent(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val multiSelectActive by viewModel.multiSelectActive.collectAsStateWithLifecycle()
     val selectedNodeIds by viewModel.selectedNodeIds.collectAsStateWithLifecycle()
+    val currentFolderId by viewModel.currentFolderId.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
         error?.let { message ->
@@ -37,6 +38,7 @@ fun SmbTabContent(
                 isLoading = isLoading,
                 selectionMode = multiSelectActive,
                 selectedIds = selectedNodeIds,
+                currentFolderId = currentFolderId,
                 onToggle = { viewModel.toggleNode(it) },
                 onSelect = { viewModel.selectNode(it) },
                 onToggleSelection = { viewModel.toggleNodeSelection(it) },

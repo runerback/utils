@@ -1,5 +1,6 @@
 package com.runerback.files.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ExpandLess
@@ -36,6 +38,7 @@ fun FileTree(
     isLoading: Boolean,
     selectionMode: Boolean,
     selectedIds: Set<String>,
+    currentFolderId: String?,
     onToggle: (FileNode) -> Unit,
     onSelect: (FileNode) -> Unit,
     onToggleSelection: (FileNode) -> Unit,
@@ -64,12 +67,14 @@ fun FileTree(
     }
 
     LazyColumn(modifier = modifier) {
-        items(flattened, key = { it.first.id }) { (node, depth) ->
+        items(flattened, key = { it.first.id }) { (node, depth, ancestorIds) ->
             FileTreeItem(
                 node = node,
                 depth = depth,
+                ancestorIds = ancestorIds,
                 selectionMode = selectionMode,
                 selectedIds = selectedIds,
+                currentFolderId = currentFolderId,
                 onToggle = onToggle,
                 onSelect = onSelect,
                 onToggleSelection = onToggleSelection
@@ -82,21 +87,45 @@ fun FileTree(
 private fun FileTreeItem(
     node: FileNode,
     depth: Int,
+    ancestorIds: List<String>,
     selectionMode: Boolean,
     selectedIds: Set<String>,
+    currentFolderId: String?,
     onToggle: (FileNode) -> Unit,
     onSelect: (FileNode) -> Unit,
     onToggleSelection: (FileNode) -> Unit
 ) {
     val startPadding = 8.dp + (depth * 16).dp
+    val isCurrentFolder = currentFolderId == node.id
+    val isInCurrentFolder = currentFolderId != null && ancestorIds.contains(currentFolderId)
+    val isHighlighted = isCurrentFolder || isInCurrentFolder
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onSelect(node) }
+            .background(
+                if (isHighlighted) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
+            )
             .padding(start = startPadding, end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (isCurrentFolder) {
+            Box(
+                modifier = Modifier
+                    .size(width = 3.dp, height = 20.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(1.5.dp)
+                    )
+            )
+            Spacer(modifier = Modifier.size(6.dp))
+        }
+
         if (selectionMode && !node.isDirectory) {
             Checkbox(
                 checked = selectedIds.contains(node.id),
@@ -152,12 +181,16 @@ private fun FileTreeItem(
     }
 }
 
-private fun flatten(nodes: List<FileNode>, depth: Int = 0): List<Pair<FileNode, Int>> {
+private fun flatten(
+    nodes: List<FileNode>,
+    depth: Int = 0,
+    ancestorIds: List<String> = emptyList()
+): List<Triple<FileNode, Int, List<String>>> {
     return buildList {
         for (node in nodes) {
-            add(node to depth)
+            add(Triple(node, depth, ancestorIds))
             if (node.isExpanded && node.children != null) {
-                addAll(flatten(node.children, depth + 1))
+                addAll(flatten(node.children, depth + 1, ancestorIds + node.id))
             }
         }
     }

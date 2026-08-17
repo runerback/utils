@@ -35,6 +35,9 @@ abstract class TabContentViewModel(
     private val _selectedNodeIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedNodeIds: StateFlow<Set<String>> = _selectedNodeIds.asStateFlow()
 
+    private val _currentFolderId = MutableStateFlow<String?>(null)
+    val currentFolderId: StateFlow<String?> = _currentFolderId.asStateFlow()
+
     init {
         _isLoading.value = initialLoading
         if (initialLoading) {
@@ -75,12 +78,14 @@ abstract class TabContentViewModel(
 
     fun selectNode(node: FileNode) {
         if (node.isDirectory) {
+            _currentFolderId.value = node.id
             toggleNode(node)
         }
     }
 
     fun toggleNode(node: FileNode) {
         if (!node.isDirectory) return
+        _currentFolderId.value = node.id
         viewModelScope.launch {
             val currentTree = _tree.value
             if (node.children == null) {
@@ -134,6 +139,10 @@ abstract class TabContentViewModel(
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun resetCurrentFolder() {
+        _currentFolderId.value = null
     }
 
     private fun updateNode(

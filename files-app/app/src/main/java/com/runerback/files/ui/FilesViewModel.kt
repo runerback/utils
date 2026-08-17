@@ -82,6 +82,9 @@ class FilesViewModel @Inject constructor(
 
     fun selectTab(index: Int) {
         try {
+            tabs.value.getOrNull(index)?.let { tab ->
+                getTabViewModel(tab.id).resetCurrentFolder()
+            }
             if (index == _selectedTabIndex.value) return
             _selectedTabIndex.value = index
             viewModelScope.launch {
