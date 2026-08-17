@@ -9,4 +9,5 @@ interface FileRepository {
     suspend fun openInputStream(id: String): Result<InputStream>
     suspend fun createFile(parentId: String, name: String): Result<FileNode>
     suspend fun createFolder(parentId: String, name: String): Result<FileNode>
+    suspend fun delete(id: String): Result<Unit>
 }

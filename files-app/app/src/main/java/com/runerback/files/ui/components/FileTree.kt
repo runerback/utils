@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -66,19 +67,35 @@ fun FileTree(
         return
     }
 
-    LazyColumn(modifier = modifier) {
-        items(flattened, key = { it.first.id }) { (node, depth, ancestorIds) ->
-            FileTreeItem(
-                node = node,
-                depth = depth,
-                ancestorIds = ancestorIds,
-                selectionMode = selectionMode,
-                selectedIds = selectedIds,
-                currentFolderId = currentFolderId,
-                onToggle = onToggle,
-                onSelect = onSelect,
-                onToggleSelection = onToggleSelection
-            )
+    Box(modifier = modifier) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(flattened, key = { it.first.id }) { (node, depth, ancestorIds) ->
+                FileTreeItem(
+                    node = node,
+                    depth = depth,
+                    ancestorIds = ancestorIds,
+                    selectionMode = selectionMode,
+                    selectedIds = selectedIds,
+                    currentFolderId = currentFolderId,
+                    onToggle = onToggle,
+                    onSelect = onSelect,
+                    onToggleSelection = onToggleSelection
+                )
+            }
+        }
+
+        if (isLoading && nodes.isNotEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                LoadingIndicator(
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .size(24.dp),
+                    contentDescription = "Loading",
+                )
+            }
         }
     }
 }

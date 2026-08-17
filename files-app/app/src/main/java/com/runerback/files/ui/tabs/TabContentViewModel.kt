@@ -7,10 +7,18 @@ import com.runerback.files.data.repository.FileRepository
 import com.runerback.files.data.settings.AppSettings
 import com.runerback.files.ui.components.LogBuffer
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+
+sealed class DeleteTarget {
+    data class Folder(val node: FileNode) : DeleteTarget()
+    data class Files(val count: Int) : DeleteTarget()
+}
 
 abstract class TabContentViewModel(
     protected val repository: FileRepository,
@@ -38,7 +46,24 @@ abstract class TabContentViewModel(
     private val _currentFolderId = MutableStateFlow<String?>(null)
     val currentFolderId: StateFlow<String?> = _currentFolderId.asStateFlow()
 
-    private var _rootId: String? = null
+    private val _rootId = MutableStateFlow<String?>(null)
+
+    private val _deleteTarget = MutableStateFlow<DeleteTarget?>(null)
+    val deleteTarget: StateFlow<DeleteTarget?> = _deleteTarget.asStateFlow()
+
+    private val _deleteDialogVisible = MutableStateFlow(false)
+    val deleteDialogVisible: StateFlow<Boolean> = _deleteDialogVisible.asStateFlow()
+
+    val canDelete: StateFlow<Boolean> = combine(
+        _multiSelectActive,
+        _selectedNodeIds,
+        _currentFolderId,
+        _rootId,
+    ) { multiSelect, selectedIds, currentFolderId, rootId ->
+        val hasSelectedFiles = multiSelect && selectedIds.isNotEmpty()
+        val hasDeletableFolder = currentFolderId != null && currentFolderId != rootId
+        hasSelectedFiles || hasDeletableFolder
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _newTextDialogVisible = MutableStateFlow(false)
     val newTextDialogVisible: StateFlow<Boolean> = _newTextDialogVisible.asStateFlow()
@@ -60,7 +85,7 @@ abstract class TabContentViewModel(
             try {
                 withTimeout(AppSettings.smbTimeoutMillis.value) {
                     repository.loadRoot().onSuccess { root ->
-                        _rootId = root.id
+                        _rootId.value = root.id
                         if (root.isDirectory) {
                             repository.listChildren(root.id).onSuccess { children ->
                                 _tree.value = children
@@ -170,13 +195,125 @@ abstract class TabContentViewModel(
         _newFolderDialogVisible.value = false
     }
 
+    fun openDeleteDialog() {
+        val selectedCount = if (_multiSelectActive.value) _selectedNodeIds.value.size else 0
+        val target = if (selectedCount > 0) {
+            DeleteTarget.Files(selectedCount)
+        } else {
+            _currentFolderId.value?.takeIf { it != _rootId.value }?.let { folderId ->
+                findNode(_tree.value, folderId)?.let { DeleteTarget.Folder(it) }
+            }
+        }
+        if (target != null) {
+            _deleteTarget.value = target
+            _deleteDialogVisible.value = true
+        }
+    }
+
+    fun dismissDeleteDialog() {
+        _deleteDialogVisible.value = false
+        _deleteTarget.value = null
+    }
+
+    fun refreshActiveFolder() {
+        val parentId = _currentFolderId.value ?: _rootId.value ?: return
+        if (_isLoading.value) return
+        _isLoading.value = true
+        viewModelScope.launch {
+            try {
+                withTimeout(AppSettings.smbTimeoutMillis.value) {
+                    refreshCurrentFolder(parentId)
+                }
+            } catch (e: Exception) {
+                LogBuffer.add("TabContentViewModel.refreshActiveFolder: ${e.message}")
+                _error.value = "Failed to refresh: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun confirmDelete() {
+        val target = _deleteTarget.value ?: return
+        _deleteDialogVisible.value = false
+        _deleteTarget.value = null
+
+        viewModelScope.launch {
+            try {
+                withTimeout(AppSettings.smbTimeoutMillis.value) {
+                    when (target) {
+                        is DeleteTarget.Folder -> deleteFolder(target.node)
+                        is DeleteTarget.Files -> deleteFiles(_selectedNodeIds.value)
+                    }
+                }
+            } catch (e: Exception) {
+                LogBuffer.add("TabContentViewModel.confirmDelete: ${e.message}")
+                _error.value = "Failed to delete: ${e.message}"
+            }
+        }
+    }
+
+    private suspend fun deleteFolder(node: FileNode) {
+        _isLoading.value = true
+        try {
+            repository.delete(node.id).onSuccess {
+                val parentId = findParentId(_tree.value, node.id) ?: _rootId.value
+                _tree.value = removeNode(_tree.value, node.id)
+                _currentFolderId.value = if (parentId == _rootId.value) null else parentId
+                if (parentId != null) {
+                    refreshCurrentFolder(parentId)
+                } else {
+                    loadRoot()
+                }
+            }.onFailure { e ->
+                LogBuffer.add("TabContentViewModel.deleteFolder: ${e.message}")
+                _error.value = "Failed to delete folder: ${e.message}"
+            }
+        } finally {
+            _isLoading.value = false
+        }
+    }
+
+    private suspend fun deleteFiles(ids: Set<String>) {
+        _isLoading.value = true
+        try {
+            val remaining = ids.toMutableSet()
+            val errors = mutableListOf<String>()
+            ids.forEach { id ->
+                repository.delete(id).onSuccess {
+                    remaining.remove(id)
+                }.onFailure { e ->
+                    errors.add(e.message ?: "Unknown error")
+                }
+            }
+            var currentTree = _tree.value
+            ids.subtract(remaining).forEach { deletedId ->
+                currentTree = removeNode(currentTree, deletedId)
+            }
+            _tree.value = currentTree
+            _selectedNodeIds.value = remaining
+            val parentId = _currentFolderId.value ?: _rootId.value
+            if (parentId != null) {
+                refreshCurrentFolder(parentId)
+            }
+            if (errors.isNotEmpty()) {
+                _error.value = "Failed to delete ${errors.size} file(s): ${errors.first()}"
+            } else {
+                _multiSelectActive.value = false
+                _selectedNodeIds.value = emptySet()
+            }
+        } finally {
+            _isLoading.value = false
+        }
+    }
+
     fun createTextFile(name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty() || trimmed == ".txt") {
             _error.value = "Please enter a file name"
             return
         }
-        val parentId = _currentFolderId.value ?: _rootId
+        val parentId = _currentFolderId.value ?: _rootId.value
         if (parentId == null) {
             _error.value = "No folder selected"
             return
@@ -205,7 +342,7 @@ abstract class TabContentViewModel(
             _error.value = "Please enter a folder name"
             return
         }
-        val parentId = _currentFolderId.value ?: _rootId
+        val parentId = _currentFolderId.value ?: _rootId.value
         if (parentId == null) {
             _error.value = "No folder selected"
             return
@@ -229,7 +366,7 @@ abstract class TabContentViewModel(
     }
 
     private fun refreshCurrentFolder(parentId: String) {
-        if (parentId == _rootId) {
+        if (parentId == _rootId.value) {
             loadRoot()
             return
         }
@@ -261,5 +398,27 @@ abstract class TabContentViewModel(
                 else -> node
             }
         }
+    }
+
+    private fun removeNode(nodes: List<FileNode>, nodeId: String): List<FileNode> {
+        return nodes.mapNotNull { node ->
+            when {
+                node.id == nodeId -> null
+                node.children != null -> node.copy(children = removeNode(node.children, nodeId))
+                else -> node
+            }
+        }
+    }
+
+    private fun findParentId(nodes: List<FileNode>, nodeId: String): String? {
+        for (node in nodes) {
+            if (node.children?.any { it.id == nodeId } == true) {
+                return node.id
+            }
+            node.children?.let { children ->
+                findParentId(children, nodeId)?.let { return it }
+            }
+        }
+        return null
     }
 }

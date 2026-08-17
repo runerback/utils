@@ -120,6 +120,22 @@ class LocalFileRepository(
         }
     }
 
+    override suspend fun delete(id: String): Result<Unit> {
+        LogBuffer.add("LocalFileRepository.delete: $id (direct=$isDirectFileAccess)")
+        return runCatching {
+            if (isDirectFileAccess) {
+                if (!File(id).deleteRecursively()) {
+                    throw IOException("Failed to delete: $id")
+                }
+            } else {
+                val uri = Uri.parse(id)
+                if (!DocumentsContract.deleteDocument(context.contentResolver, uri)) {
+                    throw IOException("Failed to delete: $id")
+                }
+            }
+        }
+    }
+
     private fun fileToNode(file: File): FileNode {
         val displayName = when {
             file.absolutePath == "/storage/emulated/0" -> "Internal storage"

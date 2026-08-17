@@ -24,6 +24,7 @@ class SMBFileRepository(
         val props = Properties().apply {
             setProperty("jcifs.smb.client.minVersion", "SMB202")
             setProperty("jcifs.smb.client.maxVersion", "SMB311")
+            setProperty("jcifs.smb.client.attrExpirationPeriod", "0")
         }
         val base = BaseContext(PropertyConfiguration(props))
         val auth = NtlmPasswordAuthenticator(source.domain, source.username, source.password)
@@ -80,6 +81,21 @@ class SMBFileRepository(
             folder.mkdirs()
             smbFileToNode(folder, isRoot = false)
         }
+    }
+
+    override suspend fun delete(id: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            deleteSmbFile(SmbFile(id, context))
+        }
+    }
+
+    private fun deleteSmbFile(file: SmbFile) {
+        if (file.isDirectory) {
+            file.listFiles()?.forEach { child ->
+                deleteSmbFile(child)
+            }
+        }
+        file.delete()
     }
 
     private fun buildRootUrl(): String {

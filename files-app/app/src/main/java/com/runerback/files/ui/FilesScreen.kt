@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -51,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.runerback.files.BuildConfig
 import com.runerback.files.data.model.FileSource
 import com.runerback.files.data.settings.AppSettings
+import com.runerback.files.ui.components.DeleteConfirmDialog
 import com.runerback.files.ui.components.LogViewDialog
 import com.runerback.files.ui.components.NewFolderDialog
 import com.runerback.files.ui.components.NewTextFileDialog
@@ -60,6 +62,7 @@ import com.runerback.files.ui.icons.FluentuiSystemIconsCopy
 import com.runerback.files.ui.icons.FluentuiSystemIconsCut
 import com.runerback.files.ui.icons.FluentuiSystemIconsSelectAllOff
 import com.runerback.files.ui.icons.FluentuiSystemIconsTextAdd
+import com.runerback.files.ui.tabs.DeleteTarget
 import com.runerback.files.ui.tabs.LocalTabContent
 import com.runerback.files.ui.tabs.LocalTabContentViewModel
 import com.runerback.files.ui.tabs.SmbTabContent
@@ -106,6 +109,24 @@ fun FilesScreen(
         remember { mutableStateOf(false) }
     }
 
+    val canDelete by if (contentViewModel != null) {
+        contentViewModel.canDelete.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf(false) }
+    }
+
+    val deleteDialogVisible by if (contentViewModel != null) {
+        contentViewModel.deleteDialogVisible.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf(false) }
+    }
+
+    val deleteTarget by if (contentViewModel != null) {
+        contentViewModel.deleteTarget.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf<DeleteTarget?>(null) }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -140,6 +161,15 @@ fun FilesScreen(
                         )
                     }
                     Row(verticalAlignment = Alignment.Bottom) {
+                        IconButton(
+                            onClick = { contentViewModel?.refreshActiveFolder() },
+                            enabled = contentViewModel != null,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh"
+                            )
+                        }
                         IconButton(onClick = { viewModel.openSettingsDialog() }) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -243,7 +273,10 @@ fun FilesScreen(
                         contentDescription = "Cut"
                     )
                 }
-                IconButton(onClick = { /* TODO: delete */ }) {
+                IconButton(
+                    onClick = { contentViewModel?.openDeleteDialog() },
+                    enabled = canDelete,
+                ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Delete"
@@ -370,6 +403,14 @@ fun FilesScreen(
         NewFolderDialog(
             onSave = { contentViewModel?.createFolder(it) },
             onDismiss = { contentViewModel?.dismissNewFolderDialog() },
+        )
+    }
+
+    if (deleteDialogVisible && deleteTarget != null) {
+        DeleteConfirmDialog(
+            target = deleteTarget!!,
+            onConfirm = { contentViewModel?.confirmDelete() },
+            onDismiss = { contentViewModel?.dismissDeleteDialog() },
         )
     }
 }
