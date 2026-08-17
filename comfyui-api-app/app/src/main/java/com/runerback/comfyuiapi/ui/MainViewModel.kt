@@ -442,7 +442,7 @@ class MainViewModel @Inject constructor(
                     if (batchIndex > 0) {
                         randomizeAllSeeds()
                     }
-                    snapshots.add(_uiState.value.currentValues)
+                    snapshots.add(_uiState.value.currentValues.toMap())
                 }
             } else {
                 val multiKeys = multiReplacements.keys.toList()
