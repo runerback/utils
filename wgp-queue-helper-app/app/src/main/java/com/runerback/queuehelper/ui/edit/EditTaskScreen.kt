@@ -45,6 +45,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.queuehelper.QueueHelperApplication
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefinition
+import com.runerback.queuehelper.ui.pack.InlineDescription
+import com.runerback.queuehelper.ui.pack.InlineTokenEditor
+import com.runerback.queuehelper.ui.pack.PicturePickerDialog
 import com.runerback.queuehelper.ui.pack.TokenTextField
 
 private val Resolutions = listOf("480x832", "832x480")
@@ -66,6 +69,7 @@ fun EditTaskScreen(
 
     var editingDefault by remember { mutableStateOf<SubjectDefault?>(null) }
     var showDefaultDialog by remember { mutableStateOf(false) }
+    var pictureToChange by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     Scaffold(
         topBar = {
@@ -146,12 +150,18 @@ fun EditTaskScreen(
                         editingDefault = default
                         showDefaultDialog = true
                     },
-                    onRemove = { viewModel.removeDefaultSubject(default.number) }
+                    onRemove = { viewModel.removeDefaultSubject(default.number) },
+                    onPictureClick = { number ->
+                        pictureToChange = default.number to number
+                    },
+                    onPictureDelete = { segmentIndex ->
+                        viewModel.removeDefaultSubjectPicture(default.number, segmentIndex)
+                    }
                 )
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.audioDefault,
                     onValueChange = { viewModel.updateAudioDefault(it) },
                     subjects = emptyList(),
@@ -174,7 +184,7 @@ fun EditTaskScreen(
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.prompt.summary,
                     onValueChange = {
                         viewModel.updatePrompt(viewModel.prompt.copy(summary = it))
@@ -189,7 +199,7 @@ fun EditTaskScreen(
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.prompt.retentionAnalysis,
                     onValueChange = {
                         viewModel.updatePrompt(viewModel.prompt.copy(retentionAnalysis = it))
@@ -204,7 +214,7 @@ fun EditTaskScreen(
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.prompt.detailedDescription,
                     onValueChange = {
                         viewModel.updatePrompt(viewModel.prompt.copy(detailedDescription = it))
@@ -219,7 +229,7 @@ fun EditTaskScreen(
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.prompt.nonDiegeticMusic,
                     onValueChange = {
                         viewModel.updatePrompt(viewModel.prompt.copy(nonDiegeticMusic = it))
@@ -254,6 +264,18 @@ fun EditTaskScreen(
             }
         )
     }
+
+    pictureToChange?.let { (subjectNumber, currentNumber) ->
+        PicturePickerDialog(
+            currentNumber = currentNumber,
+            imageUris = emptyList(),
+            onDismiss = { pictureToChange = null },
+            onSelected = { newNumber ->
+                viewModel.replaceDefaultSubjectPicture(subjectNumber, currentNumber, newNumber)
+                pictureToChange = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -261,6 +283,8 @@ private fun DefaultSubjectCard(
     default: SubjectDefault,
     onEdit: () -> Unit,
     onRemove: () -> Unit,
+    onPictureClick: (Int) -> Unit,
+    onPictureDelete: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
@@ -275,10 +299,11 @@ private fun DefaultSubjectCard(
                     text = "Subject ${default.number}",
                     style = MaterialTheme.typography.labelLarge
                 )
-                Text(
-                    text = default.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 3
+                InlineDescription(
+                    description = default.description,
+                    imageUris = emptyList(),
+                    onPictureClick = onPictureClick,
+                    onPictureDelete = onPictureDelete
                 )
             }
             IconButton(onClick = onEdit) {
@@ -321,7 +346,7 @@ private fun DefaultSubjectDialog(
                     style = MaterialTheme.typography.titleMedium
                 )
 
-                TokenTextField(
+                InlineTokenEditor(
                     value = description,
                     onValueChange = { description = it },
                     subjects = emptyList(),

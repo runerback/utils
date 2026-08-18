@@ -220,6 +220,9 @@ fun PackTaskScreen(
                     onRemove = { viewModel.removeSubject(subject.id) },
                     onPictureClick = { number ->
                         tokenToChange = subject.id to number
+                    },
+                    onPictureDelete = { segmentIndex ->
+                        viewModel.removeSubjectPictureToken(subject.id, segmentIndex)
                     }
                 )
             }
@@ -234,7 +237,7 @@ fun PackTaskScreen(
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.prompt.summary,
                     onValueChange = {
                         viewModel.updatePrompt(viewModel.prompt.copy(summary = it))
@@ -249,7 +252,7 @@ fun PackTaskScreen(
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.prompt.retentionAnalysis,
                     onValueChange = {
                         viewModel.updatePrompt(viewModel.prompt.copy(retentionAnalysis = it))
@@ -264,7 +267,7 @@ fun PackTaskScreen(
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.prompt.detailedDescription,
                     onValueChange = {
                         viewModel.updatePrompt(viewModel.prompt.copy(detailedDescription = it))
@@ -279,7 +282,7 @@ fun PackTaskScreen(
             }
 
             item {
-                TokenTextField(
+                InlineTokenEditor(
                     value = viewModel.prompt.nonDiegeticMusic,
                     onValueChange = {
                         viewModel.updatePrompt(viewModel.prompt.copy(nonDiegeticMusic = it))
@@ -453,6 +456,7 @@ private fun SubjectDefinitionCard(
     onEdit: () -> Unit,
     onRemove: () -> Unit,
     onPictureClick: (Int) -> Unit,
+    onPictureDelete: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
@@ -488,17 +492,19 @@ private fun SubjectDefinitionCard(
             InlineDescription(
                 description = subject.description,
                 imageUris = imageUris,
-                onPictureClick = onPictureClick
+                onPictureClick = onPictureClick,
+                onPictureDelete = onPictureDelete
             )
         }
     }
 }
 
 @Composable
-internal fun InlineDescription(
+fun InlineDescription(
     description: String,
     imageUris: List<Uri>,
     onPictureClick: (Int) -> Unit,
+    onPictureDelete: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val segments = remember(description) { parseDescriptionSegments(description) }
@@ -508,7 +514,7 @@ internal fun InlineDescription(
         horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start),
         verticalArrangement = Arrangement.Center
     ) {
-        segments.forEach { segment ->
+        segments.forEachIndexed { index, segment ->
             when (segment) {
                 is DescriptionSegment.Text -> {
                     Text(
@@ -517,10 +523,11 @@ internal fun InlineDescription(
                     )
                 }
                 is DescriptionSegment.Picture -> {
-                    PictureToken(
+                    PictureTokenChip(
                         number = segment.number,
-                        imageUris = imageUris,
-                        onClick = { onPictureClick(segment.number) }
+                        imageUri = imageUris.getOrNull(segment.number - 1),
+                        onClick = { onPictureClick(segment.number) },
+                        onDelete = { onPictureDelete(index) }
                     )
                 }
             }
@@ -529,49 +536,7 @@ internal fun InlineDescription(
 }
 
 @Composable
-internal fun PictureToken(
-    number: Int,
-    imageUris: List<Uri>,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val uri = imageUris.getOrNull(number - 1)
-    val shape = RoundedCornerShape(6.dp)
-
-    Box(
-        modifier = modifier
-            .size(40.dp)
-            .clip(shape)
-            .background(
-                if (uri != null) {
-                    MaterialTheme.colorScheme.surfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.errorContainer
-                }
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        if (uri != null) {
-            AsyncImage(
-                model = uri,
-                contentDescription = "Picture $number",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth()
-            )
-        } else {
-            Text(
-                text = "P$number",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
-internal fun PicturePickerDialog(
+fun PicturePickerDialog(
     currentNumber: Int,
     imageUris: List<Uri>,
     onDismiss: () -> Unit,

@@ -80,6 +80,20 @@ fun firstPictureNumber(description: String): Int? {
         ?.toIntOrNull()
 }
 
+fun removeDescriptionSegment(description: String, segmentIndex: Int): String {
+    val segments = parseDescriptionSegments(description)
+    if (segmentIndex !in segments.indices) return description
+    val newSegments = segments.toMutableList().apply { removeAt(segmentIndex) }
+    return buildString {
+        newSegments.forEach { segment ->
+            when (segment) {
+                is DescriptionSegment.Text -> append(segment.text)
+                is DescriptionSegment.Picture -> append("<Picture ${segment.number}>")
+            }
+        }
+    }.trim()
+}
+
 sealed class EditableSegment {
     data class Text(val text: String) : EditableSegment()
     data class Subject(val number: Int) : EditableSegment()

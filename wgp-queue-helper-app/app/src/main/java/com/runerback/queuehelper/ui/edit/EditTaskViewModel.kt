@@ -18,6 +18,8 @@ import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.formatSubjectDefinitions
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
+import com.runerback.queuehelper.data.model.removeDescriptionSegment
+import com.runerback.queuehelper.data.model.replacePictureToken
 import com.runerback.queuehelper.data.template.TemplateLoader
 import com.runerback.queuehelper.ui.navigation.EditTaskRoute
 import kotlinx.coroutines.launch
@@ -125,6 +127,26 @@ class EditTaskViewModel(
         val index = subjectDefaults.indexOfFirst { it.number == number }
         if (index != -1) {
             subjectDefaults[index] = SubjectDefault(number, description)
+        }
+    }
+
+    fun removeDefaultSubjectPicture(number: Int, segmentIndex: Int) {
+        val index = subjectDefaults.indexOfFirst { it.number == number }
+        if (index == -1) return
+        val current = subjectDefaults[index]
+        val updated = removeDescriptionSegment(current.description, segmentIndex)
+        if (updated != current.description) {
+            subjectDefaults[index] = current.copy(description = updated)
+        }
+    }
+
+    fun replaceDefaultSubjectPicture(number: Int, oldNumber: Int, newNumber: Int) {
+        val index = subjectDefaults.indexOfFirst { it.number == number }
+        if (index == -1) return
+        val current = subjectDefaults[index]
+        val updated = replacePictureToken(current.description, oldNumber, newNumber)
+        if (updated != current.description) {
+            subjectDefaults[index] = current.copy(description = updated)
         }
     }
 

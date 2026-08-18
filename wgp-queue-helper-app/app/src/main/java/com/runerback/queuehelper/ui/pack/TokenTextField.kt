@@ -562,7 +562,7 @@ private data class TokenChipStyle(
 )
 
 @Composable
-private fun TokenInsertButton(
+internal fun TokenInsertButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier

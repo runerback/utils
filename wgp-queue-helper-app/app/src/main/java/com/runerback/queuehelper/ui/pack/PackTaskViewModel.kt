@@ -26,6 +26,7 @@ import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.formatSubjectDefinitions
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
+import com.runerback.queuehelper.data.model.removeDescriptionSegment
 import com.runerback.queuehelper.data.model.replacePictureToken
 import com.runerback.queuehelper.data.template.TemplateLoader
 import com.runerback.queuehelper.data.template.VideoLengthRule
@@ -179,6 +180,17 @@ class PackTaskViewModel(
         if (index == -1) return
         val current = subjects[index]
         val updated = replacePictureToken(current.description, oldNumber, newNumber)
+        if (updated != current.description) {
+            subjects[index] = current.copy(description = updated)
+            rebuildSubjectDefinitions()
+        }
+    }
+
+    fun removeSubjectPictureToken(subjectId: Int, segmentIndex: Int) {
+        val index = subjects.indexOfFirst { it.id == subjectId }
+        if (index == -1) return
+        val current = subjects[index]
+        val updated = removeDescriptionSegment(current.description, segmentIndex)
         if (updated != current.description) {
             subjects[index] = current.copy(description = updated)
             rebuildSubjectDefinitions()
