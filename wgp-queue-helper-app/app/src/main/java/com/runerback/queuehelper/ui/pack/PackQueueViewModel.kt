@@ -1,4 +1,4 @@
-package com.runerback.queuehelper.ui.tasks
+package com.runerback.queuehelper.ui.pack
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -6,17 +6,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.runerback.queuehelper.data.local.QueueJobRepository
 import com.runerback.queuehelper.data.local.TaskRepository
-import com.runerback.queuehelper.data.model.MiniMaxH3Ref2VaPrompt
+import com.runerback.queuehelper.data.model.QueueJob
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefaults
 import com.runerback.queuehelper.data.model.SubjectDefinition
-import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.template.TemplateLoader
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -26,75 +23,62 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-class TaskListViewModel(
-    private val repository: TaskRepository,
+class PackQueueViewModel(
+    private val presetId: Int,
+    private val taskRepository: TaskRepository,
+    private val queueJobRepository: QueueJobRepository,
     private val templateLoader: TemplateLoader
 ) : ViewModel() {
 
-    var tasks by mutableStateOf<List<Task>>(emptyList())
+    var jobs by mutableStateOf<List<QueueJob>>(emptyList())
         private set
 
     var isLoading by mutableStateOf(false)
         private set
 
-    var showCreateDialog by mutableStateOf(false)
-        private set
-
-    private val _events = MutableSharedFlow<TaskListEvent>()
-    val events: SharedFlow<TaskListEvent> = _events.asSharedFlow()
+    private val json = Json { ignoreUnknownKeys = true }
 
     init {
-        loadTasks()
+        loadJobs()
     }
 
-    fun loadTasks() {
+    fun loadJobs() {
         viewModelScope.launch {
             isLoading = true
-            tasks = repository.loadTasks()
+            jobs = queueJobRepository.loadJobs(presetId)
             isLoading = false
         }
     }
 
-    fun openCreateDialog() {
-        showCreateDialog = true
-    }
-
-    fun closeCreateDialog() {
-        showCreateDialog = false
-    }
-
-    fun createTask(name: String, modelType: String) {
+    fun createJobFromPreset() {
         viewModelScope.launch {
-            val id = repository.nextId()
-            val task = buildTask(id, name, modelType)
-            repository.saveTask(task)
-            tasks = repository.loadTasks()
-            showCreateDialog = false
-            _events.emit(TaskListEvent.NavigateToEdit(task.id))
+            val preset = taskRepository.loadTask(presetId) ?: return@launch
+            val id = queueJobRepository.nextId()
+            val job = buildJob(id, preset.payload)
+            queueJobRepository.saveJob(job)
+            jobs = queueJobRepository.loadJobs(presetId)
         }
     }
 
-    fun deleteTask(task: Task) {
+    fun deleteJobAndRenumber(jobId: Int) {
         viewModelScope.launch {
-            repository.deleteTask(task.id)
-            tasks = repository.loadTasks()
+            queueJobRepository.deleteJob(jobId)
+            queueJobRepository.renumberJobs(presetId)
+            jobs = queueJobRepository.loadJobs(presetId)
         }
     }
 
-    private fun buildTask(id: Int, name: String, modelType: String): Task {
-        val base = templateLoader.basePayload(modelType)
-        val params = base["params"]?.jsonObject ?: JsonObject(emptyMap())
+    private fun buildJob(id: Int, presetPayload: JsonObject): QueueJob {
+        val baseParams = presetPayload["params"]?.jsonObject ?: JsonObject(emptyMap())
         val updatedParams = JsonObject(
-            params.toMutableMap().apply {
+            baseParams.toMutableMap().apply {
                 put("id", JsonPrimitive(id))
-                put("model_type", JsonPrimitive(modelType))
-                put("base_model_type", JsonPrimitive(modelType))
             }
         )
 
-        val promptString = params["prompt"]?.jsonPrimitive?.contentOrNull ?: ""
+        val promptString = baseParams["prompt"]?.jsonPrimitive?.contentOrNull ?: ""
         val parsed = parseSubjectDefinitions(
-            MiniMaxH3Ref2VaPrompt.parse(promptString).subjectDefinitions
+            com.runerback.queuehelper.data.model.MiniMaxH3Ref2VaPrompt.parse(promptString).subjectDefinitions
         )
         val defaults = SubjectDefaults(
             subjects = parsed.first.map { SubjectDefault(it.number, it.description) },
@@ -106,26 +90,24 @@ class TaskListViewModel(
             put("params", updatedParams)
             put("subject_defaults", Json.encodeToJsonElement(SubjectDefaults.serializer(), defaults))
         }
-        return Task(
+
+        return QueueJob(
             id = id,
-            name = name.ifBlank { templateLoader.defaultName(modelType) },
-            modelType = modelType,
+            presetId = presetId,
             createdAt = System.currentTimeMillis(),
             payload = payload
         )
     }
 
-    sealed class TaskListEvent {
-        data class NavigateToEdit(val taskId: Int) : TaskListEvent()
-    }
-
     @Suppress("UNCHECKED_CAST")
     class Factory(
-        private val repository: TaskRepository,
+        private val presetId: Int,
+        private val taskRepository: TaskRepository,
+        private val queueJobRepository: QueueJobRepository,
         private val templateLoader: TemplateLoader
     ) : ViewModelProvider.Factory {
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return TaskListViewModel(repository, templateLoader) as T
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+            return PackQueueViewModel(presetId, taskRepository, queueJobRepository, templateLoader) as T
         }
     }
 }

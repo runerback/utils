@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.runerback.queuehelper.ui.edit.EditTaskScreen
+import com.runerback.queuehelper.ui.pack.PackTaskEditor
 import com.runerback.queuehelper.ui.pack.PackTaskScreen
 import com.runerback.queuehelper.ui.tasks.TaskListScreen
 import kotlinx.serialization.Serializable
@@ -18,7 +19,10 @@ data object TaskListRoute
 data class EditTaskRoute(val taskId: Int)
 
 @Serializable
-data class PackTaskRoute(val taskId: Int)
+data class PackTaskRoute(val presetId: Int)
+
+@Serializable
+data class PackTaskEditorRoute(val jobId: Int)
 
 @Composable
 fun QueueNavHost(
@@ -35,8 +39,8 @@ fun QueueNavHost(
                 onEditTask = { taskId ->
                     navController.navigate(EditTaskRoute(taskId))
                 },
-                onPackTask = { taskId ->
-                    navController.navigate(PackTaskRoute(taskId))
+                onPackTask = { presetId ->
+                    navController.navigate(PackTaskRoute(presetId))
                 }
             )
         }
@@ -52,7 +56,18 @@ fun QueueNavHost(
         composable<PackTaskRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<PackTaskRoute>()
             PackTaskScreen(
-                taskId = route.taskId,
+                presetId = route.presetId,
+                onEditJob = { jobId ->
+                    navController.navigate(PackTaskEditorRoute(jobId))
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable<PackTaskEditorRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<PackTaskEditorRoute>()
+            PackTaskEditor(
+                jobId = route.jobId,
                 onBack = { navController.popBackStack() }
             )
         }

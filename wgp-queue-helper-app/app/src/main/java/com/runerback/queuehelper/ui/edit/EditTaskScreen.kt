@@ -74,7 +74,7 @@ fun EditTaskScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(viewModel.name.ifBlank { "Edit Task" }) },
+                title = { Text("Edit Task $taskId") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(

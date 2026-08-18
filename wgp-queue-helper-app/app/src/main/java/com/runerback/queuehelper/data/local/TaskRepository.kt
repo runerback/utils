@@ -14,6 +14,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import java.io.File
 
 private val Context.taskDataStore: DataStore<Preferences> by preferencesDataStore(name = "tasks")
@@ -74,6 +76,41 @@ class TaskRepository(private val context: Context) {
             val existing = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
             prefs[tasksKey] = json.encodeToString(existing.filter { it.id != id })
         }
+    }
+
+    suspend fun renumberTasks() = withContext(Dispatchers.IO) {
+        val prefs = dataStore.data.first()
+        val summaries = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
+        val sorted = summaries.sortedBy { it.createdAt }
+
+        val newSummaries = sorted.mapIndexed { index, summary ->
+            val newId = index + 1
+            val oldId = summary.id
+            if (oldId != newId) {
+                val oldFile = payloadFile(oldId)
+                if (oldFile.exists()) {
+                    val payload = json.decodeFromString<JsonObject>(oldFile.readText())
+                    val updatedPayload = updatePayloadId(payload, newId)
+                    payloadFile(newId).writeText(json.encodeToString(updatedPayload))
+                    oldFile.delete()
+                }
+            }
+            summary.copy(id = newId)
+        }
+
+        dataStore.edit { prefs ->
+            prefs[tasksKey] = json.encodeToString(newSummaries)
+            prefs[nextIdKey] = newSummaries.size + 1
+        }
+    }
+
+    private fun updatePayloadId(payload: JsonObject, newId: Int): JsonObject {
+        val updated = payload.toMutableMap()
+        updated["id"] = JsonPrimitive(newId)
+        val params = payload["params"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
+        params["id"] = JsonPrimitive(newId)
+        updated["params"] = JsonObject(params)
+        return JsonObject(updated)
     }
 
     suspend fun nextId(): Int = withContext(Dispatchers.IO) {

@@ -18,29 +18,33 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.runerback.queuehelper.data.local.TaskRepository
+import com.runerback.queuehelper.data.local.QueueJobRepository
 import com.runerback.queuehelper.data.model.MiniMaxH3Ref2VaPrompt
+import com.runerback.queuehelper.data.model.QueueJob
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefaults
 import com.runerback.queuehelper.data.model.SubjectDefinition
-import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.formatSubjectDefinitions
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.model.removeDescriptionSegment
 import com.runerback.queuehelper.data.model.replacePictureToken
 import com.runerback.queuehelper.data.template.TemplateLoader
 import com.runerback.queuehelper.data.template.VideoLengthRule
-import com.runerback.queuehelper.ui.navigation.PackTaskRoute
+import com.runerback.queuehelper.ui.navigation.PackTaskEditorRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.BufferedInputStream
@@ -55,15 +59,15 @@ private const val MAX_IMAGES = 6
 
 class PackTaskViewModel(
     private val context: Context,
-    private val repository: TaskRepository,
+    private val repository: QueueJobRepository,
     private val templateLoader: TemplateLoader,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val taskId: Int = savedStateHandle[PackTaskRoute::taskId.name]
-        ?: throw IllegalArgumentException("Missing taskId")
+    private val jobId: Int = savedStateHandle[PackTaskEditorRoute::jobId.name]
+        ?: throw IllegalArgumentException("Missing jobId")
 
-    var task by mutableStateOf<Task?>(null)
+    var job by mutableStateOf<QueueJob?>(null)
         private set
 
     var prompt by mutableStateOf(MiniMaxH3Ref2VaPrompt())
@@ -104,15 +108,16 @@ class PackTaskViewModel(
         private set
 
     private val json = Json { prettyPrint = true }
+    private val saveMutex = Mutex()
 
     init {
-        loadTask()
+        loadJob()
     }
 
-    private fun loadTask() {
+    private fun loadJob() {
         viewModelScope.launch {
-            val loaded = repository.loadTask(taskId)
-            task = loaded
+            val loaded = repository.loadJob(jobId)
+            job = loaded
             loaded?.let {
                 val params = it.payload["params"]?.jsonObject ?: JsonObject(emptyMap())
                 resolution = params["resolution"]?.jsonPrimitive?.contentOrNull ?: "480x832"
@@ -143,6 +148,24 @@ class PackTaskViewModel(
                     subjectDefaults = parsed.first.map { s -> SubjectDefault(s.number, s.description) }
                     audioDefault = parsed.second ?: SubjectDefinition.defaultAudioDefinition()
                 }
+
+                val packSettings = it.payload["pack_settings"]?.jsonObject
+                packSettings?.let { settings ->
+                    imageUris.clear()
+                    imageUris.addAll(
+                        settings["image_uris"]?.jsonArray?.mapNotNull { element ->
+                            element.jsonPrimitive.contentOrNull?.let { uriString ->
+                                runCatching { Uri.parse(uriString) }.getOrNull()
+                            }
+                        } ?: emptyList()
+                    )
+                    audioUri = settings["audio_uri"]?.jsonPrimitive?.contentOrNull?.let { uriString ->
+                        runCatching { Uri.parse(uriString) }.getOrNull()
+                    }
+                    trimStart = settings["trim_start"]?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
+                    trimEnd = settings["trim_end"]?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
+                    audioUri?.let { uri -> readAudioDuration(uri) }
+                }
             }
         }
     }
@@ -153,6 +176,7 @@ class PackTaskViewModel(
 
     fun updateResolution(value: String) {
         resolution = value
+        viewModelScope.launch { savePackSettings() }
     }
 
     fun addSubject(description: String? = null) {
@@ -221,11 +245,13 @@ class PackTaskViewModel(
         val remaining = MAX_IMAGES - imageUris.size
         if (remaining <= 0) return
         imageUris.addAll(uris.take(remaining))
+        viewModelScope.launch { savePackSettings() }
     }
 
     fun removeImage(index: Int) {
         if (index !in imageUris.indices) return
         imageUris.removeAt(index)
+        viewModelScope.launch { savePackSettings() }
     }
 
     fun setAudio(uri: Uri?) {
@@ -236,14 +262,17 @@ class PackTaskViewModel(
         } else {
             readAudioDuration(uri)
         }
+        viewModelScope.launch { savePackSettings() }
     }
 
     fun updateTrimStart(value: Float) {
         trimStart = value.coerceIn(0f, trimEnd)
+        viewModelScope.launch { savePackSettings() }
     }
 
     fun updateTrimEnd(value: Float) {
         trimEnd = value.coerceIn(trimStart, audioDurationSeconds)
+        viewModelScope.launch { savePackSettings() }
     }
 
     private fun readAudioDuration(uri: Uri) {
@@ -267,7 +296,8 @@ class PackTaskViewModel(
     }
 
     fun computedVideoLength(): Int {
-        val rule = task?.modelType?.let { templateLoader.config(it).videoLengthRule }
+        val modelType = job?.payload?.get("params")?.jsonObject?.get("model_type")?.jsonPrimitive?.contentOrNull
+        val rule = modelType?.let { templateLoader.config(it).videoLengthRule }
             ?: VideoLengthRule.AudioDurationMultiplier()
         if (rule !is VideoLengthRule.AudioDurationMultiplier) return 0
         val trimmedDuration = (trimEnd - trimStart).coerceAtLeast(0f)
@@ -280,34 +310,76 @@ class PackTaskViewModel(
             packResult = null
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val currentTask = task ?: throw IllegalStateException("Task not loaded")
+                    val currentJob = job ?: throw IllegalStateException("Job not loaded")
                     val (outputStream, savedPath) = openDownloadsOutputStream("queue.zip")
+                    val imageNames = imageUris.mapIndexed { index, _ ->
+                        "job${currentJob.id}_image_refs_$index.png"
+                    }
 
                     ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
-                        // Add media files
-                        val imageNames = imageUris.mapIndexed { index, uri ->
-                            val name = "task${currentTask.id}_image_refs_$index.png"
-                            zip.addFile(name, uri)
-                            name
+                        imageUris.forEachIndexed { index, uri ->
+                            zip.addFile(imageNames[index], uri)
                         }
 
                         audioUri?.let { uri ->
-                            val name = "task${currentTask.id}_audio_guide_0.flac"
+                            val name = "job${currentJob.id}_audio_guide_0.flac"
                             zip.addFile(name, uri)
                         }
 
-                        // Build queue.json
-                        val queueJson = buildQueueJson(currentTask, imageNames)
+                        val queueJson = buildQueueJson(currentJob, imageNames)
                         zip.putNextEntry(ZipEntry("queue.json"))
                         zip.write(queueJson.toByteArray(Charsets.UTF_8))
                         zip.closeEntry()
                     }
 
+                    persistPackSettings(currentJob, imageNames)
                     "Saved to $savedPath"
                 }.getOrElse { "Pack failed: ${it.message}" }
             }
             packResult = result
             isPacking = false
+        }
+    }
+
+    private suspend fun persistPackSettings(currentJob: QueueJob, imageNames: List<String>) {
+        val params = currentJob.payload["params"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
+        params["prompt"] = JsonPrimitive(prompt.toPromptString())
+        params["resolution"] = JsonPrimitive(resolution)
+        params["video_length"] = JsonPrimitive(computedVideoLength())
+        params["image_refs"] = buildJsonArray {
+            imageNames.forEach { add(JsonPrimitive(it)) }
+        }
+        params["audio_guide"] = audioUri?.let {
+            JsonPrimitive("job${currentJob.id}_audio_guide_0.flac")
+        } ?: JsonNull
+
+        val packSettings = buildJsonObject {
+            put("image_uris", buildJsonArray {
+                imageUris.forEach { add(JsonPrimitive(it.toString())) }
+            })
+            put("audio_uri", audioUri?.let { JsonPrimitive(it.toString()) } ?: JsonNull)
+            put("trim_start", JsonPrimitive(trimStart))
+            put("trim_end", JsonPrimitive(trimEnd))
+        }
+
+        val updatedPayload = JsonObject(
+            currentJob.payload.toMutableMap().apply {
+                put("params", JsonObject(params))
+                put("pack_settings", packSettings)
+            }
+        )
+        val updated = currentJob.copy(payload = updatedPayload)
+        repository.saveJob(updated)
+        job = updated
+    }
+
+    private suspend fun savePackSettings() {
+        saveMutex.withLock {
+            val currentJob = job ?: return
+            val imageNames = imageUris.mapIndexed { index, _ ->
+                "job${currentJob.id}_image_refs_$index.png"
+            }
+            persistPackSettings(currentJob, imageNames)
         }
     }
 
@@ -330,8 +402,8 @@ class PackTaskViewModel(
         }
     }
 
-    private fun buildQueueJson(task: Task, imageNames: List<String>): String {
-        val baseParams = task.payload["params"]?.jsonObject
+    private fun buildQueueJson(job: QueueJob, imageNames: List<String>): String {
+        val baseParams = job.payload["params"]?.jsonObject
             ?.toMutableMap()
             ?: mutableMapOf()
 
@@ -341,13 +413,13 @@ class PackTaskViewModel(
         baseParams["image_refs"] = buildJsonArray {
             imageNames.forEach { add(JsonPrimitive(it)) }
         }
-        baseParams["audio_guide"] = JsonPrimitive("task${task.id}_audio_guide_0.flac")
+        baseParams["audio_guide"] = JsonPrimitive("job${job.id}_audio_guide_0.flac")
 
-        val job = buildJsonObject {
-            put("id", JsonPrimitive(task.id))
+        val jobObject = buildJsonObject {
+            put("id", JsonPrimitive(job.id))
             put("params", JsonObject(baseParams))
         }
-        val array = buildJsonArray { add(job) }
+        val array = buildJsonArray { add(jobObject) }
         return json.encodeToString(array)
     }
 
@@ -366,7 +438,7 @@ class PackTaskViewModel(
     @Suppress("UNCHECKED_CAST")
     class Factory(
         private val context: Context,
-        private val repository: TaskRepository,
+        private val repository: QueueJobRepository,
         private val templateLoader: TemplateLoader
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {

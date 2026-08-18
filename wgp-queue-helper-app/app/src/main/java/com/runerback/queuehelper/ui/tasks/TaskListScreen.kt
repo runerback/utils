@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -95,7 +96,8 @@ fun TaskListScreen(
                         TaskListItem(
                             task = task,
                             onEdit = { onEditTask(task.id) },
-                            onPack = { onPackTask(task.id) }
+                            onPack = { onPackTask(task.id) },
+                            onDelete = { viewModel.deleteTask(task) }
                         )
                     }
                 }
@@ -122,6 +124,7 @@ private fun TaskListItem(
     task: Task,
     onEdit: () -> Unit,
     onPack: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -155,6 +158,13 @@ private fun TaskListItem(
                 Icon(
                     imageVector = FluentuiSystemIconsFolderZip,
                     contentDescription = "Pack task"
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Delete task"
                 )
             }
         }

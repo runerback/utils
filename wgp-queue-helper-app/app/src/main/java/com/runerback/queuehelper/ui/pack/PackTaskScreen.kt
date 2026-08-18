@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
@@ -70,8 +71,10 @@ import coil.compose.AsyncImage
 import com.runerback.queuehelper.QueueHelperApplication
 import kotlinx.coroutines.launch
 import com.runerback.queuehelper.data.model.DescriptionSegment
+import com.runerback.queuehelper.data.model.QueueJob
 import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.parseDescriptionSegments
+import com.runerback.queuehelper.domain.PackAllUseCase
 import com.runerback.queuehelper.ui.icons.PhosphorPackage
 
 private val Resolutions = listOf("480x832", "832x480")
@@ -80,7 +83,150 @@ private const val MAX_PICTURE_SLOTS = 6
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PackTaskScreen(
-    taskId: Int,
+    presetId: Int,
+    onEditJob: (Int) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val app = context.applicationContext as QueueHelperApplication
+    val viewModel: PackQueueViewModel = viewModel(
+        factory = PackQueueViewModel.Factory(
+            presetId,
+            app.taskRepository,
+            app.queueJobRepository,
+            app.templateLoader
+        )
+    )
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val packAllUseCase = remember {
+        PackAllUseCase(context, app.queueJobRepository, presetId)
+    }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            scope.launch {
+                val result = packAllUseCase()
+                snackbarHostState.showSnackbar(result)
+            }
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar("Storage permission required to save to Downloads")
+            }
+        }
+    }
+
+    val doPackAll: () -> Unit = {
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            scope.launch {
+                val result = packAllUseCase()
+                snackbarHostState.showSnackbar(result)
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Pack Queue") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Default.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.createJobFromPreset() }) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Create job"
+                        )
+                    }
+                    IconButton(onClick = doPackAll) {
+                        Icon(
+                            imageVector = PhosphorPackage,
+                            contentDescription = "Pack queue.zip"
+                        )
+                    }
+                }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier
+    ) { padding ->
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            items(viewModel.jobs, key = { it.id }) { job ->
+                JobQueueItem(
+                    job = job,
+                    onEdit = { onEditJob(job.id) },
+                    onDelete = { viewModel.deleteJobAndRenumber(job.id) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun JobQueueItem(
+    job: QueueJob,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(modifier = modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Job ${job.id}",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = "Preset ${job.presetId}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit job"
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Delete job"
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PackTaskEditor(
+    jobId: Int,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -89,7 +235,7 @@ fun PackTaskScreen(
     val viewModel: PackTaskViewModel = viewModel(
         factory = PackTaskViewModel.Factory(
             context,
-            app.taskRepository,
+            app.queueJobRepository,
             app.templateLoader
         )
     )
