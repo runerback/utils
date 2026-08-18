@@ -295,25 +295,6 @@ fun PackTaskEditor(
                             contentDescription = "Back"
                         )
                     }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
-                                context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                            } else {
-                                viewModel.pack()
-                            }
-                        },
-                        enabled = !viewModel.isPacking
-                    ) {
-                        Icon(
-                            imageVector = PhosphorPackage,
-                            contentDescription = "Pack queue.zip"
-                        )
-                    }
                 }
             )
         },
