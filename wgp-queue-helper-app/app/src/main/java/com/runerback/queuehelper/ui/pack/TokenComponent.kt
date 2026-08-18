@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -109,6 +110,8 @@ private fun PlainTextTokenField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
+            .widthIn(min = 0.dp)
+            .padding(horizontal = 4.dp)
             .focusRequester(focusRequester)
             .onFocusChanged { state ->
                 if (state.isFocused) {
