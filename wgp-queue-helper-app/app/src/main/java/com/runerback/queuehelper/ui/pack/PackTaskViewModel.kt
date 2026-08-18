@@ -313,7 +313,7 @@ class PackTaskViewModel(
                     val currentJob = job ?: throw IllegalStateException("Job not loaded")
                     val (outputStream, savedPath) = openDownloadsOutputStream("queue.zip")
                     val imageNames = imageUris.mapIndexed { index, _ ->
-                        "job${currentJob.id}_image_refs_$index.png"
+                        "task${currentJob.id}_image_refs_$index.png"
                     }
 
                     ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
@@ -322,7 +322,7 @@ class PackTaskViewModel(
                         }
 
                         audioUri?.let { uri ->
-                            val name = "job${currentJob.id}_audio_guide_0.flac"
+                            val name = "task${currentJob.id}_audio_guide_0.flac"
                             zip.addFile(name, uri)
                         }
 
@@ -350,7 +350,7 @@ class PackTaskViewModel(
             imageNames.forEach { add(JsonPrimitive(it)) }
         }
         params["audio_guide"] = audioUri?.let {
-            JsonPrimitive("job${currentJob.id}_audio_guide_0.flac")
+            JsonPrimitive("task${currentJob.id}_audio_guide_0.flac")
         } ?: JsonNull
 
         val packSettings = buildJsonObject {
@@ -377,7 +377,7 @@ class PackTaskViewModel(
         saveMutex.withLock {
             val currentJob = job ?: return
             val imageNames = imageUris.mapIndexed { index, _ ->
-                "job${currentJob.id}_image_refs_$index.png"
+                "task${currentJob.id}_image_refs_$index.png"
             }
             persistPackSettings(currentJob, imageNames)
         }
@@ -413,7 +413,7 @@ class PackTaskViewModel(
         baseParams["image_refs"] = buildJsonArray {
             imageNames.forEach { add(JsonPrimitive(it)) }
         }
-        baseParams["audio_guide"] = JsonPrimitive("job${job.id}_audio_guide_0.flac")
+        baseParams["audio_guide"] = JsonPrimitive("task${job.id}_audio_guide_0.flac")
 
         val jobObject = buildJsonObject {
             put("id", JsonPrimitive(job.id))

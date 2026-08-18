@@ -85,7 +85,7 @@ class PackAllUseCase(
         } ?: emptyList()
 
         return uris.mapIndexed { index, uri ->
-            val name = "job${job.id}_image_refs_$index.png"
+            val name = "task${job.id}_image_refs_$index.png"
             zip.addFile(name, uri)
             name
         }
@@ -98,7 +98,7 @@ class PackAllUseCase(
     ): String? {
         val uriString = packSettings?.get("audio_uri")?.jsonPrimitive?.contentOrNull
         val uri = uriString?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return null
-        val name = "job${job.id}_audio_guide_0.flac"
+        val name = "task${job.id}_audio_guide_0.flac"
         zip.addFile(name, uri)
         return name
     }
