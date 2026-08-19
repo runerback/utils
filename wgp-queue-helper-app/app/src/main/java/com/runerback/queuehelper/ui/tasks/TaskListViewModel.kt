@@ -14,6 +14,7 @@ import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.template.TemplateLoader
+import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -50,7 +51,10 @@ class TaskListViewModel(
     fun loadTasks() {
         viewModelScope.launch {
             isLoading = true
-            tasks = repository.loadTasks()
+            tasks = runCatching { repository.loadTasks() }.getOrElse {
+                LogBuffer.add("TaskListViewModel.loadTasks: ${it.stackTraceToString()}")
+                emptyList()
+            }
             isLoading = false
         }
     }
@@ -65,19 +69,27 @@ class TaskListViewModel(
 
     fun createTask(name: String, modelType: String) {
         viewModelScope.launch {
-            val id = repository.nextId()
-            val task = buildTask(id, name, modelType)
-            repository.saveTask(task)
-            tasks = repository.loadTasks()
-            showCreateDialog = false
-            _events.emit(TaskListEvent.NavigateToEdit(task.id))
+            runCatching {
+                val id = repository.nextId()
+                val task = buildTask(id, name, modelType)
+                repository.saveTask(task)
+                tasks = repository.loadTasks()
+                showCreateDialog = false
+                _events.emit(TaskListEvent.NavigateToEdit(task.id))
+            }.onFailure {
+                LogBuffer.add("TaskListViewModel.createTask: ${it.stackTraceToString()}")
+            }
         }
     }
 
     fun deleteTask(task: Task) {
         viewModelScope.launch {
-            repository.deleteTask(task.id)
-            tasks = repository.loadTasks()
+            runCatching {
+                repository.deleteTask(task.id)
+                tasks = repository.loadTasks()
+            }.onFailure {
+                LogBuffer.add("TaskListViewModel.deleteTask(${task.id}): ${it.stackTraceToString()}")
+            }
         }
     }
 

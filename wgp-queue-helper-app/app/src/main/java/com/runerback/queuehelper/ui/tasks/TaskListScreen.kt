@@ -27,6 +27,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.runerback.queuehelper.ui.components.LogViewDialog
+import com.runerback.queuehelper.ui.icons.TablerLogs
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +63,8 @@ fun TaskListScreen(
         }
     }
 
+    var showLogView by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -66,6 +74,14 @@ fun TaskListScreen(
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Create New"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showLogView = true }) {
+                        Icon(
+                            imageVector = TablerLogs,
+                            contentDescription = "Logs"
                         )
                     }
                 }
@@ -114,6 +130,10 @@ fun TaskListScreen(
                         viewModel.createTask(name, modelType)
                     }
                 )
+            }
+
+            if (showLogView) {
+                LogViewDialog(onDismiss = { showLogView = false })
             }
         }
     }

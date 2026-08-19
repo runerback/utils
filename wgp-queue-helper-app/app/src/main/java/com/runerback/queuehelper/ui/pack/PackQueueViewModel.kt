@@ -14,6 +14,7 @@ import com.runerback.queuehelper.data.model.SubjectDefaults
 import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.template.TemplateLoader
+import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -45,26 +46,37 @@ class PackQueueViewModel(
     fun loadJobs() {
         viewModelScope.launch {
             isLoading = true
-            jobs = queueJobRepository.loadJobs(presetId)
+            jobs = runCatching { queueJobRepository.loadJobs(presetId) }.getOrElse {
+                LogBuffer.add("PackQueueViewModel.loadJobs($presetId): ${it.stackTraceToString()}")
+                emptyList()
+            }
             isLoading = false
         }
     }
 
     fun createJobFromPreset() {
         viewModelScope.launch {
-            val preset = taskRepository.loadTask(presetId) ?: return@launch
-            val id = queueJobRepository.nextId()
-            val job = buildJob(id, preset.payload)
-            queueJobRepository.saveJob(job)
-            jobs = queueJobRepository.loadJobs(presetId)
+            runCatching {
+                val preset = taskRepository.loadTask(presetId) ?: return@launch
+                val id = queueJobRepository.nextId()
+                val job = buildJob(id, preset.payload)
+                queueJobRepository.saveJob(job)
+                jobs = queueJobRepository.loadJobs(presetId)
+            }.onFailure {
+                LogBuffer.add("PackQueueViewModel.createJobFromPreset($presetId): ${it.stackTraceToString()}")
+            }
         }
     }
 
     fun deleteJobAndRenumber(jobId: Int) {
         viewModelScope.launch {
-            queueJobRepository.deleteJob(jobId)
-            queueJobRepository.renumberJobs(presetId)
-            jobs = queueJobRepository.loadJobs(presetId)
+            runCatching {
+                queueJobRepository.deleteJob(jobId)
+                queueJobRepository.renumberJobs(presetId)
+                jobs = queueJobRepository.loadJobs(presetId)
+            }.onFailure {
+                LogBuffer.add("PackQueueViewModel.deleteJobAndRenumber($jobId): ${it.stackTraceToString()}")
+            }
         }
     }
 

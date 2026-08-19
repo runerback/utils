@@ -21,6 +21,7 @@ import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.model.removeDescriptionSegment
 import com.runerback.queuehelper.data.model.replacePictureToken
 import com.runerback.queuehelper.data.template.TemplateLoader
+import com.runerback.queuehelper.ui.components.LogBuffer
 import com.runerback.queuehelper.ui.navigation.EditTaskRoute
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -69,31 +70,35 @@ class EditTaskViewModel(
     private fun loadTask() {
         viewModelScope.launch {
             isLoading = true
-            val loaded = repository.loadTask(taskId)
-            task = loaded
-            loaded?.let {
-                name = it.name
-                val params = it.payload["params"]?.jsonObject ?: JsonObject(emptyMap())
-                resolution = params["resolution"]?.jsonPrimitive?.contentOrNull ?: "480x832"
-                val promptString = params["prompt"]?.jsonPrimitive?.contentOrNull ?: ""
-                prompt = MiniMaxH3Ref2VaPrompt.parse(promptString)
+            runCatching {
+                val loaded = repository.loadTask(taskId)
+                task = loaded
+                loaded?.let {
+                    name = it.name
+                    val params = it.payload["params"]?.jsonObject ?: JsonObject(emptyMap())
+                    resolution = params["resolution"]?.jsonPrimitive?.contentOrNull ?: "480x832"
+                    val promptString = params["prompt"]?.jsonPrimitive?.contentOrNull ?: ""
+                    prompt = MiniMaxH3Ref2VaPrompt.parse(promptString)
 
-                val defaultsJson = it.payload["subject_defaults"]
-                if (defaultsJson != null) {
-                    try {
-                        val defaults = json.decodeFromJsonElement(
-                            SubjectDefaults.serializer(),
-                            defaultsJson
-                        )
-                        subjectDefaults.clear()
-                        subjectDefaults.addAll(defaults.subjects)
-                        audioDefault = defaults.audio
-                    } catch (_: Exception) {
+                    val defaultsJson = it.payload["subject_defaults"]
+                    if (defaultsJson != null) {
+                        try {
+                            val defaults = json.decodeFromJsonElement(
+                                SubjectDefaults.serializer(),
+                                defaultsJson
+                            )
+                            subjectDefaults.clear()
+                            subjectDefaults.addAll(defaults.subjects)
+                            audioDefault = defaults.audio
+                        } catch (_: Exception) {
+                            loadDefaultsFromPrompt()
+                        }
+                    } else {
                         loadDefaultsFromPrompt()
                     }
-                } else {
-                    loadDefaultsFromPrompt()
                 }
+            }.onFailure {
+                LogBuffer.add("EditTaskViewModel.loadTask($taskId): ${it.stackTraceToString()}")
             }
             isLoading = false
         }
@@ -160,33 +165,37 @@ class EditTaskViewModel(
 
     fun save() {
         viewModelScope.launch {
-            task?.let { current ->
-                val subjectDefinitions = formatSubjectDefinitions(
-                    subjectDefaults.map { SubjectDefinition(0, it.number, it.description) },
-                    audioDefault
-                )
-                val updatedPrompt = prompt.copy(subjectDefinitions = subjectDefinitions)
+            runCatching {
+                task?.let { current ->
+                    val subjectDefinitions = formatSubjectDefinitions(
+                        subjectDefaults.map { SubjectDefinition(0, it.number, it.description) },
+                        audioDefault
+                    )
+                    val updatedPrompt = prompt.copy(subjectDefinitions = subjectDefinitions)
 
-                val params = current.payload["params"]?.jsonObject
-                    ?.toMutableMap()
-                    ?: mutableMapOf()
-                params["prompt"] = JsonPrimitive(updatedPrompt.toPromptString())
-                params["resolution"] = JsonPrimitive(resolution)
+                    val params = current.payload["params"]?.jsonObject
+                        ?.toMutableMap()
+                        ?: mutableMapOf()
+                    params["prompt"] = JsonPrimitive(updatedPrompt.toPromptString())
+                    params["resolution"] = JsonPrimitive(resolution)
 
-                val defaults = SubjectDefaults(subjectDefaults.toList(), audioDefault)
-                val updatedPayload = JsonObject(
-                    current.payload.toMutableMap().apply {
-                        put("params", JsonObject(params))
-                        put(
-                            "subject_defaults",
-                            Json.encodeToJsonElement(SubjectDefaults.serializer(), defaults)
-                        )
-                    }
-                )
-                val updated = current.copy(name = name, payload = updatedPayload)
-                repository.saveTask(updated)
-                task = updated
-                prompt = updatedPrompt
+                    val defaults = SubjectDefaults(subjectDefaults.toList(), audioDefault)
+                    val updatedPayload = JsonObject(
+                        current.payload.toMutableMap().apply {
+                            put("params", JsonObject(params))
+                            put(
+                                "subject_defaults",
+                                Json.encodeToJsonElement(SubjectDefaults.serializer(), defaults)
+                            )
+                        }
+                    )
+                    val updated = current.copy(name = name, payload = updatedPayload)
+                    repository.saveTask(updated)
+                    task = updated
+                    prompt = updatedPrompt
+                }
+            }.onFailure {
+                LogBuffer.add("EditTaskViewModel.save($taskId): ${it.stackTraceToString()}")
             }
         }
     }

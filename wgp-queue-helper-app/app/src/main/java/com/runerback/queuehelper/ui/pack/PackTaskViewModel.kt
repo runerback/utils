@@ -30,6 +30,7 @@ import com.runerback.queuehelper.data.model.removeDescriptionSegment
 import com.runerback.queuehelper.data.model.replacePictureToken
 import com.runerback.queuehelper.data.template.TemplateLoader
 import com.runerback.queuehelper.data.template.VideoLengthRule
+import com.runerback.queuehelper.ui.components.LogBuffer
 import com.runerback.queuehelper.ui.navigation.PackTaskEditorRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -283,7 +284,8 @@ class PackTaskViewModel(
                     retriever.setDataSource(context, uri)
                     retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                         ?.toLongOrNull() ?: 0L
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    LogBuffer.add("PackTaskViewModel.readAudioDuration($uri): ${e.stackTraceToString()}")
                     0L
                 } finally {
                     retriever.release()
@@ -334,7 +336,10 @@ class PackTaskViewModel(
 
                     persistPackSettings(currentJob, imageNames)
                     "Saved to $savedPath"
-                }.getOrElse { "Pack failed: ${it.message}" }
+                }.getOrElse {
+                    LogBuffer.add("PackTaskViewModel.pack: ${it.stackTraceToString()}")
+                    "Pack failed: ${it.message}"
+                }
             }
             packResult = result
             isPacking = false

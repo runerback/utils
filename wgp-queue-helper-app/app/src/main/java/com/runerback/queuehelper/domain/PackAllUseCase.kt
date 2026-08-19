@@ -8,6 +8,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.runerback.queuehelper.data.local.QueueJobRepository
 import com.runerback.queuehelper.data.model.QueueJob
+import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -70,7 +71,10 @@ class PackAllUseCase(
             }
 
             "Saved to $savedPath"
-        }.getOrElse { "Pack failed: ${it.message}" }
+        }.getOrElse {
+            LogBuffer.add("PackAllUseCase: ${it.stackTraceToString()}")
+            "Pack failed: ${it.message}"
+        }
     }
 
     private fun addImagesToZip(

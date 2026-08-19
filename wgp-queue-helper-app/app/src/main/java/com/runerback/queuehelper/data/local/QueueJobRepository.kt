@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.runerback.queuehelper.data.model.QueueJob
+import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -33,14 +34,37 @@ class QueueJobRepository(private val context: Context) {
     private fun payloadFile(id: Int): File = File(jobsDir(), "job_$id.json")
 
     suspend fun loadJobs(presetId: Int): List<QueueJob> = withContext(Dispatchers.IO) {
-        val prefs = dataStore.data.first()
-        val listJson = prefs[jobsKey] ?: "[]"
-        val summaries = json.decodeFromString<List<JobSummary>>(listJson)
-        summaries
-            .filter { it.presetId == presetId }
-            .mapNotNull { summary ->
+        runCatching {
+            val prefs = dataStore.data.first()
+            val listJson = prefs[jobsKey] ?: "[]"
+            val summaries = json.decodeFromString<List<JobSummary>>(listJson)
+            summaries
+                .filter { it.presetId == presetId }
+                .mapNotNull { summary ->
+                    val payloadFile = payloadFile(summary.id)
+                    if (!payloadFile.exists()) return@mapNotNull null
+                    val payload = json.decodeFromString<JsonObject>(payloadFile.readText())
+                    QueueJob(
+                        id = summary.id,
+                        presetId = summary.presetId,
+                        createdAt = summary.createdAt,
+                        payload = payload
+                    )
+                }
+                .sortedBy { it.createdAt }
+        }.getOrElse {
+            LogBuffer.add("QueueJobRepository.loadJobs($presetId): ${it.stackTraceToString()}")
+            emptyList()
+        }
+    }
+
+    suspend fun loadJob(id: Int): QueueJob? = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = dataStore.data.first()
+            val summaries = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
+            summaries.find { it.id == id }?.let { summary ->
                 val payloadFile = payloadFile(summary.id)
-                if (!payloadFile.exists()) return@mapNotNull null
+                if (!payloadFile.exists()) return@let null
                 val payload = json.decodeFromString<JsonObject>(payloadFile.readText())
                 QueueJob(
                     id = summary.id,
@@ -49,75 +73,75 @@ class QueueJobRepository(private val context: Context) {
                     payload = payload
                 )
             }
-            .sortedBy { it.createdAt }
-    }
-
-    suspend fun loadJob(id: Int): QueueJob? = withContext(Dispatchers.IO) {
-        val prefs = dataStore.data.first()
-        val summaries = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
-        summaries.find { it.id == id }?.let { summary ->
-            val payloadFile = payloadFile(summary.id)
-            if (!payloadFile.exists()) return@let null
-            val payload = json.decodeFromString<JsonObject>(payloadFile.readText())
-            QueueJob(
-                id = summary.id,
-                presetId = summary.presetId,
-                createdAt = summary.createdAt,
-                payload = payload
-            )
+        }.getOrElse {
+            LogBuffer.add("QueueJobRepository.loadJob($id): ${it.stackTraceToString()}")
+            null
         }
     }
 
     suspend fun saveJob(job: QueueJob): QueueJob = withContext(Dispatchers.IO) {
-        payloadFile(job.id).writeText(json.encodeToString(job.payload))
+        runCatching {
+            payloadFile(job.id).writeText(json.encodeToString(job.payload))
 
-        dataStore.edit { prefs ->
-            val existing = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
-            val updated = existing.filter { it.id != job.id } + JobSummary(
-                id = job.id,
-                presetId = job.presetId,
-                createdAt = job.createdAt
-            )
-            prefs[jobsKey] = json.encodeToString(updated)
+            dataStore.edit { prefs ->
+                val existing = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
+                val updated = existing.filter { it.id != job.id } + JobSummary(
+                    id = job.id,
+                    presetId = job.presetId,
+                    createdAt = job.createdAt
+                )
+                prefs[jobsKey] = json.encodeToString(updated)
+            }
+            job
+        }.getOrElse {
+            LogBuffer.add("QueueJobRepository.saveJob(${job.id}): ${it.stackTraceToString()}")
+            job
         }
-        job
     }
 
     suspend fun deleteJob(id: Int) = withContext(Dispatchers.IO) {
-        payloadFile(id).delete()
-        dataStore.edit { prefs ->
-            val existing = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
-            prefs[jobsKey] = json.encodeToString(existing.filter { it.id != id })
+        runCatching {
+            payloadFile(id).delete()
+            dataStore.edit { prefs ->
+                val existing = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
+                prefs[jobsKey] = json.encodeToString(existing.filter { it.id != id })
+            }
+        }.getOrElse {
+            LogBuffer.add("QueueJobRepository.deleteJob($id): ${it.stackTraceToString()}")
         }
     }
 
     suspend fun renumberJobs(presetId: Int) = withContext(Dispatchers.IO) {
-        val prefs = dataStore.data.first()
-        val summaries = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
-        val presetSummaries = summaries.filter { it.presetId == presetId }.sortedBy { it.createdAt }
-        val otherSummaries = summaries.filter { it.presetId != presetId }
+        runCatching {
+            val prefs = dataStore.data.first()
+            val summaries = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
+            val presetSummaries = summaries.filter { it.presetId == presetId }.sortedBy { it.createdAt }
+            val otherSummaries = summaries.filter { it.presetId != presetId }
 
-        val newPresetSummaries = presetSummaries.mapIndexed { index, summary ->
-            val newId = index + 1
-            val oldId = summary.id
-            if (oldId != newId) {
-                val oldFile = payloadFile(oldId)
-                if (oldFile.exists()) {
-                    val payload = json.decodeFromString<JsonObject>(oldFile.readText())
-                    val updatedPayload = updatePayloadId(payload, newId)
-                    payloadFile(newId).writeText(json.encodeToString(updatedPayload))
-                    oldFile.delete()
+            val newPresetSummaries = presetSummaries.mapIndexed { index, summary ->
+                val newId = index + 1
+                val oldId = summary.id
+                if (oldId != newId) {
+                    val oldFile = payloadFile(oldId)
+                    if (oldFile.exists()) {
+                        val payload = json.decodeFromString<JsonObject>(oldFile.readText())
+                        val updatedPayload = updatePayloadId(payload, newId)
+                        payloadFile(newId).writeText(json.encodeToString(updatedPayload))
+                        oldFile.delete()
+                    }
                 }
+                summary.copy(id = newId)
             }
-            summary.copy(id = newId)
-        }
 
-        val allSummaries = otherSummaries + newPresetSummaries
-        val maxId = allSummaries.maxOfOrNull { it.id } ?: 0
+            val allSummaries = otherSummaries + newPresetSummaries
+            val maxId = allSummaries.maxOfOrNull { it.id } ?: 0
 
-        dataStore.edit { prefs ->
-            prefs[jobsKey] = json.encodeToString(allSummaries)
-            prefs[nextIdKey] = maxId + 1
+            dataStore.edit { prefs ->
+                prefs[jobsKey] = json.encodeToString(allSummaries)
+                prefs[nextIdKey] = maxId + 1
+            }
+        }.getOrElse {
+            LogBuffer.add("QueueJobRepository.renumberJobs($presetId): ${it.stackTraceToString()}")
         }
     }
 
