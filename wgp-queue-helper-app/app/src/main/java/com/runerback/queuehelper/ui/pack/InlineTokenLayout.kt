@@ -17,6 +17,122 @@ internal sealed class InlineSlot {
     data class Chip(override val index: Int) : InlineSlot()
 }
 
+internal data class SlotInfo(
+    val line: Int,
+    val x: Int,
+    val width: Int,
+    val isText: Boolean
+)
+
+internal data class MeasuredSlot(
+    val naturalWidth: Int,
+    val naturalHeight: Int,
+    val isText: Boolean
+)
+
+internal fun calculateSlotInfos(
+    slots: List<MeasuredSlot>,
+    maxWidth: Int,
+    horizontalSpacingPx: Int,
+    textMinWidthPx: Int
+): Pair<List<SlotInfo>, List<Int>> {
+    val slotInfos = mutableListOf<SlotInfo>()
+    var line = 0
+    var currentLineWidth = 0
+    var currentLineHeight = 0
+    val lineHeights = mutableListOf<Int>()
+
+    slots.forEachIndexed { i, slot ->
+        val naturalWidth = slot.naturalWidth
+        val spacing = if (currentLineWidth == 0) 0 else horizontalSpacingPx
+        val remaining = maxWidth - currentLineWidth - spacing
+
+        when {
+            slot.isText -> {
+                if (naturalWidth <= remaining) {
+                    slotInfos.add(
+                        SlotInfo(
+                            line = line,
+                            x = currentLineWidth + spacing,
+                            width = naturalWidth,
+                            isText = true
+                        )
+                    )
+                    currentLineWidth += spacing + naturalWidth
+                    currentLineHeight = max(currentLineHeight, slot.naturalHeight)
+                } else if (currentLineWidth > 0 && remaining >= maxWidth / 2) {
+                    // Leftover space is large enough to be usable; let the text wrap
+                    // there instead of jumping to a new line and leaving a big gap.
+                    slotInfos.add(
+                        SlotInfo(
+                            line = line,
+                            x = currentLineWidth + spacing,
+                            width = remaining,
+                            isText = true
+                        )
+                    )
+                    lineHeights.add(max(currentLineHeight, slot.naturalHeight))
+                    line++
+                    currentLineWidth = 0
+                    currentLineHeight = 0
+                } else {
+                    if (currentLineWidth > 0) {
+                        lineHeights.add(currentLineHeight)
+                        line++
+                        currentLineWidth = 0
+                        currentLineHeight = 0
+                    }
+                    val width = min(naturalWidth, maxWidth).coerceAtLeast(textMinWidthPx)
+                    slotInfos.add(
+                        SlotInfo(
+                            line = line,
+                            x = 0,
+                            width = width,
+                            isText = true
+                        )
+                    )
+                    currentLineWidth = width
+                    currentLineHeight = slot.naturalHeight
+                }
+            }
+            else -> {
+                if (naturalWidth <= remaining) {
+                    slotInfos.add(
+                        SlotInfo(
+                            line = line,
+                            x = currentLineWidth + spacing,
+                            width = naturalWidth,
+                            isText = false
+                        )
+                    )
+                    currentLineWidth += spacing + naturalWidth
+                    currentLineHeight = max(currentLineHeight, slot.naturalHeight)
+                } else {
+                    if (currentLineWidth > 0) {
+                        lineHeights.add(currentLineHeight)
+                        line++
+                        currentLineWidth = 0
+                        currentLineHeight = 0
+                    }
+                    slotInfos.add(
+                        SlotInfo(
+                            line = line,
+                            x = 0,
+                            width = naturalWidth,
+                            isText = false
+                        )
+                    )
+                    currentLineWidth = naturalWidth
+                    currentLineHeight = slot.naturalHeight
+                }
+            }
+        }
+    }
+    lineHeights.add(currentLineHeight)
+
+    return slotInfos to lineHeights
+}
+
 @Composable
 internal fun InlineTokenLayout(
     slots: List<InlineSlot>,
@@ -50,115 +166,27 @@ internal fun InlineTokenLayout(
                 }
             }
         } else {
-            // First pass: measure all slots with the full width to get natural sizes.
             val firstPassPlaceables = slots.mapIndexed { index, slot ->
                 subcompose("first-$index") { content(slot) }.first().measure(
                     Constraints(minWidth = 0, maxWidth = maxWidth)
                 )
             }
 
-            data class SlotInfo(
-                val line: Int,
-                val x: Int,
-                val width: Int,
-                val isText: Boolean
+            val measurements = slots.mapIndexed { i, slot ->
+                MeasuredSlot(
+                    naturalWidth = firstPassPlaceables[i].width,
+                    naturalHeight = firstPassPlaceables[i].height,
+                    isText = slot is InlineSlot.Text
+                )
+            }
+
+            val (slotInfos, lineHeights) = calculateSlotInfos(
+                slots = measurements,
+                maxWidth = maxWidth,
+                horizontalSpacingPx = horizontalSpacingPx,
+                textMinWidthPx = textMinWidthPx
             )
 
-            val slotInfos = mutableListOf<SlotInfo>()
-            var line = 0
-            var currentLineWidth = 0
-            var currentLineHeight = 0
-            val lineHeights = mutableListOf<Int>()
-
-            slots.forEachIndexed { i, slot ->
-                val firstPassPlaceable = firstPassPlaceables[i]
-                val naturalWidth = firstPassPlaceable.width
-                val spacing = if (currentLineWidth == 0) 0 else horizontalSpacingPx
-                val remaining = maxWidth - currentLineWidth - spacing
-
-                when (slot) {
-                    is InlineSlot.Chip -> {
-                        if (naturalWidth <= remaining) {
-                            slotInfos.add(
-                                SlotInfo(
-                                    line = line,
-                                    x = currentLineWidth + spacing,
-                                    width = naturalWidth,
-                                    isText = false
-                                )
-                            )
-                            currentLineWidth += spacing + naturalWidth
-                            currentLineHeight = max(currentLineHeight, firstPassPlaceable.height)
-                        } else {
-                            if (currentLineWidth > 0) {
-                                lineHeights.add(currentLineHeight)
-                                line++
-                                currentLineWidth = 0
-                                currentLineHeight = 0
-                            }
-                            slotInfos.add(
-                                SlotInfo(
-                                    line = line,
-                                    x = 0,
-                                    width = naturalWidth,
-                                    isText = false
-                                )
-                            )
-                            currentLineWidth = naturalWidth
-                            currentLineHeight = firstPassPlaceable.height
-                        }
-                    }
-
-                    is InlineSlot.Text -> {
-                        if (naturalWidth <= remaining) {
-                            slotInfos.add(
-                                SlotInfo(
-                                    line = line,
-                                    x = currentLineWidth + spacing,
-                                    width = naturalWidth,
-                                    isText = true
-                                )
-                            )
-                            currentLineWidth += spacing + naturalWidth
-                            currentLineHeight = max(currentLineHeight, firstPassPlaceable.height)
-                        } else if (currentLineWidth > 0 && remaining >= textMinWidthPx) {
-                            slotInfos.add(
-                                SlotInfo(
-                                    line = line,
-                                    x = currentLineWidth + spacing,
-                                    width = remaining,
-                                    isText = true
-                                )
-                            )
-                            lineHeights.add(max(currentLineHeight, firstPassPlaceable.height))
-                            line++
-                            currentLineWidth = 0
-                            currentLineHeight = 0
-                        } else {
-                            if (currentLineWidth > 0) {
-                                lineHeights.add(currentLineHeight)
-                                line++
-                                currentLineWidth = 0
-                                currentLineHeight = 0
-                            }
-                            val width = min(naturalWidth, maxWidth).coerceAtLeast(textMinWidthPx)
-                            slotInfos.add(
-                                SlotInfo(
-                                    line = line,
-                                    x = 0,
-                                    width = width,
-                                    isText = true
-                                )
-                            )
-                            currentLineWidth = width
-                            currentLineHeight = firstPassPlaceable.height
-                        }
-                    }
-                }
-            }
-            lineHeights.add(currentLineHeight)
-
-            // Second pass: recompose text slots with their allocated widths.
             val finalPlaceables: List<Placeable> = slots.mapIndexed { i, slot ->
                 val info = slotInfos[i]
                 if (info.isText) {

@@ -73,7 +73,7 @@ fun EditPresetScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edit Preset ${viewModel.name}") },
+                title = { Text("Edit Preset - ${viewModel.name}") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -192,7 +192,6 @@ fun EditPresetScreen(
                     imageUris = emptyList(),
                     label = { Text("summary") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
                     maxLines = 4
                 )
             }
@@ -207,7 +206,6 @@ fun EditPresetScreen(
                     imageUris = emptyList(),
                     label = { Text("retention_analysis") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
                     maxLines = 4
                 )
             }
@@ -237,7 +235,6 @@ fun EditPresetScreen(
                     imageUris = emptyList(),
                     label = { Text("non_diegetic_music") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
                     maxLines = 4
                 )
             }

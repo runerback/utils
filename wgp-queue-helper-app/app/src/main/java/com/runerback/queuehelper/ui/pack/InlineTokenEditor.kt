@@ -39,7 +39,7 @@ fun InlineTokenEditor(
     availableSubjects: Boolean = true,
     availablePictures: Boolean = true,
     availableAudio: Boolean = false,
-    minLines: Int = 2,
+    minLines: Int = 1,
     maxLines: Int = 4
 ) {
     var tokens by remember(value) { mutableStateOf(value.parseTokens().mergeAdjacentPlainText().ensureTrailingPlainText()) }

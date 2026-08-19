@@ -387,7 +387,6 @@ fun TaskEditor(
                     imageUris = viewModel.imageUris,
                     label = { Text("summary") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
                     maxLines = 4
                 )
             }
@@ -402,7 +401,6 @@ fun TaskEditor(
                     imageUris = viewModel.imageUris,
                     label = { Text("retention_analysis") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
                     maxLines = 4
                 )
             }
@@ -432,7 +430,6 @@ fun TaskEditor(
                     imageUris = viewModel.imageUris,
                     label = { Text("non_diegetic_music") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
                     maxLines = 4
                 )
             }
