@@ -1,5 +1,8 @@
 package com.runerback.queuehelper.ui.tasks
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +20,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -31,8 +38,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.runerback.queuehelper.ui.components.LogViewDialog
-import com.runerback.queuehelper.ui.icons.TablerLogs
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,7 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.queuehelper.QueueHelperApplication
 import com.runerback.queuehelper.data.model.Task
+import com.runerback.queuehelper.ui.components.LogViewDialog
+import com.runerback.queuehelper.ui.icons.BootstrapBoxArrowInDown
+import com.runerback.queuehelper.ui.icons.BootstrapBoxArrowInUp
 import com.runerback.queuehelper.ui.icons.FluentuiSystemIconsFolderZip
+import com.runerback.queuehelper.ui.icons.FluentuiSystemIconsSelectAllOff
+import com.runerback.queuehelper.ui.icons.TablerLogs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,16 +64,54 @@ fun TaskListScreen(
     val viewModel: TaskListViewModel = viewModel(
         factory = TaskListViewModel.Factory(app.taskRepository, app.templateLoader)
     )
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 is TaskListViewModel.TaskListEvent.NavigateToEdit -> onEditTask(event.taskId)
+                is TaskListViewModel.TaskListEvent.ShowMessage -> {
+                    snackbarHostState.showSnackbar(event.message)
+                }
             }
         }
     }
 
     var showLogView by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.openOutputStream(it)?.use { out ->
+                    out.write(viewModel.exportTasks().toByteArray())
+                }
+                viewModel.toggleSelectionMode()
+            }.onFailure { e ->
+                com.runerback.queuehelper.ui.components.LogBuffer.add(
+                    "TaskListScreen.export: ${e.stackTraceToString()}"
+                )
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            runCatching {
+                val json = context.contentResolver.openInputStream(it)?.use { stream ->
+                    stream.bufferedReader().readText()
+                }.orEmpty()
+                viewModel.importTasks(json)
+            }.onFailure { e ->
+                com.runerback.queuehelper.ui.components.LogBuffer.add(
+                    "TaskListScreen.import: ${e.stackTraceToString()}"
+                )
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -78,6 +126,23 @@ fun TaskListScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
+                        Icon(
+                            imageVector = BootstrapBoxArrowInDown,
+                            contentDescription = "Import presets"
+                        )
+                    }
+                    IconButton(onClick = { viewModel.toggleSelectionMode() }) {
+                        Icon(
+                            imageVector = FluentuiSystemIconsSelectAllOff,
+                            contentDescription = "Select presets",
+                            tint = if (viewModel.selectionMode) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
                     IconButton(onClick = { showLogView = true }) {
                         Icon(
                             imageVector = TablerLogs,
@@ -87,6 +152,21 @@ fun TaskListScreen(
                 }
             )
         },
+        floatingActionButton = {
+            if (viewModel.selectionMode && viewModel.selectedTaskIds.isNotEmpty()) {
+                ExtendedFloatingActionButton(
+                    onClick = { exportLauncher.launch("presets.json") },
+                    icon = {
+                        Icon(
+                            imageVector = BootstrapBoxArrowInUp,
+                            contentDescription = "Export"
+                        )
+                    },
+                    text = { Text("Export") }
+                )
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { padding ->
         Box(
@@ -111,6 +191,9 @@ fun TaskListScreen(
                     items(viewModel.tasks, key = { it.id }) { task ->
                         TaskListItem(
                             task = task,
+                            selectionMode = viewModel.selectionMode,
+                            selected = task.id in viewModel.selectedTaskIds,
+                            onToggleSelected = { viewModel.setSelected(task.id, task.id !in viewModel.selectedTaskIds) },
                             onEdit = { onEditTask(task.id) },
                             onPack = { onPackTask(task.id) },
                             onDelete = { viewModel.deleteTask(task) }
@@ -142,6 +225,9 @@ fun TaskListScreen(
 @Composable
 private fun TaskListItem(
     task: Task,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onToggleSelected: () -> Unit,
     onEdit: () -> Unit,
     onPack: () -> Unit,
     onDelete: () -> Unit,
@@ -156,7 +242,18 @@ private fun TaskListItem(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            if (selectionMode) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = { onToggleSelected() }
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .then(if (selectionMode) Modifier.clickable { onToggleSelected() } else Modifier)
+            ) {
                 Text(
                     text = task.name,
                     style = MaterialTheme.typography.titleMedium

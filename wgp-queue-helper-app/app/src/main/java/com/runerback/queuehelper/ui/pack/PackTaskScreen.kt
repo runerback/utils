@@ -26,10 +26,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
@@ -71,7 +73,6 @@ import coil.compose.AsyncImage
 import com.runerback.queuehelper.QueueHelperApplication
 import kotlinx.coroutines.launch
 import com.runerback.queuehelper.data.model.DescriptionSegment
-import com.runerback.queuehelper.data.model.QueueJob
 import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.parseDescriptionSegments
 import com.runerback.queuehelper.domain.PackAllUseCase
@@ -136,7 +137,7 @@ fun PackTaskScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Pack Queue") },
+                title = { Text("Tasks - ${viewModel.presetName}") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -152,7 +153,18 @@ fun PackTaskScreen(
                             contentDescription = "Create job"
                         )
                     }
-                    IconButton(onClick = doPackAll) {
+                    if (viewModel.jobs.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearAllJobs() }) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Clear all tasks"
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = doPackAll,
+                        enabled = viewModel.jobs.isNotEmpty()
+                    ) {
                         Icon(
                             imageVector = PhosphorPackage,
                             contentDescription = "Pack queue.zip"
@@ -171,9 +183,10 @@ fun PackTaskScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            items(viewModel.jobs, key = { it.id }) { job ->
+            itemsIndexed(viewModel.jobs, key = { _, job -> job.id }) { index, job ->
                 JobQueueItem(
-                    job = job,
+                    index = index,
+                    presetName = viewModel.presetName,
                     onEdit = { onEditJob(job.id) },
                     onDelete = { viewModel.deleteJobAndRenumber(job.id) }
                 )
@@ -184,7 +197,8 @@ fun PackTaskScreen(
 
 @Composable
 private fun JobQueueItem(
-    job: QueueJob,
+    index: Int,
+    presetName: String,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -198,11 +212,11 @@ private fun JobQueueItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Job ${job.id}",
+                    text = "Task ${index + 1}",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "Preset ${job.presetId}",
+                    text = presetName,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

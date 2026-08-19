@@ -34,6 +34,9 @@ class PackQueueViewModel(
     var jobs by mutableStateOf<List<QueueJob>>(emptyList())
         private set
 
+    var presetName by mutableStateOf("")
+        private set
+
     var isLoading by mutableStateOf(false)
         private set
 
@@ -50,6 +53,10 @@ class PackQueueViewModel(
                 LogBuffer.add("PackQueueViewModel.loadJobs($presetId): ${it.stackTraceToString()}")
                 emptyList()
             }
+            presetName = runCatching { taskRepository.loadTask(presetId)?.name }.getOrElse {
+                LogBuffer.add("PackQueueViewModel.loadPresetName($presetId): ${it.stackTraceToString()}")
+                null
+            } ?: ""
             isLoading = false
         }
     }
@@ -76,6 +83,17 @@ class PackQueueViewModel(
                 jobs = queueJobRepository.loadJobs(presetId)
             }.onFailure {
                 LogBuffer.add("PackQueueViewModel.deleteJobAndRenumber($jobId): ${it.stackTraceToString()}")
+            }
+        }
+    }
+
+    fun clearAllJobs() {
+        viewModelScope.launch {
+            runCatching {
+                queueJobRepository.deleteJobsForPreset(presetId)
+                jobs = emptyList()
+            }.onFailure {
+                LogBuffer.add("PackQueueViewModel.clearAllJobs($presetId): ${it.stackTraceToString()}")
             }
         }
     }

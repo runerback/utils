@@ -111,6 +111,21 @@ class QueueJobRepository(private val context: Context) {
         }
     }
 
+    suspend fun deleteJobsForPreset(presetId: Int) = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = dataStore.data.first()
+            val summaries = json.decodeFromString<List<JobSummary>>(prefs[jobsKey] ?: "[]")
+            summaries.filter { it.presetId == presetId }.forEach {
+                payloadFile(it.id).delete()
+            }
+            dataStore.edit { prefs ->
+                prefs[jobsKey] = json.encodeToString(summaries.filter { it.presetId != presetId })
+            }
+        }.getOrElse {
+            LogBuffer.add("QueueJobRepository.deleteJobsForPreset($presetId): ${it.stackTraceToString()}")
+        }
+    }
+
     suspend fun renumberJobs(presetId: Int) = withContext(Dispatchers.IO) {
         runCatching {
             val prefs = dataStore.data.first()
