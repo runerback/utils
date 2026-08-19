@@ -83,19 +83,19 @@ private const val MAX_PICTURE_SLOTS = 6
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PackTaskScreen(
+fun PackScreen(
     presetId: Int,
-    onEditJob: (Int) -> Unit,
+    onEditTask: (Int) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as QueueHelperApplication
-    val viewModel: PackQueueViewModel = viewModel(
-        factory = PackQueueViewModel.Factory(
+    val viewModel: PackViewModel = viewModel(
+        factory = PackViewModel.Factory(
             presetId,
+            app.presetRepository,
             app.taskRepository,
-            app.queueJobRepository,
             app.templateLoader
         )
     )
@@ -103,7 +103,7 @@ fun PackTaskScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val packAllUseCase = remember {
-        PackAllUseCase(context, app.queueJobRepository, presetId)
+        PackAllUseCase(context, app.taskRepository, presetId)
     }
 
     val storagePermissionLauncher = rememberLauncherForActivityResult(
@@ -147,14 +147,14 @@ fun PackTaskScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.createJobFromPreset() }) {
+                    IconButton(onClick = { viewModel.createTaskFromPreset() }) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "Create job"
+                            contentDescription = "Create task"
                         )
                     }
-                    if (viewModel.jobs.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.clearAllJobs() }) {
+                    if (viewModel.tasks.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearAllTasks() }) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = "Clear all tasks"
@@ -163,7 +163,7 @@ fun PackTaskScreen(
                     }
                     IconButton(
                         onClick = doPackAll,
-                        enabled = viewModel.jobs.isNotEmpty()
+                        enabled = viewModel.tasks.isNotEmpty()
                     ) {
                         Icon(
                             imageVector = PhosphorPackage,
@@ -183,12 +183,12 @@ fun PackTaskScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            itemsIndexed(viewModel.jobs, key = { _, job -> job.id }) { index, job ->
-                JobQueueItem(
+            itemsIndexed(viewModel.tasks, key = { _, task -> task.id }) { index, task ->
+                TaskItem(
                     index = index,
                     presetName = viewModel.presetName,
-                    onEdit = { onEditJob(job.id) },
-                    onDelete = { viewModel.deleteJobAndRenumber(job.id) }
+                    onEdit = { onEditTask(task.id) },
+                    onDelete = { viewModel.deleteTaskAndRenumber(task.id) }
                 )
             }
         }
@@ -196,7 +196,7 @@ fun PackTaskScreen(
 }
 
 @Composable
-private fun JobQueueItem(
+private fun TaskItem(
     index: Int,
     presetName: String,
     onEdit: () -> Unit,
@@ -224,13 +224,13 @@ private fun JobQueueItem(
             IconButton(onClick = onEdit) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit job"
+                    contentDescription = "Edit task"
                 )
             }
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Delete job"
+                    contentDescription = "Delete task"
                 )
             }
         }
@@ -239,17 +239,17 @@ private fun JobQueueItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PackTaskEditor(
-    jobId: Int,
+fun TaskEditor(
+    taskId: Int,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as QueueHelperApplication
-    val viewModel: PackTaskViewModel = viewModel(
-        factory = PackTaskViewModel.Factory(
+    val viewModel: TaskEditorViewModel = viewModel(
+        factory = TaskEditorViewModel.Factory(
             context,
-            app.queueJobRepository,
+            app.taskRepository,
             app.templateLoader
         )
     )

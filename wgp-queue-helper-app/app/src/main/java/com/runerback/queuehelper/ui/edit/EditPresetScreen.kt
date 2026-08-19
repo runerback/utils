@@ -48,21 +48,20 @@ import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.ui.pack.InlineDescription
 import com.runerback.queuehelper.ui.pack.InlineTokenEditor
 import com.runerback.queuehelper.ui.pack.PicturePickerDialog
-import com.runerback.queuehelper.ui.pack.TokenTextField
 
 private val Resolutions = listOf("480x832", "832x480")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditTaskScreen(
-    taskId: Int,
+fun EditPresetScreen(
+    presetId: Int,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as QueueHelperApplication
-    val viewModel: EditTaskViewModel = viewModel(
-        factory = EditTaskViewModel.Factory(app.taskRepository, app.templateLoader)
+    val viewModel: EditPresetViewModel = viewModel(
+        factory = EditPresetViewModel.Factory(app.presetRepository, app.templateLoader)
     )
 
     val subjects = viewModel.subjectDefaults.map { SubjectDefinition(0, it.number, it.description) }
@@ -74,7 +73,7 @@ fun EditTaskScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edit Task $taskId") },
+                title = { Text("Edit Preset ${viewModel.name}") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(

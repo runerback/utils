@@ -1,4 +1,4 @@
-package com.runerback.queuehelper.ui.tasks
+package com.runerback.queuehelper.ui.presets
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,7 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.queuehelper.QueueHelperApplication
-import com.runerback.queuehelper.data.model.Task
+import com.runerback.queuehelper.data.model.Preset
 import com.runerback.queuehelper.ui.components.LogViewDialog
 import com.runerback.queuehelper.ui.icons.BootstrapBoxArrowInDown
 import com.runerback.queuehelper.ui.icons.BootstrapBoxArrowInUp
@@ -54,23 +54,23 @@ import com.runerback.queuehelper.ui.icons.TablerLogs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskListScreen(
-    onEditTask: (Int) -> Unit,
-    onPackTask: (Int) -> Unit,
+fun PresetListScreen(
+    onEditPreset: (Int) -> Unit,
+    onPackPreset: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as QueueHelperApplication
-    val viewModel: TaskListViewModel = viewModel(
-        factory = TaskListViewModel.Factory(app.taskRepository, app.templateLoader)
+    val viewModel: PresetListViewModel = viewModel(
+        factory = PresetListViewModel.Factory(app.presetRepository, app.templateLoader)
     )
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is TaskListViewModel.TaskListEvent.NavigateToEdit -> onEditTask(event.taskId)
-                is TaskListViewModel.TaskListEvent.ShowMessage -> {
+                is PresetListViewModel.PresetListEvent.NavigateToEdit -> onEditPreset(event.presetId)
+                is PresetListViewModel.PresetListEvent.ShowMessage -> {
                     snackbarHostState.showSnackbar(event.message)
                 }
             }
@@ -85,12 +85,12 @@ fun TaskListScreen(
         uri?.let {
             runCatching {
                 context.contentResolver.openOutputStream(it)?.use { out ->
-                    out.write(viewModel.exportTasks().toByteArray())
+                    out.write(viewModel.exportPresets().toByteArray())
                 }
                 viewModel.toggleSelectionMode()
             }.onFailure { e ->
                 com.runerback.queuehelper.ui.components.LogBuffer.add(
-                    "TaskListScreen.export: ${e.stackTraceToString()}"
+                    "PresetListScreen.export: ${e.stackTraceToString()}"
                 )
             }
         }
@@ -104,10 +104,10 @@ fun TaskListScreen(
                 val json = context.contentResolver.openInputStream(it)?.use { stream ->
                     stream.bufferedReader().readText()
                 }.orEmpty()
-                viewModel.importTasks(json)
+                viewModel.importPresets(json)
             }.onFailure { e ->
                 com.runerback.queuehelper.ui.components.LogBuffer.add(
-                    "TaskListScreen.import: ${e.stackTraceToString()}"
+                    "PresetListScreen.import: ${e.stackTraceToString()}"
                 )
             }
         }
@@ -132,16 +132,18 @@ fun TaskListScreen(
                             contentDescription = "Import presets"
                         )
                     }
-                    IconButton(onClick = { viewModel.toggleSelectionMode() }) {
-                        Icon(
-                            imageVector = FluentuiSystemIconsSelectAllOff,
-                            contentDescription = "Select presets",
-                            tint = if (viewModel.selectionMode) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
+                    if (viewModel.presets.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.toggleSelectionMode() }) {
+                            Icon(
+                                imageVector = FluentuiSystemIconsSelectAllOff,
+                                contentDescription = "Select presets",
+                                tint = if (viewModel.selectionMode) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
                     }
                     IconButton(onClick = { showLogView = true }) {
                         Icon(
@@ -153,7 +155,7 @@ fun TaskListScreen(
             )
         },
         floatingActionButton = {
-            if (viewModel.selectionMode && viewModel.selectedTaskIds.isNotEmpty()) {
+            if (viewModel.selectionMode && viewModel.selectedPresetIds.isNotEmpty()) {
                 ExtendedFloatingActionButton(
                     onClick = { exportLauncher.launch("presets.json") },
                     icon = {
@@ -176,9 +178,9 @@ fun TaskListScreen(
         ) {
             if (viewModel.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (viewModel.tasks.isEmpty()) {
+            } else if (viewModel.presets.isEmpty()) {
                 Text(
-                    text = "No tasks yet. Tap + to create one.",
+                    text = "No presets yet. Tap + to create one.",
                     modifier = Modifier.align(Alignment.Center),
                     style = MaterialTheme.typography.bodyLarge
                 )
@@ -188,29 +190,29 @@ fun TaskListScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(viewModel.tasks, key = { it.id }) { task ->
-                        TaskListItem(
-                            task = task,
+                    items(viewModel.presets, key = { it.id }) { preset ->
+                        PresetListItem(
+                            preset = preset,
                             selectionMode = viewModel.selectionMode,
-                            selected = task.id in viewModel.selectedTaskIds,
-                            onToggleSelected = { viewModel.setSelected(task.id, task.id !in viewModel.selectedTaskIds) },
-                            onEdit = { onEditTask(task.id) },
-                            onPack = { onPackTask(task.id) },
-                            onDelete = { viewModel.deleteTask(task) }
+                            selected = preset.id in viewModel.selectedPresetIds,
+                            onToggleSelected = { viewModel.setSelected(preset.id, preset.id !in viewModel.selectedPresetIds) },
+                            onEdit = { onEditPreset(preset.id) },
+                            onPack = { onPackPreset(preset.id) },
+                            onDelete = { viewModel.deletePreset(preset) }
                         )
                     }
                 }
             }
 
             if (viewModel.showCreateDialog) {
-                CreateTaskDialog(
+                CreatePresetDialog(
                     templates = app.templateLoader.load().keys.toList()
                         .map { modelType ->
                             modelType to app.templateLoader.defaultName(modelType)
                         },
                     onDismiss = { viewModel.closeCreateDialog() },
                     onCreate = { name, modelType ->
-                        viewModel.createTask(name, modelType)
+                        viewModel.createPreset(name, modelType)
                     }
                 )
             }
@@ -223,8 +225,8 @@ fun TaskListScreen(
 }
 
 @Composable
-private fun TaskListItem(
-    task: Task,
+private fun PresetListItem(
+    preset: Preset,
     selectionMode: Boolean,
     selected: Boolean,
     onToggleSelected: () -> Unit,
@@ -255,33 +257,33 @@ private fun TaskListItem(
                     .then(if (selectionMode) Modifier.clickable { onToggleSelected() } else Modifier)
             ) {
                 Text(
-                    text = task.name,
+                    text = preset.name,
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = task.modelType,
+                    text = preset.modelType,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = onEdit) {
+            IconButton(onClick = onEdit, enabled = !selectionMode) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit task"
+                    contentDescription = "Edit preset"
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
-            IconButton(onClick = onPack) {
+            IconButton(onClick = onPack, enabled = !selectionMode) {
                 Icon(
                     imageVector = FluentuiSystemIconsFolderZip,
-                    contentDescription = "Pack task"
+                    contentDescription = "Pack preset"
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
-            IconButton(onClick = onDelete) {
+            IconButton(onClick = onDelete, enabled = !selectionMode) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Delete task"
+                    contentDescription = "Delete preset"
                 )
             }
         }

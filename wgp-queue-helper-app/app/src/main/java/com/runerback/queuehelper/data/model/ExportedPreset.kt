@@ -4,13 +4,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
 /**
- * Serializable representation of a [Task] used for export/import JSON files.
+ * Serializable representation of a [Preset] used for export/import JSON files.
  *
  * On import, [id] and [createdAt] are discarded and fresh values are assigned
  * to avoid collisions with existing presets.
  */
 @Serializable
-data class ExportedTask(
+data class ExportedPreset(
     val id: Int,
     val name: String,
     val modelType: String,

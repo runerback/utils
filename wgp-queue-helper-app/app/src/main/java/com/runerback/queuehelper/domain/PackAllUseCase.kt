@@ -6,8 +6,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import com.runerback.queuehelper.data.local.QueueJobRepository
-import com.runerback.queuehelper.data.model.QueueJob
+import com.runerback.queuehelper.data.local.TaskRepository
+import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,29 +32,29 @@ import java.util.zip.ZipOutputStream
 
 class PackAllUseCase(
     private val context: Context,
-    private val queueJobRepository: QueueJobRepository,
+    private val taskRepository: TaskRepository,
     private val presetId: Int
 ) {
     private val json = Json { prettyPrint = true }
 
     suspend operator fun invoke(): String = withContext(Dispatchers.IO) {
         runCatching {
-            val jobs = queueJobRepository.loadJobs(presetId)
-            if (jobs.isEmpty()) throw IllegalStateException("No jobs to pack")
+            val tasks = taskRepository.loadTasks(presetId)
+            if (tasks.isEmpty()) throw IllegalStateException("No tasks to pack")
 
             val (outputStream, savedPath) = openDownloadsOutputStream("queue.zip")
-            val jobObjects = mutableListOf<JsonObject>()
+            val taskObjects = mutableListOf<JsonObject>()
 
             ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
-                jobs.forEach { job ->
-                    val packSettings = job.payload["pack_settings"]?.jsonObject
-                    val imageNames = addImagesToZip(zip, job, packSettings)
-                    val audioName = addAudioToZip(zip, job, packSettings)
+                tasks.forEach { task ->
+                    val packSettings = task.payload["pack_settings"]?.jsonObject
+                    val imageNames = addImagesToZip(zip, task, packSettings)
+                    val audioName = addAudioToZip(zip, task, packSettings)
 
-                    val params = buildParams(job, imageNames, audioName)
-                    jobObjects.add(
+                    val params = buildParams(task, imageNames, audioName)
+                    taskObjects.add(
                         buildJsonObject {
-                            put("id", JsonPrimitive(job.id))
+                            put("id", JsonPrimitive(task.id))
                             put("params", params)
                         }
                     )
@@ -62,7 +62,7 @@ class PackAllUseCase(
 
                 val queueJson = json.encodeToString(
                     buildJsonArray {
-                        jobObjects.forEach { add(it) }
+                        taskObjects.forEach { add(it) }
                     }
                 )
                 zip.putNextEntry(ZipEntry("queue.json"))
@@ -79,7 +79,7 @@ class PackAllUseCase(
 
     private fun addImagesToZip(
         zip: ZipOutputStream,
-        job: QueueJob,
+        task: Task,
         packSettings: JsonObject?
     ): List<String> {
         val uris = packSettings?.get("image_uris")?.jsonArray?.mapNotNull { element ->
@@ -89,7 +89,7 @@ class PackAllUseCase(
         } ?: emptyList()
 
         return uris.mapIndexed { index, uri ->
-            val name = "task${job.id}_image_refs_$index.png"
+            val name = "task${task.id}_image_refs_$index.png"
             zip.addFile(name, uri)
             name
         }
@@ -97,22 +97,22 @@ class PackAllUseCase(
 
     private fun addAudioToZip(
         zip: ZipOutputStream,
-        job: QueueJob,
+        task: Task,
         packSettings: JsonObject?
     ): String? {
         val uriString = packSettings?.get("audio_uri")?.jsonPrimitive?.contentOrNull
         val uri = uriString?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return null
-        val name = "task${job.id}_audio_guide_0.flac"
+        val name = "task${task.id}_audio_guide_0.flac"
         zip.addFile(name, uri)
         return name
     }
 
     private fun buildParams(
-        job: QueueJob,
+        task: Task,
         imageNames: List<String>,
         audioName: String?
     ): JsonObject {
-        val baseParams = job.payload["params"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
+        val baseParams = task.payload["params"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
 
         baseParams["image_refs"] = buildJsonArray {
             imageNames.forEach { add(JsonPrimitive(it)) }

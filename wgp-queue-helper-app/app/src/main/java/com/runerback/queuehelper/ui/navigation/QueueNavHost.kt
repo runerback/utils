@@ -6,23 +6,23 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
-import com.runerback.queuehelper.ui.edit.EditTaskScreen
-import com.runerback.queuehelper.ui.pack.PackTaskEditor
-import com.runerback.queuehelper.ui.pack.PackTaskScreen
-import com.runerback.queuehelper.ui.tasks.TaskListScreen
+import com.runerback.queuehelper.ui.edit.EditPresetScreen
+import com.runerback.queuehelper.ui.pack.PackScreen
+import com.runerback.queuehelper.ui.pack.TaskEditor
+import com.runerback.queuehelper.ui.presets.PresetListScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
-data object TaskListRoute
+data object PresetListRoute
 
 @Serializable
-data class EditTaskRoute(val taskId: Int)
+data class EditPresetRoute(val presetId: Int)
 
 @Serializable
-data class PackTaskRoute(val presetId: Int)
+data class PackRoute(val presetId: Int)
 
 @Serializable
-data class PackTaskEditorRoute(val jobId: Int)
+data class TaskEditorRoute(val taskId: Int)
 
 @Composable
 fun QueueNavHost(
@@ -31,43 +31,43 @@ fun QueueNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = TaskListRoute,
+        startDestination = PresetListRoute,
         modifier = modifier
     ) {
-        composable<TaskListRoute> {
-            TaskListScreen(
-                onEditTask = { taskId ->
-                    navController.navigate(EditTaskRoute(taskId))
+        composable<PresetListRoute> {
+            PresetListScreen(
+                onEditPreset = { presetId ->
+                    navController.navigate(EditPresetRoute(presetId))
                 },
-                onPackTask = { presetId ->
-                    navController.navigate(PackTaskRoute(presetId))
+                onPackPreset = { presetId ->
+                    navController.navigate(PackRoute(presetId))
                 }
             )
         }
 
-        composable<EditTaskRoute> { backStackEntry ->
-            val route = backStackEntry.toRoute<EditTaskRoute>()
-            EditTaskScreen(
-                taskId = route.taskId,
+        composable<EditPresetRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<EditPresetRoute>()
+            EditPresetScreen(
+                presetId = route.presetId,
                 onBack = { navController.popBackStack() }
             )
         }
 
-        composable<PackTaskRoute> { backStackEntry ->
-            val route = backStackEntry.toRoute<PackTaskRoute>()
-            PackTaskScreen(
+        composable<PackRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<PackRoute>()
+            PackScreen(
                 presetId = route.presetId,
-                onEditJob = { jobId ->
-                    navController.navigate(PackTaskEditorRoute(jobId))
+                onEditTask = { taskId ->
+                    navController.navigate(TaskEditorRoute(taskId))
                 },
                 onBack = { navController.popBackStack() }
             )
         }
 
-        composable<PackTaskEditorRoute> { backStackEntry ->
-            val route = backStackEntry.toRoute<PackTaskEditorRoute>()
-            PackTaskEditor(
-                jobId = route.jobId,
+        composable<TaskEditorRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<TaskEditorRoute>()
+            TaskEditor(
+                taskId = route.taskId,
                 onBack = { navController.popBackStack() }
             )
         }

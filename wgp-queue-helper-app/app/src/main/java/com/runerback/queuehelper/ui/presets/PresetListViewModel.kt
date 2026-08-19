@@ -1,4 +1,4 @@
-package com.runerback.queuehelper.ui.tasks
+package com.runerback.queuehelper.ui.presets
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -6,13 +6,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.runerback.queuehelper.data.local.TaskRepository
+import com.runerback.queuehelper.data.local.PresetRepository
+import com.runerback.queuehelper.data.model.ExportedPreset
 import com.runerback.queuehelper.data.model.MiniMaxH3Ref2VaPrompt
+import com.runerback.queuehelper.data.model.Preset
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefaults
 import com.runerback.queuehelper.data.model.SubjectDefinition
-import com.runerback.queuehelper.data.model.ExportedTask
-import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.template.TemplateLoader
 import com.runerback.queuehelper.ui.components.LogBuffer
@@ -29,15 +29,15 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-class TaskListViewModel(
-    private val repository: TaskRepository,
+class PresetListViewModel(
+    private val repository: PresetRepository,
     private val templateLoader: TemplateLoader
 ) : ViewModel() {
 
     private val exportJson = Json { prettyPrint = true }
     private val importJson = Json { ignoreUnknownKeys = true }
 
-    var tasks by mutableStateOf<List<Task>>(emptyList())
+    var presets by mutableStateOf<List<Preset>>(emptyList())
         private set
 
     var isLoading by mutableStateOf(false)
@@ -49,21 +49,21 @@ class TaskListViewModel(
     var selectionMode by mutableStateOf(false)
         private set
 
-    var selectedTaskIds by mutableStateOf<Set<Int>>(emptySet())
+    var selectedPresetIds by mutableStateOf<Set<Int>>(emptySet())
         private set
 
-    private val _events = MutableSharedFlow<TaskListEvent>()
-    val events: SharedFlow<TaskListEvent> = _events.asSharedFlow()
+    private val _events = MutableSharedFlow<PresetListEvent>()
+    val events: SharedFlow<PresetListEvent> = _events.asSharedFlow()
 
     init {
-        loadTasks()
+        loadPresets()
     }
 
-    fun loadTasks() {
+    fun loadPresets() {
         viewModelScope.launch {
             isLoading = true
-            tasks = runCatching { repository.loadTasks() }.getOrElse {
-                LogBuffer.add("TaskListViewModel.loadTasks: ${it.stackTraceToString()}")
+            presets = runCatching { repository.loadPresets() }.getOrElse {
+                LogBuffer.add("PresetListViewModel.loadPresets: ${it.stackTraceToString()}")
                 emptyList()
             }
             isLoading = false
@@ -80,91 +80,91 @@ class TaskListViewModel(
 
     fun toggleSelectionMode() {
         selectionMode = !selectionMode
-        if (!selectionMode) selectedTaskIds = emptySet()
+        if (!selectionMode) selectedPresetIds = emptySet()
     }
 
-    fun setSelected(taskId: Int, selected: Boolean) {
-        selectedTaskIds = if (selected) {
-            selectedTaskIds + taskId
+    fun setSelected(presetId: Int, selected: Boolean) {
+        selectedPresetIds = if (selected) {
+            selectedPresetIds + presetId
         } else {
-            selectedTaskIds - taskId
+            selectedPresetIds - presetId
         }
     }
 
     fun selectAll() {
-        selectedTaskIds = tasks.map { it.id }.toSet()
+        selectedPresetIds = presets.map { it.id }.toSet()
     }
 
-    fun createTask(name: String, modelType: String) {
+    fun createPreset(name: String, modelType: String) {
         viewModelScope.launch {
             runCatching {
                 val id = repository.nextId()
-                val task = buildTask(id, name, modelType)
-                repository.saveTask(task)
-                tasks = repository.loadTasks()
+                val preset = buildPreset(id, name, modelType)
+                repository.savePreset(preset)
+                presets = repository.loadPresets()
                 showCreateDialog = false
-                _events.emit(TaskListEvent.NavigateToEdit(task.id))
+                _events.emit(PresetListEvent.NavigateToEdit(preset.id))
             }.onFailure {
-                LogBuffer.add("TaskListViewModel.createTask: ${it.stackTraceToString()}")
+                LogBuffer.add("PresetListViewModel.createPreset: ${it.stackTraceToString()}")
             }
         }
     }
 
-    fun deleteTask(task: Task) {
+    fun deletePreset(preset: Preset) {
         viewModelScope.launch {
             runCatching {
-                repository.deleteTask(task.id)
-                tasks = repository.loadTasks()
+                repository.deletePreset(preset.id)
+                presets = repository.loadPresets()
             }.onFailure {
-                LogBuffer.add("TaskListViewModel.deleteTask(${task.id}): ${it.stackTraceToString()}")
+                LogBuffer.add("PresetListViewModel.deletePreset(${preset.id}): ${it.stackTraceToString()}")
             }
         }
     }
 
-    fun exportTasks(): String {
-        val selected = tasks.filter { it.id in selectedTaskIds }
-        val exported = selected.map { task ->
-            ExportedTask(
-                id = task.id,
-                name = task.name,
-                modelType = task.modelType,
-                createdAt = task.createdAt,
-                payload = task.payload
+    fun exportPresets(): String {
+        val selected = presets.filter { it.id in selectedPresetIds }
+        val exported = selected.map { preset ->
+            ExportedPreset(
+                id = preset.id,
+                name = preset.name,
+                modelType = preset.modelType,
+                createdAt = preset.createdAt,
+                payload = preset.payload
             )
         }
         return exportJson.encodeToString(exported)
     }
 
-    fun importTasks(jsonString: String) {
+    fun importPresets(jsonString: String) {
         viewModelScope.launch {
             runCatching {
-                val imported = importJson.decodeFromString<List<ExportedTask>>(jsonString)
-                val existing = repository.loadTasks().toMutableList()
+                val imported = importJson.decodeFromString<List<ExportedPreset>>(jsonString)
+                val existing = repository.loadPresets().toMutableList()
                 var count = 0
                 imported.forEach { exported ->
                     val uniqueName = uniqueName(exported.name, exported.modelType, existing)
                     val newId = repository.nextId()
-                    val task = Task(
+                    val preset = Preset(
                         id = newId,
                         name = uniqueName,
                         modelType = exported.modelType,
                         createdAt = System.currentTimeMillis(),
                         payload = updatePayloadId(exported.payload, newId)
                     )
-                    repository.saveTask(task)
-                    existing.add(task)
+                    repository.savePreset(preset)
+                    existing.add(preset)
                     count++
                 }
-                tasks = repository.loadTasks()
-                _events.emit(TaskListEvent.ShowMessage("Imported $count presets"))
+                presets = repository.loadPresets()
+                _events.emit(PresetListEvent.ShowMessage("Imported $count presets"))
             }.onFailure {
-                LogBuffer.add("TaskListViewModel.importTasks: ${it.stackTraceToString()}")
-                _events.emit(TaskListEvent.ShowMessage("Import failed"))
+                LogBuffer.add("PresetListViewModel.importPresets: ${it.stackTraceToString()}")
+                _events.emit(PresetListEvent.ShowMessage("Import failed"))
             }
         }
     }
 
-    private fun buildTask(id: Int, name: String, modelType: String): Task {
+    private fun buildPreset(id: Int, name: String, modelType: String): Preset {
         val base = templateLoader.basePayload(modelType)
         val params = base["params"]?.jsonObject ?: JsonObject(emptyMap())
         val updatedParams = JsonObject(
@@ -189,7 +189,7 @@ class TaskListViewModel(
             put("params", updatedParams)
             put("subject_defaults", Json.encodeToJsonElement(SubjectDefaults.serializer(), defaults))
         }
-        return Task(
+        return Preset(
             id = id,
             name = name.ifBlank { templateLoader.defaultName(modelType) },
             modelType = modelType,
@@ -198,12 +198,12 @@ class TaskListViewModel(
         )
     }
 
-    sealed class TaskListEvent {
-        data class NavigateToEdit(val taskId: Int) : TaskListEvent()
-        data class ShowMessage(val message: String) : TaskListEvent()
+    sealed class PresetListEvent {
+        data class NavigateToEdit(val presetId: Int) : PresetListEvent()
+        data class ShowMessage(val message: String) : PresetListEvent()
     }
 
-    private fun uniqueName(name: String, modelType: String, existing: List<Task>): String {
+    private fun uniqueName(name: String, modelType: String, existing: List<Preset>): String {
         val sameType = existing.filter { it.modelType == modelType }
         if (sameType.none { it.name == name }) return name
         var counter = 2
@@ -225,11 +225,11 @@ class TaskListViewModel(
 
     @Suppress("UNCHECKED_CAST")
     class Factory(
-        private val repository: TaskRepository,
+        private val repository: PresetRepository,
         private val templateLoader: TemplateLoader
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return TaskListViewModel(repository, templateLoader) as T
+            return PresetListViewModel(repository, templateLoader) as T
         }
     }
 }

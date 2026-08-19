@@ -7,7 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.runerback.queuehelper.data.model.Task
+import com.runerback.queuehelper.data.model.Preset
 import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -19,30 +19,30 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import java.io.File
 
-private val Context.taskDataStore: DataStore<Preferences> by preferencesDataStore(name = "tasks")
+private val Context.presetDataStore: DataStore<Preferences> by preferencesDataStore(name = "presets")
 
-class TaskRepository(private val context: Context) {
+class PresetRepository(private val context: Context) {
 
-    private val dataStore = context.taskDataStore
+    private val dataStore = context.presetDataStore
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 
-    private val tasksKey = stringPreferencesKey("task_list")
+    private val presetsKey = stringPreferencesKey("preset_list")
     private val nextIdKey = intPreferencesKey("next_id")
 
-    private fun tasksDir(): File = File(context.filesDir, "tasks").apply { mkdirs() }
+    private fun presetsDir(): File = File(context.filesDir, "presets").apply { mkdirs() }
 
-    private fun payloadFile(id: Int): File = File(tasksDir(), "task_$id.json")
+    private fun payloadFile(id: Int): File = File(presetsDir(), "preset_$id.json")
 
-    suspend fun loadTasks(): List<Task> = withContext(Dispatchers.IO) {
+    suspend fun loadPresets(): List<Preset> = withContext(Dispatchers.IO) {
         runCatching {
             val prefs = dataStore.data.first()
-            val listJson = prefs[tasksKey] ?: "[]"
-            val summaries = json.decodeFromString<List<TaskSummary>>(listJson)
+            val listJson = prefs[presetsKey] ?: "[]"
+            val summaries = json.decodeFromString<List<PresetSummary>>(listJson)
             summaries.mapNotNull { summary ->
                 val payloadFile = payloadFile(summary.id)
                 if (!payloadFile.exists()) return@mapNotNull null
                 val payload = json.decodeFromString<JsonObject>(payloadFile.readText())
-                Task(
+                Preset(
                     id = summary.id,
                     name = summary.name,
                     modelType = summary.modelType,
@@ -51,57 +51,57 @@ class TaskRepository(private val context: Context) {
                 )
             }.sortedBy { it.createdAt }
         }.getOrElse {
-            LogBuffer.add("TaskRepository.loadTasks: ${it.stackTraceToString()}")
+            LogBuffer.add("PresetRepository.loadPresets: ${it.stackTraceToString()}")
             emptyList()
         }
     }
 
-    suspend fun loadTask(id: Int): Task? = withContext(Dispatchers.IO) {
+    suspend fun loadPreset(id: Int): Preset? = withContext(Dispatchers.IO) {
         runCatching {
-            loadTasks().find { it.id == id }
+            loadPresets().find { it.id == id }
         }.getOrElse {
-            LogBuffer.add("TaskRepository.loadTask($id): ${it.stackTraceToString()}")
+            LogBuffer.add("PresetRepository.loadPreset($id): ${it.stackTraceToString()}")
             null
         }
     }
 
-    suspend fun saveTask(task: Task): Task = withContext(Dispatchers.IO) {
+    suspend fun savePreset(preset: Preset): Preset = withContext(Dispatchers.IO) {
         runCatching {
-            payloadFile(task.id).writeText(json.encodeToString(task.payload))
+            payloadFile(preset.id).writeText(json.encodeToString(preset.payload))
 
             dataStore.edit { prefs ->
-                val existing = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
-                val updated = existing.filter { it.id != task.id } + TaskSummary(
-                    id = task.id,
-                    name = task.name,
-                    modelType = task.modelType,
-                    createdAt = task.createdAt
+                val existing = json.decodeFromString<List<PresetSummary>>(prefs[presetsKey] ?: "[]")
+                val updated = existing.filter { it.id != preset.id } + PresetSummary(
+                    id = preset.id,
+                    name = preset.name,
+                    modelType = preset.modelType,
+                    createdAt = preset.createdAt
                 )
-                prefs[tasksKey] = json.encodeToString(updated)
+                prefs[presetsKey] = json.encodeToString(updated)
             }
-            task
+            preset
         }.getOrElse {
-            LogBuffer.add("TaskRepository.saveTask(${task.id}): ${it.stackTraceToString()}")
-            task
+            LogBuffer.add("PresetRepository.savePreset(${preset.id}): ${it.stackTraceToString()}")
+            preset
         }
     }
 
-    suspend fun deleteTask(id: Int) = withContext(Dispatchers.IO) {
+    suspend fun deletePreset(id: Int) = withContext(Dispatchers.IO) {
         runCatching {
             payloadFile(id).delete()
             dataStore.edit { prefs ->
-                val existing = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
-                prefs[tasksKey] = json.encodeToString(existing.filter { it.id != id })
+                val existing = json.decodeFromString<List<PresetSummary>>(prefs[presetsKey] ?: "[]")
+                prefs[presetsKey] = json.encodeToString(existing.filter { it.id != id })
             }
         }.getOrElse {
-            LogBuffer.add("TaskRepository.deleteTask($id): ${it.stackTraceToString()}")
+            LogBuffer.add("PresetRepository.deletePreset($id): ${it.stackTraceToString()}")
         }
     }
 
-    suspend fun renumberTasks() = withContext(Dispatchers.IO) {
+    suspend fun renumberPresets() = withContext(Dispatchers.IO) {
         runCatching {
             val prefs = dataStore.data.first()
-            val summaries = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
+            val summaries = json.decodeFromString<List<PresetSummary>>(prefs[presetsKey] ?: "[]")
             val sorted = summaries.sortedBy { it.createdAt }
 
             val newSummaries = sorted.mapIndexed { index, summary ->
@@ -120,11 +120,11 @@ class TaskRepository(private val context: Context) {
             }
 
             dataStore.edit { prefs ->
-                prefs[tasksKey] = json.encodeToString(newSummaries)
+                prefs[presetsKey] = json.encodeToString(newSummaries)
                 prefs[nextIdKey] = newSummaries.size + 1
             }
         }.getOrElse {
-            LogBuffer.add("TaskRepository.renumberTasks: ${it.stackTraceToString()}")
+            LogBuffer.add("PresetRepository.renumberPresets: ${it.stackTraceToString()}")
         }
     }
 
@@ -146,7 +146,7 @@ class TaskRepository(private val context: Context) {
     }
 
     @kotlinx.serialization.Serializable
-    private data class TaskSummary(
+    private data class PresetSummary(
         val id: Int,
         val name: String,
         val modelType: String,

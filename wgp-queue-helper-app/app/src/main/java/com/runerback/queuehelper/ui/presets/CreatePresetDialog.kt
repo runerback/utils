@@ -1,4 +1,4 @@
-package com.runerback.queuehelper.ui.tasks
+package com.runerback.queuehelper.ui.presets
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,7 +35,7 @@ import androidx.compose.ui.window.DialogProperties
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateTaskDialog(
+fun CreatePresetDialog(
     templates: List<Pair<String, String>>,
     onDismiss: () -> Unit,
     onCreate: (String, String) -> Unit,

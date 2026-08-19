@@ -10,19 +10,19 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.runerback.queuehelper.data.local.TaskRepository
+import com.runerback.queuehelper.data.local.PresetRepository
 import com.runerback.queuehelper.data.model.MiniMaxH3Ref2VaPrompt
+import com.runerback.queuehelper.data.model.Preset
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefaults
 import com.runerback.queuehelper.data.model.SubjectDefinition
-import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.formatSubjectDefinitions
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.model.removeDescriptionSegment
 import com.runerback.queuehelper.data.model.replacePictureToken
 import com.runerback.queuehelper.data.template.TemplateLoader
 import com.runerback.queuehelper.ui.components.LogBuffer
-import com.runerback.queuehelper.ui.navigation.EditTaskRoute
+import com.runerback.queuehelper.ui.navigation.EditPresetRoute
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -32,16 +32,16 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-class EditTaskViewModel(
-    private val repository: TaskRepository,
+class EditPresetViewModel(
+    private val repository: PresetRepository,
     private val templateLoader: TemplateLoader,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val taskId: Int = savedStateHandle[EditTaskRoute::taskId.name]
-        ?: throw IllegalArgumentException("Missing taskId")
+    private val presetId: Int = savedStateHandle[EditPresetRoute::presetId.name]
+        ?: throw IllegalArgumentException("Missing presetId")
 
-    var task by mutableStateOf<Task?>(null)
+    var preset by mutableStateOf<Preset?>(null)
         private set
 
     var name by mutableStateOf("")
@@ -64,15 +64,15 @@ class EditTaskViewModel(
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
-        loadTask()
+        loadPreset()
     }
 
-    private fun loadTask() {
+    private fun loadPreset() {
         viewModelScope.launch {
             isLoading = true
             runCatching {
-                val loaded = repository.loadTask(taskId)
-                task = loaded
+                val loaded = repository.loadPreset(presetId)
+                preset = loaded
                 loaded?.let {
                     name = it.name
                     val params = it.payload["params"]?.jsonObject ?: JsonObject(emptyMap())
@@ -98,7 +98,7 @@ class EditTaskViewModel(
                     }
                 }
             }.onFailure {
-                LogBuffer.add("EditTaskViewModel.loadTask($taskId): ${it.stackTraceToString()}")
+                LogBuffer.add("EditPresetViewModel.loadPreset($presetId): ${it.stackTraceToString()}")
             }
             isLoading = false
         }
@@ -166,7 +166,7 @@ class EditTaskViewModel(
     fun save() {
         viewModelScope.launch {
             runCatching {
-                task?.let { current ->
+                preset?.let { current ->
                     val subjectDefinitions = formatSubjectDefinitions(
                         subjectDefaults.map { SubjectDefinition(0, it.number, it.description) },
                         audioDefault
@@ -190,23 +190,23 @@ class EditTaskViewModel(
                         }
                     )
                     val updated = current.copy(name = name, payload = updatedPayload)
-                    repository.saveTask(updated)
-                    task = updated
+                    repository.savePreset(updated)
+                    preset = updated
                     prompt = updatedPrompt
                 }
             }.onFailure {
-                LogBuffer.add("EditTaskViewModel.save($taskId): ${it.stackTraceToString()}")
+                LogBuffer.add("EditPresetViewModel.save($presetId): ${it.stackTraceToString()}")
             }
         }
     }
 
     @Suppress("UNCHECKED_CAST")
     class Factory(
-        private val repository: TaskRepository,
+        private val repository: PresetRepository,
         private val templateLoader: TemplateLoader
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-            return EditTaskViewModel(
+            return EditPresetViewModel(
                 repository,
                 templateLoader,
                 extras.createSavedStateHandle()
