@@ -3,17 +3,15 @@ package com.runerback.queuehelper.data.model
 import kotlinx.serialization.json.JsonObject
 
 /**
- * A persisted task definition.
+ * A persisted queue job belonging to a preset.
  *
- * [id] is auto-incremented starting from 1.
- * [name] is the user-facing label.
- * [modelType] is the real template key (e.g. "minimax_h3_ref2va_pruned").
- * [payload] stores the merged template + user edits, including the defaults used by Pack.
+ * [id] is auto-incremented starting from 1 within the job repository.
+ * [presetId] identifies the parent preset from Queue Helper.
+ * [payload] stores the merged preset data + pack-time overrides and pack_settings.
  */
-data class Task(
+data class QueueJob(
     val id: Int,
-    val name: String,
-    val modelType: String,
+    val presetId: Int,
     val createdAt: Long,
     val payload: JsonObject
 )
