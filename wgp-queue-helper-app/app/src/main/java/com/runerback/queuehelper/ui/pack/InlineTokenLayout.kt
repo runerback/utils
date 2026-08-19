@@ -1,0 +1,207 @@
+package com.runerback.queuehelper.ui.pack
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlin.math.max
+import kotlin.math.min
+
+internal sealed class InlineSlot {
+    abstract val index: Int
+    data class Text(override val index: Int) : InlineSlot()
+    data class Chip(override val index: Int) : InlineSlot()
+}
+
+@Composable
+internal fun InlineTokenLayout(
+    slots: List<InlineSlot>,
+    modifier: Modifier = Modifier,
+    horizontalSpacing: Dp = 4.dp,
+    verticalSpacing: Dp = 0.dp,
+    minLines: Int = 1,
+    maxLines: Int = Int.MAX_VALUE,
+    content: @Composable (InlineSlot) -> Unit
+) {
+    val density = LocalDensity.current
+    val horizontalSpacingPx = with(density) { horizontalSpacing.roundToPx() }
+    val verticalSpacingPx = with(density) { verticalSpacing.roundToPx() }
+    val textMinWidthPx = with(density) { 8.dp.roundToPx() }
+
+    Layout(
+        content = { slots.forEach { slot -> content(slot) } },
+        modifier = modifier
+    ) { measurables, constraints ->
+        val maxWidth = constraints.maxWidth
+        val slotCount = slots.size
+
+        if (slotCount == 0 || maxWidth == Constraints.Infinity) {
+            val placeables = measurables.map { measurable ->
+                measurable.measure(Constraints())
+            }
+            var x = 0
+            val height = placeables.maxOfOrNull { it.height } ?: 0
+            val totalWidth = placeables.sumOf { it.width }
+            layout(max(constraints.minWidth, totalWidth), height) {
+                placeables.forEach { placeable ->
+                    placeable.placeRelative(x = x, y = 0)
+                    x += placeable.width
+                }
+            }
+        } else {
+        val firstPass: List<Placeable> = measurables.map { measurable ->
+            measurable.measure(Constraints(minWidth = 0, maxWidth = maxWidth))
+        }
+
+        data class SlotInfo(
+            val line: Int,
+            val x: Int,
+            val width: Int,
+            val isText: Boolean
+        )
+
+        val slotInfos = mutableListOf<SlotInfo>()
+        var line = 0
+        var currentLineWidth = 0
+        var currentLineHeight = 0
+        val lineHeights = mutableListOf<Int>()
+
+        slots.forEachIndexed { i, slot ->
+            val firstPassPlaceable = firstPass[i]
+            val naturalWidth = firstPassPlaceable.width
+            val spacing = if (currentLineWidth == 0) 0 else horizontalSpacingPx
+            val remaining = maxWidth - currentLineWidth - spacing
+
+            when (slot) {
+                is InlineSlot.Chip -> {
+                    if (naturalWidth <= remaining) {
+                        slotInfos.add(
+                            SlotInfo(
+                                line = line,
+                                x = currentLineWidth + spacing,
+                                width = naturalWidth,
+                                isText = false
+                            )
+                        )
+                        currentLineWidth += spacing + naturalWidth
+                        currentLineHeight = max(currentLineHeight, firstPassPlaceable.height)
+                    } else {
+                        if (currentLineWidth > 0) {
+                            lineHeights.add(currentLineHeight)
+                            line++
+                            currentLineWidth = 0
+                            currentLineHeight = 0
+                        }
+                        slotInfos.add(
+                            SlotInfo(
+                                line = line,
+                                x = 0,
+                                width = naturalWidth,
+                                isText = false
+                            )
+                        )
+                        currentLineWidth = naturalWidth
+                        currentLineHeight = firstPassPlaceable.height
+                    }
+                }
+
+                is InlineSlot.Text -> {
+                    if (naturalWidth <= remaining) {
+                        slotInfos.add(
+                            SlotInfo(
+                                line = line,
+                                x = currentLineWidth + spacing,
+                                width = naturalWidth,
+                                isText = true
+                            )
+                        )
+                        currentLineWidth += spacing + naturalWidth
+                        currentLineHeight = max(currentLineHeight, firstPassPlaceable.height)
+                    } else if (currentLineWidth > 0 && remaining >= textMinWidthPx) {
+                        slotInfos.add(
+                            SlotInfo(
+                                line = line,
+                                x = currentLineWidth + spacing,
+                                width = remaining,
+                                isText = true
+                            )
+                        )
+                        lineHeights.add(max(currentLineHeight, firstPassPlaceable.height))
+                        line++
+                        currentLineWidth = 0
+                        currentLineHeight = 0
+                    } else {
+                        if (currentLineWidth > 0) {
+                            lineHeights.add(currentLineHeight)
+                            line++
+                            currentLineWidth = 0
+                            currentLineHeight = 0
+                        }
+                        val width = min(naturalWidth, maxWidth).coerceAtLeast(textMinWidthPx)
+                        slotInfos.add(
+                            SlotInfo(
+                                line = line,
+                                x = 0,
+                                width = width,
+                                isText = true
+                            )
+                        )
+                        currentLineWidth = width
+                        currentLineHeight = firstPassPlaceable.height
+                    }
+                }
+            }
+        }
+        lineHeights.add(currentLineHeight)
+
+        // Second pass: re-measure text fields with their allocated widths.
+        val finalPlaceables: List<Placeable> = measurables.mapIndexed { i, measurable ->
+            val info = slotInfos[i]
+            if (info.isText) {
+                measurable.measure(Constraints(minWidth = 0, maxWidth = info.width))
+            } else {
+                firstPass[i]
+            }
+        }
+
+        val finalLineHeights = MutableList(lineHeights.size) { 0 }
+        slotInfos.forEachIndexed { i, info ->
+            finalLineHeights[info.line] = max(finalLineHeights[info.line], finalPlaceables[i].height)
+        }
+
+        val visibleLineCount = min(finalLineHeights.size, maxLines)
+        val contentHeight = if (visibleLineCount > 0) {
+            finalLineHeights.take(visibleLineCount).sum() + (visibleLineCount - 1) * verticalSpacingPx
+        } else 0
+
+        val minHeight = if (minLines > visibleLineCount && finalLineHeights.isNotEmpty()) {
+            val lineHeightEstimate = finalLineHeights.firstOrNull { it > 0 }
+                ?: finalPlaceables.firstOrNull()?.height
+                ?: 0
+            minLines * lineHeightEstimate + (minLines - 1) * verticalSpacingPx
+        } else 0
+        val totalHeight = max(contentHeight, minHeight)
+
+        layout(maxWidth, totalHeight) {
+            val lineY = IntArray(visibleLineCount)
+            var y = 0
+            for (lineIndex in 0 until visibleLineCount) {
+                lineY[lineIndex] = y
+                y += finalLineHeights[lineIndex] + verticalSpacingPx
+            }
+
+            slotInfos.forEachIndexed { i, info ->
+                if (info.line >= visibleLineCount) return@forEachIndexed
+                val placeable = finalPlaceables[i]
+                val lineHeight = finalLineHeights[info.line]
+                val yPos = lineY[info.line] + (lineHeight - placeable.height) / 2
+                placeable.placeRelative(x = info.x, y = yPos)
+            }
+        }
+    }
+}
+}

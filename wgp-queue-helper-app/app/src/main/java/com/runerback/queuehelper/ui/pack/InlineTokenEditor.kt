@@ -3,8 +3,6 @@ package com.runerback.queuehelper.ui.pack
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.TextRange
@@ -31,7 +28,6 @@ import com.runerback.queuehelper.data.model.parseTokens
 import com.runerback.queuehelper.data.model.removeTokenAt
 import com.runerback.queuehelper.data.model.splitAndInsert
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InlineTokenEditor(
     value: String,
@@ -149,30 +145,37 @@ fun InlineTokenEditor(
     Column(modifier = modifier.fillMaxWidth()) {
         label()
 
-        FlowRow(
+        InlineTokenLayout(
+            slots = tokens.mapIndexed { index, token ->
+                when (token) {
+                    is Token.PlainText -> InlineSlot.Text(index)
+                    else -> InlineSlot.Chip(index)
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp)
                 .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start),
-            verticalArrangement = Arrangement.Center
-        ) {
-            tokens.forEachIndexed { index, token ->
-                TokenComponent(
-                    token = token,
-                    imageUri = if (token is Token.Picture) imageUris.getOrNull(token.number - 1) else null,
-                    textValue = fieldValues[index] ?: TextFieldValue(""),
-                    onTextChange = { newValue -> onTextChange(index, newValue) },
-                    onClick = { editingToken = index to token },
-                    onDelete = { onDeleteToken(index) },
-                    focusRequester = focusRequesters[index],
-                    shouldRequestFocus = focusTarget?.index == index,
-                    onFocusChanged = { focusTarget = null },
-                    onFocused = { focusedFieldIndex = index },
-                    onBackspaceAtStart = { onBackspaceAtStart(index) }
-                )
-            }
+            horizontalSpacing = 4.dp,
+            minLines = minLines,
+            maxLines = maxLines
+        ) { slot ->
+            val index = slot.index
+            val token = tokens[index]
+            TokenComponent(
+                token = token,
+                imageUri = if (token is Token.Picture) imageUris.getOrNull(token.number - 1) else null,
+                textValue = fieldValues[index] ?: TextFieldValue(""),
+                onTextChange = { newValue -> onTextChange(index, newValue) },
+                onClick = { editingToken = index to token },
+                onDelete = { onDeleteToken(index) },
+                focusRequester = focusRequesters[index],
+                shouldRequestFocus = focusTarget?.index == index,
+                onFocusChanged = { focusTarget = null },
+                onFocused = { focusedFieldIndex = index },
+                onBackspaceAtStart = { onBackspaceAtStart(index) }
+            )
         }
 
         Row(
