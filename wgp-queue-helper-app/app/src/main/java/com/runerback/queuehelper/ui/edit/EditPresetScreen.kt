@@ -52,9 +52,7 @@ import com.runerback.queuehelper.QueueHelperApplication
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Token
-import com.runerback.queuehelper.ui.pack.InlineDescription
 import com.runerback.queuehelper.ui.pack.InlineTokenEditor
-import com.runerback.queuehelper.ui.pack.PicturePickerDialog
 import com.runerback.queuehelper.ui.common.CollapsibleSection
 import com.runerback.queuehelper.ui.common.TokenFieldAvailability
 import com.runerback.queuehelper.ui.common.TokenInputToolbar
@@ -78,7 +76,6 @@ fun EditPresetScreen(
 
     var editingDefault by remember { mutableStateOf<SubjectDefault?>(null) }
     var showDefaultDialog by remember { mutableStateOf(false) }
-    var pictureToChange by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var activeField by remember { mutableStateOf<Pair<String, TokenFieldAvailability>?>(null) }
     var pendingInsertToken by remember { mutableStateOf<Token?>(null) }
     val density = LocalDensity.current
@@ -163,19 +160,17 @@ fun EditPresetScreen(
             }
 
             items(viewModel.subjectDefaults, key = { it.number }) { default ->
+                val fieldId = "default_subject_${default.number}"
                 DefaultSubjectCard(
                     default = default,
-                    onEdit = {
-                        editingDefault = default
-                        showDefaultDialog = true
-                    },
                     onRemove = { viewModel.removeDefaultSubject(default.number) },
-                    onPictureClick = { number ->
-                        pictureToChange = default.number to number
+                    onUpdateDescription = { viewModel.updateDefaultSubject(default.number, it) },
+                    fieldId = fieldId,
+                    onFocusChanged = { focused, availability ->
+                        activeField = if (focused) fieldId to availability else null
                     },
-                    onPictureDelete = { segmentIndex ->
-                        viewModel.removeDefaultSubjectPicture(default.number, segmentIndex)
-                    }
+                    pendingInsertToken = if (activeField?.first == fieldId) pendingInsertToken else null,
+                    onTokenInserted = { pendingInsertToken = null }
                 )
             }
 
@@ -345,27 +340,17 @@ fun EditPresetScreen(
             }
         )
     }
-
-    pictureToChange?.let { (subjectNumber, currentNumber) ->
-        PicturePickerDialog(
-            currentNumber = currentNumber,
-            imageUris = emptyList(),
-            onDismiss = { pictureToChange = null },
-            onSelected = { newNumber ->
-                viewModel.replaceDefaultSubjectPicture(subjectNumber, currentNumber, newNumber)
-                pictureToChange = null
-            }
-        )
-    }
 }
 
 @Composable
 private fun DefaultSubjectCard(
     default: SubjectDefault,
-    onEdit: () -> Unit,
     onRemove: () -> Unit,
-    onPictureClick: (Int) -> Unit,
-    onPictureDelete: (Int) -> Unit,
+    onUpdateDescription: (String) -> Unit,
+    fieldId: String,
+    onFocusChanged: (Boolean, TokenFieldAvailability) -> Unit,
+    pendingInsertToken: Token?,
+    onTokenInserted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
@@ -380,17 +365,22 @@ private fun DefaultSubjectCard(
                     text = "Subject ${default.number}",
                     style = MaterialTheme.typography.labelLarge
                 )
-                InlineDescription(
-                    description = default.description,
+                InlineTokenEditor(
+                    value = default.description,
+                    onValueChange = onUpdateDescription,
+                    subjects = emptyList(),
                     imageUris = emptyList(),
-                    onPictureClick = onPictureClick,
-                    onPictureDelete = onPictureDelete
-                )
-            }
-            IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit default subject"
+                    label = {},
+                    fieldId = fieldId,
+                    onFocusChanged = onFocusChanged,
+                    pendingInsertToken = pendingInsertToken,
+                    onTokenInserted = onTokenInserted,
+                    availableSubjects = false,
+                    availablePictures = true,
+                    availableAudio = false,
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 6
                 )
             }
             IconButton(onClick = onRemove) {

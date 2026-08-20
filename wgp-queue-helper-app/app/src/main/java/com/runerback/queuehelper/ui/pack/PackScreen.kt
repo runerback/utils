@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -77,10 +76,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.runerback.queuehelper.QueueHelperApplication
 import kotlinx.coroutines.launch
-import com.runerback.queuehelper.data.model.DescriptionSegment
 import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Token
-import com.runerback.queuehelper.data.model.parseDescriptionSegments
 import com.runerback.queuehelper.domain.PackAllUseCase
 import com.runerback.queuehelper.ui.icons.PhosphorPackage
 import com.runerback.queuehelper.ui.common.CollapsibleSection
@@ -265,16 +262,6 @@ fun TaskEditor(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var editingSubject by remember { mutableStateOf<SubjectDefinition?>(null) }
-    val dialogSubject by remember {
-        derivedStateOf {
-            editingSubject?.let { current ->
-                viewModel.subjects.find { it.id == current.id }
-            }
-        }
-    }
-    var showSubjectDialog by remember { mutableStateOf(false) }
-    var tokenToChange by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var activeField by remember { mutableStateOf<Pair<String, TokenFieldAvailability>?>(null) }
     var pendingInsertToken by remember { mutableStateOf<Token?>(null) }
     val density = LocalDensity.current
@@ -356,20 +343,18 @@ fun TaskEditor(
                 }
 
                 items(viewModel.subjects, key = { it.id }) { subject ->
+                    val fieldId = "subject_${subject.id}"
                     SubjectDefinitionCard(
                         subject = subject,
                         imageUris = viewModel.imageUris,
-                        onEdit = {
-                            editingSubject = subject
-                            showSubjectDialog = true
-                        },
                         onRemove = { viewModel.removeSubject(subject.id) },
-                        onPictureClick = { number ->
-                            tokenToChange = subject.id to number
+                        onUpdateDescription = { viewModel.updateSubject(subject.id, it) },
+                        fieldId = fieldId,
+                        onFocusChanged = { focused, availability ->
+                            activeField = if (focused) fieldId to availability else null
                         },
-                        onPictureDelete = { segmentIndex ->
-                            viewModel.removeSubjectPictureToken(subject.id, segmentIndex)
-                        }
+                        pendingInsertToken = if (activeField?.first == fieldId) pendingInsertToken else null,
+                        onTokenInserted = { pendingInsertToken = null }
                     )
                 }
 
@@ -579,35 +564,6 @@ fun TaskEditor(
             }
         }
     }
-
-    if (showSubjectDialog) {
-        SubjectEditorDialog(
-            subject = dialogSubject,
-            imageUris = viewModel.imageUris,
-            onDismiss = { showSubjectDialog = false },
-            onConfirm = { description ->
-                val current = editingSubject
-                if (current == null) {
-                    viewModel.addSubject(description)
-                } else {
-                    viewModel.updateSubject(current.id, description)
-                }
-                showSubjectDialog = false
-            }
-        )
-    }
-
-    tokenToChange?.let { (subjectId, currentNumber) ->
-        PicturePickerDialog(
-            currentNumber = currentNumber,
-            imageUris = viewModel.imageUris,
-            onDismiss = { tokenToChange = null },
-            onSelected = { newNumber ->
-                viewModel.replaceSubjectPictureToken(subjectId, currentNumber, newNumber)
-                tokenToChange = null
-            }
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -655,10 +611,12 @@ private fun PackResolutionDropdown(
 private fun SubjectDefinitionCard(
     subject: SubjectDefinition,
     imageUris: List<Uri>,
-    onEdit: () -> Unit,
     onRemove: () -> Unit,
-    onPictureClick: (Int) -> Unit,
-    onPictureDelete: (Int) -> Unit,
+    onUpdateDescription: (String) -> Unit,
+    fieldId: String,
+    onFocusChanged: (Boolean, TokenFieldAvailability) -> Unit,
+    pendingInsertToken: Token?,
+    onTokenInserted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
@@ -677,12 +635,6 @@ private fun SubjectDefinitionCard(
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = onEdit) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit subject"
-                    )
-                }
                 IconButton(onClick = onRemove) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -691,48 +643,23 @@ private fun SubjectDefinitionCard(
                 }
             }
 
-            InlineDescription(
-                description = subject.description,
+            InlineTokenEditor(
+                value = subject.description,
+                onValueChange = onUpdateDescription,
+                subjects = emptyList(),
                 imageUris = imageUris,
-                onPictureClick = onPictureClick,
-                onPictureDelete = onPictureDelete
+                label = {},
+                fieldId = fieldId,
+                onFocusChanged = onFocusChanged,
+                pendingInsertToken = pendingInsertToken,
+                onTokenInserted = onTokenInserted,
+                availableSubjects = false,
+                availablePictures = true,
+                availableAudio = false,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+                maxLines = 6
             )
-        }
-    }
-}
-
-@Composable
-fun InlineDescription(
-    description: String,
-    imageUris: List<Uri>,
-    onPictureClick: (Int) -> Unit,
-    onPictureDelete: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val segments = remember(description) { parseDescriptionSegments(description) }
-
-    FlowRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start),
-        verticalArrangement = Arrangement.Center
-    ) {
-        segments.forEachIndexed { index, segment ->
-            when (segment) {
-                is DescriptionSegment.Text -> {
-                    Text(
-                        text = segment.text,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                is DescriptionSegment.Picture -> {
-                    PictureTokenChip(
-                        number = segment.number,
-                        imageUri = imageUris.getOrNull(segment.number - 1),
-                        onClick = { onPictureClick(segment.number) },
-                        onDelete = { onPictureDelete(index) }
-                    )
-                }
-            }
         }
     }
 }
