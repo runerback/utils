@@ -455,6 +455,21 @@ fun TaskEditor(
                 }
 
                 item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "video_length",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                            Text(
+                                text = viewModel.computedVideoLength().toString(),
+                                style = MaterialTheme.typography.headlineMedium
+                            )
+                        }
+                    }
+                }
+
+                item {
                     Text(
                         text = "Subject definitions",
                         style = MaterialTheme.typography.titleMedium
@@ -590,21 +605,6 @@ fun TaskEditor(
                             modifier = Modifier.fillMaxWidth(),
                             maxLines = 4
                         )
-                    }
-                }
-
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "video_length",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                            Text(
-                                text = viewModel.computedVideoLength().toString(),
-                                style = MaterialTheme.typography.headlineMedium
-                            )
-                        }
                     }
                 }
 

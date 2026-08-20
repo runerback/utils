@@ -260,10 +260,13 @@ class TaskEditorViewModel(
         if (uri == null) {
             audioDefinitionLine = null
             rebuildSubjectDefinitions()
+            viewModelScope.launch { savePackSettings() }
         } else {
-            readAudioDuration(uri)
+            viewModelScope.launch {
+                readAudioDuration(uri)
+                savePackSettings()
+            }
         }
-        viewModelScope.launch { savePackSettings() }
     }
 
     fun updateTrimStart(value: Float) {
@@ -276,25 +279,23 @@ class TaskEditorViewModel(
         viewModelScope.launch { savePackSettings() }
     }
 
-    private fun readAudioDuration(uri: Uri) {
-        viewModelScope.launch {
-            val durationMs = withContext(Dispatchers.IO) {
-                val retriever = MediaMetadataRetriever()
-                try {
-                    retriever.setDataSource(context, uri)
-                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                        ?.toLongOrNull() ?: 0L
-                } catch (e: Exception) {
-                    LogBuffer.add("TaskEditorViewModel.readAudioDuration($uri): ${e.stackTraceToString()}")
-                    0L
-                } finally {
-                    retriever.release()
-                }
+    private suspend fun readAudioDuration(uri: Uri) {
+        val durationMs = withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    ?.toLongOrNull() ?: 0L
+            } catch (e: Exception) {
+                LogBuffer.add("TaskEditorViewModel.readAudioDuration($uri): ${e.stackTraceToString()}")
+                0L
+            } finally {
+                retriever.release()
             }
-            audioDurationSeconds = durationMs / 1000f
-            trimStart = 0f
-            trimEnd = audioDurationSeconds
         }
+        audioDurationSeconds = durationMs / 1000f
+        trimStart = 0f
+        trimEnd = audioDurationSeconds
     }
 
     fun computedVideoLength(): Int {
