@@ -55,6 +55,7 @@ import com.runerback.queuehelper.data.model.Token
 import com.runerback.queuehelper.ui.pack.InlineDescription
 import com.runerback.queuehelper.ui.pack.InlineTokenEditor
 import com.runerback.queuehelper.ui.pack.PicturePickerDialog
+import com.runerback.queuehelper.ui.common.CollapsibleSection
 import com.runerback.queuehelper.ui.common.TokenFieldAvailability
 import com.runerback.queuehelper.ui.common.TokenInputToolbar
 
@@ -110,17 +111,18 @@ fun EditPresetScreen(
         },
         modifier = modifier
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .imePadding()
-                .navigationBarsPadding()
         ) {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
             item {
                 OutlinedTextField(
@@ -178,25 +180,30 @@ fun EditPresetScreen(
             }
 
             item {
-                InlineTokenEditor(
-                    value = viewModel.audioDefault,
-                    onValueChange = { viewModel.updateAudioDefault(it) },
-                    subjects = emptyList(),
-                    imageUris = emptyList(),
-                    label = { Text("Default audio definition") },
-                    fieldId = "audio_default",
-                    onFocusChanged = { focused, availability ->
-                        activeField = if (focused) "audio_default" to availability else null
-                    },
-                    pendingInsertToken = if (activeField?.first == "audio_default") pendingInsertToken else null,
-                    onTokenInserted = { pendingInsertToken = null },
-                    availableSubjects = false,
-                    availablePictures = false,
-                    availableAudio = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 1,
-                    maxLines = 2
-                )
+                CollapsibleSection(
+                    title = "Default audio definition",
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    InlineTokenEditor(
+                        value = viewModel.audioDefault,
+                        onValueChange = { viewModel.updateAudioDefault(it) },
+                        subjects = emptyList(),
+                        imageUris = emptyList(),
+                        label = { Text("Default audio definition") },
+                        fieldId = "audio_default",
+                        onFocusChanged = { focused, availability ->
+                            activeField = if (focused) "audio_default" to availability else null
+                        },
+                        pendingInsertToken = if (activeField?.first == "audio_default") pendingInsertToken else null,
+                        onTokenInserted = { pendingInsertToken = null },
+                        availableSubjects = false,
+                        availablePictures = false,
+                        availableAudio = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 1,
+                        maxLines = 2
+                    )
+                }
             }
 
             item {
@@ -207,84 +214,104 @@ fun EditPresetScreen(
             }
 
             item {
-                InlineTokenEditor(
-                    value = viewModel.prompt.summary,
-                    onValueChange = {
-                        viewModel.updatePrompt(viewModel.prompt.copy(summary = it))
-                    },
-                    subjects = subjects,
-                    imageUris = emptyList(),
-                    label = { Text("summary") },
-                    fieldId = "summary",
-                    onFocusChanged = { focused, availability ->
-                        activeField = if (focused) "summary" to availability else null
-                    },
-                    pendingInsertToken = if (activeField?.first == "summary") pendingInsertToken else null,
-                    onTokenInserted = { pendingInsertToken = null },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 4
-                )
+                CollapsibleSection(
+                    title = "summary",
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    InlineTokenEditor(
+                        value = viewModel.prompt.summary,
+                        onValueChange = {
+                            viewModel.updatePrompt(viewModel.prompt.copy(summary = it))
+                        },
+                        subjects = subjects,
+                        imageUris = emptyList(),
+                        label = { Text("summary") },
+                        fieldId = "summary",
+                        onFocusChanged = { focused, availability ->
+                            activeField = if (focused) "summary" to availability else null
+                        },
+                        pendingInsertToken = if (activeField?.first == "summary") pendingInsertToken else null,
+                        onTokenInserted = { pendingInsertToken = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4
+                    )
+                }
             }
 
             item {
-                InlineTokenEditor(
-                    value = viewModel.prompt.retentionAnalysis,
-                    onValueChange = {
-                        viewModel.updatePrompt(viewModel.prompt.copy(retentionAnalysis = it))
-                    },
-                    subjects = subjects,
-                    imageUris = emptyList(),
-                    label = { Text("retention_analysis") },
-                    fieldId = "retention_analysis",
-                    onFocusChanged = { focused, availability ->
-                        activeField = if (focused) "retention_analysis" to availability else null
-                    },
-                    pendingInsertToken = if (activeField?.first == "retention_analysis") pendingInsertToken else null,
-                    onTokenInserted = { pendingInsertToken = null },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 4
-                )
+                CollapsibleSection(
+                    title = "retention_analysis",
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    InlineTokenEditor(
+                        value = viewModel.prompt.retentionAnalysis,
+                        onValueChange = {
+                            viewModel.updatePrompt(viewModel.prompt.copy(retentionAnalysis = it))
+                        },
+                        subjects = subjects,
+                        imageUris = emptyList(),
+                        label = { Text("retention_analysis") },
+                        fieldId = "retention_analysis",
+                        onFocusChanged = { focused, availability ->
+                            activeField = if (focused) "retention_analysis" to availability else null
+                        },
+                        pendingInsertToken = if (activeField?.first == "retention_analysis") pendingInsertToken else null,
+                        onTokenInserted = { pendingInsertToken = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4
+                    )
+                }
             }
 
             item {
-                InlineTokenEditor(
-                    value = viewModel.prompt.detailedDescription,
-                    onValueChange = {
-                        viewModel.updatePrompt(viewModel.prompt.copy(detailedDescription = it))
-                    },
-                    subjects = subjects,
-                    imageUris = emptyList(),
-                    label = { Text("detailed_description") },
-                    fieldId = "detailed_description",
-                    onFocusChanged = { focused, availability ->
-                        activeField = if (focused) "detailed_description" to availability else null
-                    },
-                    pendingInsertToken = if (activeField?.first == "detailed_description") pendingInsertToken else null,
-                    onTokenInserted = { pendingInsertToken = null },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 4,
-                    maxLines = 8
-                )
+                CollapsibleSection(
+                    title = "detailed_description",
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    InlineTokenEditor(
+                        value = viewModel.prompt.detailedDescription,
+                        onValueChange = {
+                            viewModel.updatePrompt(viewModel.prompt.copy(detailedDescription = it))
+                        },
+                        subjects = subjects,
+                        imageUris = emptyList(),
+                        label = { Text("detailed_description") },
+                        fieldId = "detailed_description",
+                        onFocusChanged = { focused, availability ->
+                            activeField = if (focused) "detailed_description" to availability else null
+                        },
+                        pendingInsertToken = if (activeField?.first == "detailed_description") pendingInsertToken else null,
+                        onTokenInserted = { pendingInsertToken = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 4,
+                        maxLines = 8
+                    )
+                }
             }
 
             item {
-                InlineTokenEditor(
-                    value = viewModel.prompt.nonDiegeticMusic,
-                    onValueChange = {
-                        viewModel.updatePrompt(viewModel.prompt.copy(nonDiegeticMusic = it))
-                    },
-                    subjects = subjects,
-                    imageUris = emptyList(),
-                    label = { Text("non_diegetic_music") },
-                    fieldId = "non_diegetic_music",
-                    onFocusChanged = { focused, availability ->
-                        activeField = if (focused) "non_diegetic_music" to availability else null
-                    },
-                    pendingInsertToken = if (activeField?.first == "non_diegetic_music") pendingInsertToken else null,
-                    onTokenInserted = { pendingInsertToken = null },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 4
-                )
+                CollapsibleSection(
+                    title = "non_diegetic_music",
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    InlineTokenEditor(
+                        value = viewModel.prompt.nonDiegeticMusic,
+                        onValueChange = {
+                            viewModel.updatePrompt(viewModel.prompt.copy(nonDiegeticMusic = it))
+                        },
+                        subjects = subjects,
+                        imageUris = emptyList(),
+                        label = { Text("non_diegetic_music") },
+                        fieldId = "non_diegetic_music",
+                        onFocusChanged = { focused, availability ->
+                            activeField = if (focused) "non_diegetic_music" to availability else null
+                        },
+                        pendingInsertToken = if (activeField?.first == "non_diegetic_music") pendingInsertToken else null,
+                        onTokenInserted = { pendingInsertToken = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4
+                    )
+                }
             }
 
             item {
@@ -293,10 +320,11 @@ fun EditPresetScreen(
         }
 
         if (activeField != null && imeVisible) {
+            Spacer(modifier = Modifier.height(8.dp))
             TokenInputToolbar(
                 onInsert = { pendingInsertToken = it },
                 availability = TokenFieldAvailability(true, true, true),
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

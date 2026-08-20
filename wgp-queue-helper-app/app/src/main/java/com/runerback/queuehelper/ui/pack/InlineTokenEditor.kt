@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -211,15 +215,33 @@ fun InlineTokenEditor(
                         tonalElevation = 2.dp,
                         shadowElevation = 4.dp
                     ) {
-                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                            TextButton(
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(4.dp)
+                        ) {
+                            if (state.token is Token.Subject || state.token is Token.Picture) {
+                                IconButton(
+                                    onClick = {
+                                        editingToken = state.index to state.token
+                                        menuState = null
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Change"
+                                    )
+                                }
+                            }
+                            IconButton(
                                 onClick = {
                                     deleteToken(state.index)
                                     menuState = null
-                                },
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                }
                             ) {
-                                Text("Delete")
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete"
+                                )
                             }
                         }
                     }

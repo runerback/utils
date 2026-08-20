@@ -169,8 +169,9 @@ internal fun TokenPicturePickerDialog(
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
                 ) {
-                    imageUris.forEachIndexed { index, uri ->
+                    repeat(6) { index ->
                         val number = index + 1
+                        val uri = imageUris.getOrNull(index)
                         val selected = number == currentNumber
                         val shape = RoundedCornerShape(8.dp)
 

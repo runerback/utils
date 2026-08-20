@@ -328,19 +328,18 @@ fun TaskEditor(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .imePadding()
-                .navigationBarsPadding()
         ) {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
                 item {
                     Text(
@@ -350,24 +349,10 @@ fun TaskEditor(
                 }
 
                 item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Subject definitions",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        OutlinedButton(
-                            onClick = {
-                                editingSubject = null
-                                showSubjectDialog = true
-                            }
-                        ) {
-                            Text("Add Subject")
-                        }
-                    }
+                    Text(
+                        text = "Subject definitions",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                 }
 
                 items(viewModel.subjects, key = { it.id }) { subject ->
@@ -585,10 +570,11 @@ fun TaskEditor(
             }
 
             if (activeField != null && imeVisible) {
+                Spacer(modifier = Modifier.height(8.dp))
                 TokenInputToolbar(
                     onInsert = { pendingInsertToken = it },
                     availability = TokenFieldAvailability(true, true, true),
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

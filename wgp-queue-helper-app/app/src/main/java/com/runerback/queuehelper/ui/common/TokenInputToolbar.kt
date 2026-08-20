@@ -55,7 +55,7 @@ fun TokenInputToolbar(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(vertical = 12.dp, horizontal = 16.dp)
+            .padding(vertical = 6.dp, horizontal = 16.dp)
     ) {
         Text(
             text = "Insert",
@@ -102,7 +102,7 @@ private fun ToolbarButton(
 
     Box(
         modifier = modifier
-            .size(40.dp)
+            .size(32.dp)
             .clip(shape)
             .background(background)
             .clickable(onClick = onClick),
