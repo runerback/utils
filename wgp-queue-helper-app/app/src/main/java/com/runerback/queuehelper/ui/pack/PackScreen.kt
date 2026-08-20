@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,13 +31,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,6 +54,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,14 +67,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.runerback.queuehelper.QueueHelperApplication
 import kotlinx.coroutines.launch
 import com.runerback.queuehelper.data.model.SubjectDefinition
+import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.Token
 import com.runerback.queuehelper.domain.PackAllUseCase
 import com.runerback.queuehelper.ui.icons.PhosphorPackage
@@ -80,10 +87,15 @@ import com.runerback.queuehelper.ui.common.ResolutionDropdown
 import com.runerback.queuehelper.ui.common.SubjectCard
 import com.runerback.queuehelper.ui.common.TokenFieldAvailability
 import com.runerback.queuehelper.ui.common.TokenInputToolbar
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 private const val MAX_PICTURE_SLOTS = 6
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
 @Composable
 fun PackScreen(
     presetId: Int,
@@ -101,6 +113,19 @@ fun PackScreen(
             app.templateLoader
         )
     )
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadTasks()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -189,6 +214,8 @@ fun PackScreen(
                 TaskItem(
                     index = index,
                     presetName = viewModel.presetName,
+                    audioUri = task.packAudioUri(),
+                    imageUris = task.packImageUris(),
                     onEdit = { onEditTask(task.id) },
                     onDelete = { viewModel.deleteTaskAndRenumber(task.id) }
                 )
@@ -201,11 +228,17 @@ fun PackScreen(
 private fun TaskItem(
     index: Int,
     presetName: String,
+    audioUri: Uri?,
+    imageUris: List<Uri>,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit)
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -223,12 +256,41 @@ private fun TaskItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit task"
-                )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (audioUri != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = "Audio selected",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                imageUris.take(2).forEach { uri ->
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = "Image thumbnail",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                    )
+                }
             }
+            Spacer(modifier = Modifier.width(8.dp))
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Close,
@@ -732,6 +794,20 @@ private fun ImageListItem(
             }
         }
     }
+}
+
+private fun Task.packAudioUri(): Uri? {
+    return payload["pack_settings"]?.jsonObject?.get("audio_uri")?.jsonPrimitive?.contentOrNull?.let { uriString ->
+        runCatching { Uri.parse(uriString) }.getOrNull()
+    }
+}
+
+private fun Task.packImageUris(): List<Uri> {
+    return payload["pack_settings"]?.jsonObject?.get("image_uris")?.jsonArray?.mapNotNull { element ->
+        element.jsonPrimitive.contentOrNull?.let { uriString ->
+            runCatching { Uri.parse(uriString) }.getOrNull()
+        }
+    } ?: emptyList()
 }
 
 @Composable
