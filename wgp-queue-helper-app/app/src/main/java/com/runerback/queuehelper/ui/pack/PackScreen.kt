@@ -81,6 +81,7 @@ import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.Token
 import com.runerback.queuehelper.domain.PackAllUseCase
+import com.runerback.queuehelper.ui.components.LoadingIndicator
 import com.runerback.queuehelper.ui.icons.PhosphorPackage
 import com.runerback.queuehelper.ui.common.CollapsibleSection
 import com.runerback.queuehelper.ui.common.ResolutionDropdown
@@ -129,6 +130,7 @@ fun PackScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var isPacking by remember { mutableStateOf(false) }
     val packAllUseCase = remember {
         PackAllUseCase(context, app.taskRepository, presetId)
     }
@@ -138,7 +140,9 @@ fun PackScreen(
     ) { isGranted ->
         if (isGranted) {
             scope.launch {
+                isPacking = true
                 val result = packAllUseCase()
+                isPacking = false
                 snackbarHostState.showSnackbar(result)
             }
         } else {
@@ -155,7 +159,9 @@ fun PackScreen(
             storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         } else {
             scope.launch {
+                isPacking = true
                 val result = packAllUseCase()
+                isPacking = false
                 snackbarHostState.showSnackbar(result)
             }
         }
@@ -190,12 +196,19 @@ fun PackScreen(
                     }
                     IconButton(
                         onClick = doPackAll,
-                        enabled = viewModel.tasks.isNotEmpty()
+                        enabled = viewModel.tasks.isNotEmpty() && !isPacking
                     ) {
-                        Icon(
-                            imageVector = PhosphorPackage,
-                            contentDescription = "Pack queue.zip"
-                        )
+                        if (isPacking) {
+                            LoadingIndicator(
+                                modifier = Modifier.size(24.dp),
+                                contentDescription = "Packing"
+                            )
+                        } else {
+                            Icon(
+                                imageVector = PhosphorPackage,
+                                contentDescription = "Pack queue.zip"
+                            )
+                        }
                     }
                 }
             )
