@@ -13,13 +13,15 @@ sealed class VideoLengthRule {
 data class TemplateConfig(
     val modelType: String,
     val displayName: String,
-    val videoLengthRule: VideoLengthRule = VideoLengthRule.AudioDurationMultiplier()
+    val videoLengthRule: VideoLengthRule = VideoLengthRule.AudioDurationMultiplier(),
+    val maxAudioDurationSeconds: Float? = null
 )
 
 val SupportedTemplates: List<TemplateConfig> = listOf(
     TemplateConfig(
         modelType = "minimax_h3_ref2va_pruned",
         displayName = "minimax h3 ref2va pruned",
-        videoLengthRule = VideoLengthRule.AudioDurationMultiplier(multiplier = 24, max = 360)
+        videoLengthRule = VideoLengthRule.AudioDurationMultiplier(multiplier = 24, max = 360),
+        maxAudioDurationSeconds = 15f
     )
 )

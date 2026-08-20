@@ -30,6 +30,7 @@ import com.runerback.queuehelper.data.model.removeDescriptionSegment
 import com.runerback.queuehelper.data.model.replacePictureToken
 import com.runerback.queuehelper.data.template.TemplateLoader
 import com.runerback.queuehelper.data.template.VideoLengthRule
+import com.runerback.queuehelper.domain.AudioTrimmer
 import com.runerback.queuehelper.ui.components.LogBuffer
 import com.runerback.queuehelper.ui.navigation.TaskEditorRoute
 import kotlinx.coroutines.Dispatchers
@@ -101,6 +102,12 @@ class TaskEditorViewModel(
 
     var trimEnd by mutableFloatStateOf(0f)
         private set
+
+    val maxAudioDurationSeconds: Float
+        get() = task?.payload?.get("params")?.jsonObject
+            ?.get("model_type")?.jsonPrimitive?.contentOrNull
+            ?.let { templateLoader.config(it).maxAudioDurationSeconds }
+            ?: Float.MAX_VALUE
 
     var isPacking by mutableStateOf(false)
         private set
@@ -270,12 +277,12 @@ class TaskEditorViewModel(
     }
 
     fun updateTrimStart(value: Float) {
-        trimStart = value.coerceIn(0f, trimEnd)
+        trimStart = value.coerceIn(0f, trimEnd.coerceAtMost(maxAudioDurationSeconds))
         viewModelScope.launch { savePackSettings() }
     }
 
     fun updateTrimEnd(value: Float) {
-        trimEnd = value.coerceIn(trimStart, audioDurationSeconds)
+        trimEnd = value.coerceIn(trimStart, audioDurationSeconds.coerceAtMost(maxAudioDurationSeconds))
         viewModelScope.launch { savePackSettings() }
     }
 
@@ -295,7 +302,7 @@ class TaskEditorViewModel(
         }
         audioDurationSeconds = durationMs / 1000f
         trimStart = 0f
-        trimEnd = audioDurationSeconds
+        trimEnd = audioDurationSeconds.coerceAtMost(maxAudioDurationSeconds)
     }
 
     fun computedVideoLength(): Int {
@@ -325,8 +332,13 @@ class TaskEditorViewModel(
                         }
 
                         audioUri?.let { uri ->
-                            val name = "task${currentTask.id}_audio_guide_0.flac"
-                            zip.addFile(name, uri)
+                            val start = trimStart
+                            val end = if (trimEnd > trimStart) trimEnd else Float.MAX_VALUE
+                            val tempAudio = File.createTempFile("audio_${currentTask.id}_", ".wav", context.cacheDir)
+                            AudioTrimmer.trimToWav(context, uri, tempAudio, start, end).getOrThrow()
+                            val name = "task${currentTask.id}_audio_guide_0.wav"
+                            zip.addFile(name, tempAudio)
+                            tempAudio.delete()
                         }
 
                         val queueJson = buildQueueJson(currentTask, imageNames)
@@ -356,7 +368,7 @@ class TaskEditorViewModel(
             imageNames.forEach { add(JsonPrimitive(it)) }
         }
         params["audio_guide"] = audioUri?.let {
-            JsonPrimitive("task${currentTask.id}_audio_guide_0.flac")
+            JsonPrimitive("task${currentTask.id}_audio_guide_0.wav")
         } ?: JsonNull
 
         val packSettings = buildJsonObject {
@@ -419,7 +431,7 @@ class TaskEditorViewModel(
         baseParams["image_refs"] = buildJsonArray {
             imageNames.forEach { add(JsonPrimitive(it)) }
         }
-        baseParams["audio_guide"] = JsonPrimitive("task${task.id}_audio_guide_0.flac")
+        baseParams["audio_guide"] = JsonPrimitive("task${task.id}_audio_guide_0.wav")
 
         val taskObject = buildJsonObject {
             put("id", JsonPrimitive(task.id))
@@ -433,6 +445,14 @@ class TaskEditorViewModel(
         putNextEntry(ZipEntry(entryName))
         context.contentResolver.openInputStream(uri)?.use { input ->
             BufferedInputStream(input).copyTo(this)
+        }
+        closeEntry()
+    }
+
+    private fun ZipOutputStream.addFile(entryName: String, file: File) {
+        putNextEntry(ZipEntry(entryName))
+        BufferedInputStream(file.inputStream()).use { input ->
+            input.copyTo(this)
         }
         closeEntry()
     }

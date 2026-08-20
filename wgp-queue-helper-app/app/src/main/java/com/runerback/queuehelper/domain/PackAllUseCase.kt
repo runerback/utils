@@ -95,16 +95,25 @@ class PackAllUseCase(
         }
     }
 
-    private fun addAudioToZip(
+    private suspend fun addAudioToZip(
         zip: ZipOutputStream,
         task: Task,
         packSettings: JsonObject?
     ): String? {
         val uriString = packSettings?.get("audio_uri")?.jsonPrimitive?.contentOrNull
         val uri = uriString?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return null
-        val name = "task${task.id}_audio_guide_0.flac"
-        zip.addFile(name, uri)
-        return name
+        val trimStart = packSettings?.get("trim_start")?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
+        val trimEndRaw = packSettings?.get("trim_end")?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
+        val trimEnd = if (trimEndRaw > trimStart) trimEndRaw else Float.MAX_VALUE
+        val name = "task${task.id}_audio_guide_0.wav"
+        val tempAudio = File.createTempFile("audio_${task.id}_", ".wav", context.cacheDir)
+        return try {
+            AudioTrimmer.trimToWav(context, uri, tempAudio, trimStart, trimEnd).getOrThrow()
+            zip.addFile(name, tempAudio)
+            name
+        } finally {
+            tempAudio.delete()
+        }
     }
 
     private fun buildParams(
@@ -145,6 +154,14 @@ class PackAllUseCase(
         putNextEntry(ZipEntry(entryName))
         context.contentResolver.openInputStream(uri)?.use { input ->
             BufferedInputStream(input).copyTo(this)
+        }
+        closeEntry()
+    }
+
+    private fun ZipOutputStream.addFile(entryName: String, file: File) {
+        putNextEntry(ZipEntry(entryName))
+        BufferedInputStream(file.inputStream()).use { input ->
+            input.copyTo(this)
         }
         closeEntry()
     }

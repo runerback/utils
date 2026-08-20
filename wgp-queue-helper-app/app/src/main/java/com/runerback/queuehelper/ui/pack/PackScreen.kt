@@ -446,6 +446,7 @@ fun TaskEditor(
                         AudioInfoCard(
                             uri = uri,
                             duration = viewModel.audioDurationSeconds,
+                            maxDuration = viewModel.maxAudioDurationSeconds,
                             trimStart = viewModel.trimStart,
                             trimEnd = viewModel.trimEnd,
                             onTrimStartChange = { viewModel.updateTrimStart(it) },
@@ -814,12 +815,16 @@ private fun Task.packImageUris(): List<Uri> {
 private fun AudioInfoCard(
     uri: Uri,
     duration: Float,
+    maxDuration: Float,
     trimStart: Float,
     trimEnd: Float,
     onTrimStartChange: (Float) -> Unit,
     onTrimEndChange: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val effectiveMax = if (maxDuration.isFinite()) duration.coerceAtMost(maxDuration) else duration
+    val exceedsMax = maxDuration.isFinite() && duration > maxDuration
+
     Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -834,6 +839,13 @@ private fun AudioInfoCard(
                 text = "Duration: %.1f s".format(duration),
                 style = MaterialTheme.typography.bodySmall
             )
+            if (exceedsMax) {
+                Text(
+                    text = "Source exceeds max allowed duration of %.1f s; trim range is limited.".format(maxDuration),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             if (duration > 0f) {
                 val range = trimStart..trimEnd
                 RangeSlider(
@@ -842,7 +854,7 @@ private fun AudioInfoCard(
                         onTrimStartChange(it.start)
                         onTrimEndChange(it.endInclusive)
                     },
-                    valueRange = 0f..duration.coerceAtLeast(1f),
+                    valueRange = 0f..effectiveMax.coerceAtLeast(1f),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(
