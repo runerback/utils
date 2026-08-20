@@ -1,7 +1,6 @@
 package com.runerback.queuehelper.ui.edit
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -20,16 +19,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -54,10 +48,10 @@ import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Token
 import com.runerback.queuehelper.ui.pack.InlineTokenEditor
 import com.runerback.queuehelper.ui.common.CollapsibleSection
+import com.runerback.queuehelper.ui.common.ResolutionDropdown
+import com.runerback.queuehelper.ui.common.SubjectCard
 import com.runerback.queuehelper.ui.common.TokenFieldAvailability
 import com.runerback.queuehelper.ui.common.TokenInputToolbar
-
-private val Resolutions = listOf("480x832", "832x480")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -161,8 +155,9 @@ fun EditPresetScreen(
 
             items(viewModel.subjectDefaults, key = { it.number }) { default ->
                 val fieldId = "default_subject_${default.number}"
-                DefaultSubjectCard(
-                    default = default,
+                SubjectCard(
+                    number = default.number,
+                    description = default.description,
                     onRemove = { viewModel.removeDefaultSubject(default.number) },
                     onUpdateDescription = { viewModel.updateDefaultSubject(default.number, it) },
                     fieldId = fieldId,
@@ -343,57 +338,6 @@ fun EditPresetScreen(
 }
 
 @Composable
-private fun DefaultSubjectCard(
-    default: SubjectDefault,
-    onRemove: () -> Unit,
-    onUpdateDescription: (String) -> Unit,
-    fieldId: String,
-    onFocusChanged: (Boolean, TokenFieldAvailability) -> Unit,
-    pendingInsertToken: Token?,
-    onTokenInserted: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(modifier = modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Subject ${default.number}",
-                    style = MaterialTheme.typography.labelLarge
-                )
-                InlineTokenEditor(
-                    value = default.description,
-                    onValueChange = onUpdateDescription,
-                    subjects = emptyList(),
-                    imageUris = emptyList(),
-                    label = {},
-                    fieldId = fieldId,
-                    onFocusChanged = onFocusChanged,
-                    pendingInsertToken = pendingInsertToken,
-                    onTokenInserted = onTokenInserted,
-                    availableSubjects = false,
-                    availablePictures = true,
-                    availableAudio = false,
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    maxLines = 6
-                )
-            }
-            IconButton(onClick = onRemove) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Remove default subject"
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun DefaultSubjectDialog(
     default: SubjectDefault?,
     onDismiss: () -> Unit,
@@ -446,47 +390,6 @@ private fun DefaultSubjectDialog(
                         Text("Save")
                     }
                 }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ResolutionDropdown(
-    selected: String,
-    onSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            value = selected,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Resolution") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            Resolutions.forEach { resolution ->
-                DropdownMenuItem(
-                    text = { Text(resolution) },
-                    onClick = {
-                        onSelected(resolution)
-                        expanded = false
-                    }
-                )
             }
         }
     }

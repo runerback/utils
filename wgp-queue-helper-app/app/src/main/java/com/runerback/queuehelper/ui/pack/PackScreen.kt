@@ -39,14 +39,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RangeSlider
@@ -57,7 +53,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,10 +76,11 @@ import com.runerback.queuehelper.data.model.Token
 import com.runerback.queuehelper.domain.PackAllUseCase
 import com.runerback.queuehelper.ui.icons.PhosphorPackage
 import com.runerback.queuehelper.ui.common.CollapsibleSection
+import com.runerback.queuehelper.ui.common.ResolutionDropdown
+import com.runerback.queuehelper.ui.common.SubjectCard
 import com.runerback.queuehelper.ui.common.TokenFieldAvailability
 import com.runerback.queuehelper.ui.common.TokenInputToolbar
 
-private val Resolutions = listOf("480x832", "832x480")
 private const val MAX_PICTURE_SLOTS = 6
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -344,8 +340,9 @@ fun TaskEditor(
 
                 items(viewModel.subjects, key = { it.id }) { subject ->
                     val fieldId = "subject_${subject.id}"
-                    SubjectDefinitionCard(
-                        subject = subject,
+                    SubjectCard(
+                        number = subject.number,
+                        description = subject.description,
                         imageUris = viewModel.imageUris,
                         onRemove = { viewModel.removeSubject(subject.id) },
                         onUpdateDescription = { viewModel.updateSubject(subject.id, it) },
@@ -474,7 +471,7 @@ fun TaskEditor(
                 }
 
                 item {
-                    PackResolutionDropdown(
+                    ResolutionDropdown(
                         selected = viewModel.resolution,
                         onSelected = { viewModel.updateResolution(it) }
                     )
@@ -562,104 +559,6 @@ fun TaskEditor(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PackResolutionDropdown(
-    selected: String,
-    onSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            value = selected,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Resolution") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            Resolutions.forEach { resolution ->
-                DropdownMenuItem(
-                    text = { Text(resolution) },
-                    onClick = {
-                        onSelected(resolution)
-                        expanded = false
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SubjectDefinitionCard(
-    subject: SubjectDefinition,
-    imageUris: List<Uri>,
-    onRemove: () -> Unit,
-    onUpdateDescription: (String) -> Unit,
-    fieldId: String,
-    onFocusChanged: (Boolean, TokenFieldAvailability) -> Unit,
-    pendingInsertToken: Token?,
-    onTokenInserted: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(modifier = modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Subject ${subject.number}",
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onRemove) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Remove subject"
-                    )
-                }
-            }
-
-            InlineTokenEditor(
-                value = subject.description,
-                onValueChange = onUpdateDescription,
-                subjects = emptyList(),
-                imageUris = imageUris,
-                label = {},
-                fieldId = fieldId,
-                onFocusChanged = onFocusChanged,
-                pendingInsertToken = pendingInsertToken,
-                onTokenInserted = onTokenInserted,
-                availableSubjects = false,
-                availablePictures = true,
-                availableAudio = false,
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                maxLines = 6
-            )
         }
     }
 }
