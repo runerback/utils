@@ -45,7 +45,7 @@ fun SubjectEditorDialog(
                     style = MaterialTheme.typography.titleMedium
                 )
 
-                TokenTextField(
+                InlineTokenEditor(
                     value = description,
                     onValueChange = { description = it },
                     subjects = emptyList(),
@@ -53,6 +53,8 @@ fun SubjectEditorDialog(
                     label = { Text("Description") },
                     availableSubjects = false,
                     availablePictures = true,
+                    availableAudio = false,
+                    modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     maxLines = 6
                 )

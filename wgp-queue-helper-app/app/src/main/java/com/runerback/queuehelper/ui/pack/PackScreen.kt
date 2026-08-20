@@ -18,9 +18,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -74,9 +79,13 @@ import com.runerback.queuehelper.QueueHelperApplication
 import kotlinx.coroutines.launch
 import com.runerback.queuehelper.data.model.DescriptionSegment
 import com.runerback.queuehelper.data.model.SubjectDefinition
+import com.runerback.queuehelper.data.model.Token
 import com.runerback.queuehelper.data.model.parseDescriptionSegments
 import com.runerback.queuehelper.domain.PackAllUseCase
 import com.runerback.queuehelper.ui.icons.PhosphorPackage
+import com.runerback.queuehelper.ui.common.CollapsibleSection
+import com.runerback.queuehelper.ui.common.TokenFieldAvailability
+import com.runerback.queuehelper.ui.common.TokenInputToolbar
 
 private val Resolutions = listOf("480x832", "832x480")
 private const val MAX_PICTURE_SLOTS = 6
@@ -266,6 +275,10 @@ fun TaskEditor(
     }
     var showSubjectDialog by remember { mutableStateOf(false) }
     var tokenToChange by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var activeField by remember { mutableStateOf<Pair<String, TokenFieldAvailability>?>(null) }
+    var pendingInsertToken by remember { mutableStateOf<Token?>(null) }
+    val density = LocalDensity.current
+    val imeVisible = WindowInsets.ime.getBottom(density) > 0
 
     LaunchedEffect(viewModel.packResult) {
         viewModel.packResult?.let { result ->
@@ -315,203 +328,268 @@ fun TaskEditor(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { padding ->
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
+                .navigationBarsPadding()
         ) {
-            item {
-                Text(
-                    text = "Prompt Sections",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
-
-            item {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                item {
                     Text(
-                        text = "Subject definitions",
+                        text = "Prompt Sections",
                         style = MaterialTheme.typography.titleMedium
                     )
-                    OutlinedButton(
-                        onClick = {
-                            editingSubject = null
-                            showSubjectDialog = true
-                        }
+                }
+
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Add Subject")
+                        Text(
+                            text = "Subject definitions",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                editingSubject = null
+                                showSubjectDialog = true
+                            }
+                        ) {
+                            Text("Add Subject")
+                        }
                     }
                 }
-            }
 
-            items(viewModel.subjects, key = { it.id }) { subject ->
-                SubjectDefinitionCard(
-                    subject = subject,
-                    imageUris = viewModel.imageUris,
-                    onEdit = {
-                        editingSubject = subject
-                        showSubjectDialog = true
-                    },
-                    onRemove = { viewModel.removeSubject(subject.id) },
-                    onPictureClick = { number ->
-                        tokenToChange = subject.id to number
-                    },
-                    onPictureDelete = { segmentIndex ->
-                        viewModel.removeSubjectPictureToken(subject.id, segmentIndex)
-                    }
-                )
-            }
-
-            item {
-                AudioDefinitionControl(
-                    audioUri = viewModel.audioUri,
-                    audioDefinitionLine = viewModel.audioDefinitionLine,
-                    onAdd = { viewModel.addAudioDefinition() },
-                    onRemove = { viewModel.removeAudioDefinition() }
-                )
-            }
-
-            item {
-                InlineTokenEditor(
-                    value = viewModel.prompt.summary,
-                    onValueChange = {
-                        viewModel.updatePrompt(viewModel.prompt.copy(summary = it))
-                    },
-                    subjects = viewModel.subjects,
-                    imageUris = viewModel.imageUris,
-                    label = { Text("summary") },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 4
-                )
-            }
-
-            item {
-                InlineTokenEditor(
-                    value = viewModel.prompt.retentionAnalysis,
-                    onValueChange = {
-                        viewModel.updatePrompt(viewModel.prompt.copy(retentionAnalysis = it))
-                    },
-                    subjects = viewModel.subjects,
-                    imageUris = viewModel.imageUris,
-                    label = { Text("retention_analysis") },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 4
-                )
-            }
-
-            item {
-                InlineTokenEditor(
-                    value = viewModel.prompt.detailedDescription,
-                    onValueChange = {
-                        viewModel.updatePrompt(viewModel.prompt.copy(detailedDescription = it))
-                    },
-                    subjects = viewModel.subjects,
-                    imageUris = viewModel.imageUris,
-                    label = { Text("detailed_description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 4,
-                    maxLines = 8
-                )
-            }
-
-            item {
-                InlineTokenEditor(
-                    value = viewModel.prompt.nonDiegeticMusic,
-                    onValueChange = {
-                        viewModel.updatePrompt(viewModel.prompt.copy(nonDiegeticMusic = it))
-                    },
-                    subjects = viewModel.subjects,
-                    imageUris = viewModel.imageUris,
-                    label = { Text("non_diegetic_music") },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 4
-                )
-            }
-
-            item {
-                PackResolutionDropdown(
-                    selected = viewModel.resolution,
-                    onSelected = { viewModel.updateResolution(it) }
-                )
-            }
-
-            item {
-                Text(
-                    text = "Images (${viewModel.imageUris.size}/6)",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
-
-            item {
-                OutlinedButton(
-                    onClick = { imagePicker.launch("image/*") },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = viewModel.imageUris.size < 6
-                ) {
-                    Text("Select Images")
-                }
-            }
-
-            items(viewModel.imageUris.size) { index ->
-                ImageListItem(
-                    index = index,
-                    uri = viewModel.imageUris[index],
-                    onRemove = { viewModel.removeImage(index) }
-                )
-            }
-
-            item {
-                Text(
-                    text = "Audio",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
-
-            item {
-                OutlinedButton(
-                    onClick = { audioPicker.launch("audio/*") },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Select Audio")
-                }
-            }
-
-            item {
-                viewModel.audioUri?.let { uri ->
-                    AudioInfoCard(
-                        uri = uri,
-                        duration = viewModel.audioDurationSeconds,
-                        trimStart = viewModel.trimStart,
-                        trimEnd = viewModel.trimEnd,
-                        onTrimStartChange = { viewModel.updateTrimStart(it) },
-                        onTrimEndChange = { viewModel.updateTrimEnd(it) }
+                items(viewModel.subjects, key = { it.id }) { subject ->
+                    SubjectDefinitionCard(
+                        subject = subject,
+                        imageUris = viewModel.imageUris,
+                        onEdit = {
+                            editingSubject = subject
+                            showSubjectDialog = true
+                        },
+                        onRemove = { viewModel.removeSubject(subject.id) },
+                        onPictureClick = { number ->
+                            tokenToChange = subject.id to number
+                        },
+                        onPictureDelete = { segmentIndex ->
+                            viewModel.removeSubjectPictureToken(subject.id, segmentIndex)
+                        }
                     )
                 }
-            }
 
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "video_length",
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        Text(
-                            text = viewModel.computedVideoLength().toString(),
-                            style = MaterialTheme.typography.headlineMedium
+                item {
+                    CollapsibleSection(
+                        title = "Audio definition",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        AudioDefinitionControl(
+                            audioUri = viewModel.audioUri,
+                            audioDefinitionLine = viewModel.audioDefinitionLine,
+                            onAdd = { viewModel.addAudioDefinition() },
+                            onRemove = { viewModel.removeAudioDefinition() }
                         )
                     }
                 }
+
+                item {
+                    CollapsibleSection(
+                        title = "summary",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        InlineTokenEditor(
+                            value = viewModel.prompt.summary,
+                            onValueChange = {
+                                viewModel.updatePrompt(viewModel.prompt.copy(summary = it))
+                            },
+                            subjects = viewModel.subjects,
+                            imageUris = viewModel.imageUris,
+                            label = {},
+                            fieldId = "summary",
+                            onFocusChanged = { focused, availability ->
+                                activeField = if (focused) "summary" to availability else null
+                            },
+                            pendingInsertToken = if (activeField?.first == "summary") pendingInsertToken else null,
+                            onTokenInserted = { pendingInsertToken = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 4
+                        )
+                    }
+                }
+
+                item {
+                    CollapsibleSection(
+                        title = "retention_analysis",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        InlineTokenEditor(
+                            value = viewModel.prompt.retentionAnalysis,
+                            onValueChange = {
+                                viewModel.updatePrompt(viewModel.prompt.copy(retentionAnalysis = it))
+                            },
+                            subjects = viewModel.subjects,
+                            imageUris = viewModel.imageUris,
+                            label = {},
+                            fieldId = "retention_analysis",
+                            onFocusChanged = { focused, availability ->
+                                activeField = if (focused) "retention_analysis" to availability else null
+                            },
+                            pendingInsertToken = if (activeField?.first == "retention_analysis") pendingInsertToken else null,
+                            onTokenInserted = { pendingInsertToken = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 4
+                        )
+                    }
+                }
+
+                item {
+                    CollapsibleSection(
+                        title = "detailed_description",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        InlineTokenEditor(
+                            value = viewModel.prompt.detailedDescription,
+                            onValueChange = {
+                                viewModel.updatePrompt(viewModel.prompt.copy(detailedDescription = it))
+                            },
+                            subjects = viewModel.subjects,
+                            imageUris = viewModel.imageUris,
+                            label = {},
+                            fieldId = "detailed_description",
+                            onFocusChanged = { focused, availability ->
+                                activeField = if (focused) "detailed_description" to availability else null
+                            },
+                            pendingInsertToken = if (activeField?.first == "detailed_description") pendingInsertToken else null,
+                            onTokenInserted = { pendingInsertToken = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 4,
+                            maxLines = 8
+                        )
+                    }
+                }
+
+                item {
+                    CollapsibleSection(
+                        title = "non_diegetic_music",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        InlineTokenEditor(
+                            value = viewModel.prompt.nonDiegeticMusic,
+                            onValueChange = {
+                                viewModel.updatePrompt(viewModel.prompt.copy(nonDiegeticMusic = it))
+                            },
+                            subjects = viewModel.subjects,
+                            imageUris = viewModel.imageUris,
+                            label = {},
+                            fieldId = "non_diegetic_music",
+                            onFocusChanged = { focused, availability ->
+                                activeField = if (focused) "non_diegetic_music" to availability else null
+                            },
+                            pendingInsertToken = if (activeField?.first == "non_diegetic_music") pendingInsertToken else null,
+                            onTokenInserted = { pendingInsertToken = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 4
+                        )
+                    }
+                }
+
+                item {
+                    PackResolutionDropdown(
+                        selected = viewModel.resolution,
+                        onSelected = { viewModel.updateResolution(it) }
+                    )
+                }
+
+                item {
+                    Text(
+                        text = "Images (${viewModel.imageUris.size}/6)",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                item {
+                    OutlinedButton(
+                        onClick = { imagePicker.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = viewModel.imageUris.size < 6
+                    ) {
+                        Text("Select Images")
+                    }
+                }
+
+                items(viewModel.imageUris.size) { index ->
+                    ImageListItem(
+                        index = index,
+                        uri = viewModel.imageUris[index],
+                        onRemove = { viewModel.removeImage(index) }
+                    )
+                }
+
+                item {
+                    Text(
+                        text = "Audio",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                item {
+                    OutlinedButton(
+                        onClick = { audioPicker.launch("audio/*") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Select Audio")
+                    }
+                }
+
+                item {
+                    viewModel.audioUri?.let { uri ->
+                        AudioInfoCard(
+                            uri = uri,
+                            duration = viewModel.audioDurationSeconds,
+                            trimStart = viewModel.trimStart,
+                            trimEnd = viewModel.trimEnd,
+                            onTrimStartChange = { viewModel.updateTrimStart(it) },
+                            onTrimEndChange = { viewModel.updateTrimEnd(it) }
+                        )
+                    }
+                }
+
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "video_length",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                            Text(
+                                text = viewModel.computedVideoLength().toString(),
+                                style = MaterialTheme.typography.headlineMedium
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
+            if (activeField != null && imeVisible) {
+                TokenInputToolbar(
+                    onInsert = { pendingInsertToken = it },
+                    availability = TokenFieldAvailability(true, true, true),
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
             }
         }
     }
