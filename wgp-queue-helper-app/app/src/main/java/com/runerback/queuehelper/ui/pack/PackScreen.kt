@@ -332,6 +332,67 @@ fun TaskEditor(
                 }
 
                 item {
+                    ResolutionDropdown(
+                        selected = viewModel.resolution,
+                        onSelected = { viewModel.updateResolution(it) }
+                    )
+                }
+
+                item {
+                    Text(
+                        text = "Images (${viewModel.imageUris.size}/6)",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                item {
+                    OutlinedButton(
+                        onClick = { imagePicker.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = viewModel.imageUris.size < 6
+                    ) {
+                        Text("Select Images")
+                    }
+                }
+
+                items(viewModel.imageUris.size) { index ->
+                    ImageListItem(
+                        index = index,
+                        uri = viewModel.imageUris[index],
+                        onRemove = { viewModel.removeImage(index) }
+                    )
+                }
+
+                item {
+                    Text(
+                        text = "Audio",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                item {
+                    OutlinedButton(
+                        onClick = { audioPicker.launch("audio/*") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Select Audio")
+                    }
+                }
+
+                item {
+                    viewModel.audioUri?.let { uri ->
+                        AudioInfoCard(
+                            uri = uri,
+                            duration = viewModel.audioDurationSeconds,
+                            trimStart = viewModel.trimStart,
+                            trimEnd = viewModel.trimEnd,
+                            onTrimStartChange = { viewModel.updateTrimStart(it) },
+                            onTrimEndChange = { viewModel.updateTrimEnd(it) }
+                        )
+                    }
+                }
+
+                item {
                     Text(
                         text = "Subject definitions",
                         style = MaterialTheme.typography.titleMedium
@@ -466,67 +527,6 @@ fun TaskEditor(
                             onTokenInserted = { pendingInsertToken = null },
                             modifier = Modifier.fillMaxWidth(),
                             maxLines = 4
-                        )
-                    }
-                }
-
-                item {
-                    ResolutionDropdown(
-                        selected = viewModel.resolution,
-                        onSelected = { viewModel.updateResolution(it) }
-                    )
-                }
-
-                item {
-                    Text(
-                        text = "Images (${viewModel.imageUris.size}/6)",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-
-                item {
-                    OutlinedButton(
-                        onClick = { imagePicker.launch("image/*") },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = viewModel.imageUris.size < 6
-                    ) {
-                        Text("Select Images")
-                    }
-                }
-
-                items(viewModel.imageUris.size) { index ->
-                    ImageListItem(
-                        index = index,
-                        uri = viewModel.imageUris[index],
-                        onRemove = { viewModel.removeImage(index) }
-                    )
-                }
-
-                item {
-                    Text(
-                        text = "Audio",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-
-                item {
-                    OutlinedButton(
-                        onClick = { audioPicker.launch("audio/*") },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Select Audio")
-                    }
-                }
-
-                item {
-                    viewModel.audioUri?.let { uri ->
-                        AudioInfoCard(
-                            uri = uri,
-                            duration = viewModel.audioDurationSeconds,
-                            trimStart = viewModel.trimStart,
-                            trimEnd = viewModel.trimEnd,
-                            onTrimStartChange = { viewModel.updateTrimStart(it) },
-                            onTrimEndChange = { viewModel.updateTrimEnd(it) }
                         )
                     }
                 }
