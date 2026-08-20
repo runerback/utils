@@ -276,13 +276,26 @@ class TaskEditorViewModel(
         }
     }
 
-    fun updateTrimStart(value: Float) {
-        trimStart = value.coerceIn(0f, trimEnd.coerceAtMost(maxAudioDurationSeconds))
-        viewModelScope.launch { savePackSettings() }
-    }
+    fun updateTrimRange(start: Float, end: Float) {
+        val maxDuration = maxAudioDurationSeconds
+        var newStart = start.coerceIn(0f, audioDurationSeconds)
+        var newEnd = end.coerceIn(0f, audioDurationSeconds)
 
-    fun updateTrimEnd(value: Float) {
-        trimEnd = value.coerceIn(trimStart, audioDurationSeconds.coerceAtMost(maxAudioDurationSeconds))
+        if (newEnd < newStart) {
+            val tmp = newStart
+            newStart = newEnd
+            newEnd = tmp
+        }
+
+        if (maxDuration.isFinite()) {
+            val maxEnd = (newStart + maxDuration).coerceAtMost(audioDurationSeconds)
+            if (newEnd > maxEnd) {
+                newEnd = maxEnd
+            }
+        }
+
+        trimStart = newStart
+        trimEnd = newEnd
         viewModelScope.launch { savePackSettings() }
     }
 

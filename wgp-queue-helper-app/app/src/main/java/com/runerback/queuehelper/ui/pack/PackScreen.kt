@@ -462,8 +462,10 @@ fun TaskEditor(
                             maxDuration = viewModel.maxAudioDurationSeconds,
                             trimStart = viewModel.trimStart,
                             trimEnd = viewModel.trimEnd,
-                            onTrimStartChange = { viewModel.updateTrimStart(it) },
-                            onTrimEndChange = { viewModel.updateTrimEnd(it) }
+                            onTrimRangeChange = { start, end ->
+                                viewModel.updateTrimRange(start, end)
+                            },
+                            onRemove = { viewModel.setAudio(null) }
                         )
                     }
                 }
@@ -831,11 +833,16 @@ private fun AudioInfoCard(
     maxDuration: Float,
     trimStart: Float,
     trimEnd: Float,
-    onTrimStartChange: (Float) -> Unit,
-    onTrimEndChange: (Float) -> Unit,
+    onTrimRangeChange: (Float, Float) -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val effectiveMax = if (maxDuration.isFinite()) duration.coerceAtMost(maxDuration) else duration
+    var previousRange by remember(duration, maxDuration) { mutableStateOf(trimStart..trimEnd) }
+
+    LaunchedEffect(trimStart, trimEnd) {
+        previousRange = trimStart..trimEnd
+    }
+
     val exceedsMax = maxDuration.isFinite() && duration > maxDuration
 
     Card(modifier = modifier.fillMaxWidth()) {
@@ -843,31 +850,48 @@ private fun AudioInfoCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "Selected: ${uri.lastPathSegment ?: uri.toString()}",
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Selected: ${uri.lastPathSegment ?: uri.toString()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove audio"
+                    )
+                }
+            }
             Text(
                 text = "Duration: %.1f s".format(duration),
                 style = MaterialTheme.typography.bodySmall
             )
             if (exceedsMax) {
                 Text(
-                    text = "Source exceeds max allowed duration of %.1f s; trim range is limited.".format(maxDuration),
+                    text = "Source exceeds max allowed duration of %.1f s; selected range is limited to %.1f s.".format(maxDuration, maxDuration),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
             }
             if (duration > 0f) {
-                val range = trimStart..trimEnd
                 RangeSlider(
-                    value = range,
-                    onValueChange = {
-                        onTrimStartChange(it.start)
-                        onTrimEndChange(it.endInclusive)
+                    value = trimStart..trimEnd,
+                    onValueChange = { range ->
+                        val (newStart, newEnd) = computePannedRange(
+                            previousRange = previousRange,
+                            newRange = range,
+                            maxWindow = if (maxDuration.isFinite()) maxDuration else Float.MAX_VALUE,
+                            duration = duration
+                        )
+                        onTrimRangeChange(newStart, newEnd)
+                        previousRange = newStart..newEnd
                     },
-                    valueRange = 0f..effectiveMax.coerceAtLeast(1f),
+                    valueRange = 0f..duration.coerceAtLeast(1f),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(
@@ -880,4 +904,29 @@ private fun AudioInfoCard(
             }
         }
     }
+}
+
+private fun computePannedRange(
+    previousRange: ClosedFloatingPointRange<Float>,
+    newRange: ClosedFloatingPointRange<Float>,
+    maxWindow: Float,
+    duration: Float
+): Pair<Float, Float> {
+    var newStart = newRange.start.coerceIn(0f, duration)
+    var newEnd = newRange.endInclusive.coerceIn(0f, duration)
+
+    if (maxWindow.isFinite() && newEnd - newStart > maxWindow) {
+        val startDelta = newStart - previousRange.start
+        val endDelta = newEnd - previousRange.endInclusive
+
+        if (kotlin.math.abs(endDelta) >= kotlin.math.abs(startDelta)) {
+            newEnd = newEnd.coerceAtMost(duration)
+            newStart = (newEnd - maxWindow).coerceAtLeast(0f)
+        } else {
+            newStart = newStart.coerceAtLeast(0f)
+            newEnd = (newStart + maxWindow).coerceAtMost(duration)
+        }
+    }
+
+    return newStart to newEnd
 }
