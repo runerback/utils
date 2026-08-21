@@ -55,21 +55,45 @@ class PackAllUseCase(
             ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
                 val allRefsById = mutableMapOf<String, MediaRef>()
                 val taskImageRefs = mutableMapOf<Int, List<MediaRef>>()
+                val audioNamesByKey = mutableMapOf<AudioKey, String>()
 
                 tasks.forEach { task ->
                     val refs = resolveImageRefs(task)
                     refs.forEach { ref -> allRefsById[ref.id] = ref }
                     taskImageRefs[task.id] = refs
+
+                    val packSettings = task.payload["pack_settings"]?.jsonObject
+                    resolveAudioKey(packSettings)?.let { key ->
+                        audioNamesByKey.getOrPut(key) {
+                            mediaRepository.audioFileNameFor(key.mediaId, key.trimStart, key.trimEnd)
+                        }
+                    }
                 }
 
                 allRefsById.values.forEach { ref ->
                     zip.addFile(ref.fileName, ref.uri)
                 }
 
+                audioNamesByKey.forEach { (key, name) ->
+                    val ref = mediaRepository.get(key.mediaId)
+                    if (ref == null) {
+                        LogBuffer.add("PackAllUseCase: missing audio media ${key.mediaId}")
+                        return@forEach
+                    }
+                    val tempAudio = File.createTempFile("audio_", ".wav", context.cacheDir)
+                    try {
+                        AudioTrimmer.trimToWav(context, ref.uri, tempAudio, key.trimStart, key.trimEnd).getOrThrow()
+                        zip.addFile(name, tempAudio)
+                    } finally {
+                        tempAudio.delete()
+                    }
+                }
+
                 tasks.forEach { task ->
                     val packSettings = task.payload["pack_settings"]?.jsonObject
                     val imageNames = taskImageRefs[task.id]?.map { it.fileName } ?: emptyList()
-                    val audioName = addAudioToZip(zip, task, packSettings)
+                    val audioKey = resolveAudioKey(packSettings)
+                    val audioName = audioKey?.let { audioNamesByKey[it] }
 
                     val params = buildParams(task, imageNames, audioName)
                     taskObjects.add(
@@ -113,25 +137,26 @@ class PackAllUseCase(
         return oldUris.mapNotNull { uri -> mediaRepository.import(uri).getOrNull() }
     }
 
-    private suspend fun addAudioToZip(
-        zip: ZipOutputStream,
-        task: Task,
-        packSettings: JsonObject?
-    ): String? {
-        val uriString = packSettings?.get("audio_uri")?.jsonPrimitive?.contentOrNull
-        val uri = uriString?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return null
-        val trimStart = packSettings?.get("trim_start")?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
-        val trimEndRaw = packSettings?.get("trim_end")?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
-        val trimEnd = if (trimEndRaw > trimStart) trimEndRaw else Float.MAX_VALUE
-        val name = "task${task.id}_audio_guide_0.wav"
-        val tempAudio = File.createTempFile("audio_${task.id}_", ".wav", context.cacheDir)
-        return try {
-            AudioTrimmer.trimToWav(context, uri, tempAudio, trimStart, trimEnd).getOrThrow()
-            zip.addFile(name, tempAudio)
-            name
-        } finally {
-            tempAudio.delete()
+    private data class AudioKey(
+        val mediaId: String,
+        val trimStart: Float,
+        val trimEnd: Float
+    )
+
+    private suspend fun resolveAudioKey(packSettings: JsonObject?): AudioKey? {
+        val mediaId = packSettings?.get("audio_media_id")?.jsonPrimitive?.contentOrNull
+        val start = packSettings?.get("trim_start")?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
+        val rawEnd = packSettings?.get("trim_end")?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
+        val end = if (rawEnd > start) rawEnd else Float.MAX_VALUE
+
+        if (mediaId != null) {
+            return AudioKey(mediaId, start, end)
         }
+
+        val uriString = packSettings?.get("audio_uri")?.jsonPrimitive?.contentOrNull ?: return null
+        val uri = runCatching { Uri.parse(uriString) }.getOrNull() ?: return null
+        val ref = mediaRepository.import(uri).getOrNull() ?: return null
+        return AudioKey(ref.id, start, end)
     }
 
     private fun buildParams(

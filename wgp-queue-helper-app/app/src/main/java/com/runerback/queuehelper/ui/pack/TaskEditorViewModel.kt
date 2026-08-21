@@ -99,6 +99,8 @@ class TaskEditorViewModel(
     var audioUri by mutableStateOf<Uri?>(null)
         private set
 
+    private var audioMediaId: String? = null
+
     var audioDurationSeconds by mutableFloatStateOf(0f)
         private set
 
@@ -163,6 +165,7 @@ class TaskEditorViewModel(
                 }
 
                 val packSettings = it.payload["pack_settings"]?.jsonObject
+                var shouldSavePackSettings = false
                 packSettings?.let { settings ->
                     val mediaIds = settings["image_media_ids"]?.jsonArray?.mapNotNull { element ->
                         element.jsonPrimitive.contentOrNull
@@ -184,15 +187,30 @@ class TaskEditorViewModel(
                         imageUris.clear()
                         imageUris.addAll(refs.map { ref -> ref.uri })
                         if (refs.isNotEmpty()) {
-                            savePackSettings()
+                            shouldSavePackSettings = true
                         }
                     }
-                    audioUri = settings["audio_uri"]?.jsonPrimitive?.contentOrNull?.let { uriString ->
-                        runCatching { Uri.parse(uriString) }.getOrNull()
+                    val audioMediaIdValue = settings["audio_media_id"]?.jsonPrimitive?.contentOrNull
+                    if (audioMediaIdValue != null) {
+                        audioMediaId = audioMediaIdValue
+                        audioUri = mediaRepository.get(audioMediaIdValue)?.uri
+                    } else {
+                        settings["audio_uri"]?.jsonPrimitive?.contentOrNull?.let { uriString ->
+                            runCatching { Uri.parse(uriString) }.getOrNull()
+                        }?.let { uri ->
+                            mediaRepository.import(uri).getOrNull()?.let { ref ->
+                                audioMediaId = ref.id
+                                audioUri = ref.uri
+                                shouldSavePackSettings = true
+                            }
+                        }
                     }
                     trimStart = settings["trim_start"]?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
                     trimEnd = settings["trim_end"]?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
                     audioUri?.let { uri -> readAudioDuration(uri) }
+                }
+                if (shouldSavePackSettings) {
+                    savePackSettings()
                 }
             }
         }
@@ -292,15 +310,23 @@ class TaskEditorViewModel(
     }
 
     fun setAudio(uri: Uri?) {
-        audioUri = uri
         if (uri == null) {
+            audioUri = null
+            audioMediaId = null
+            audioDurationSeconds = 0f
+            trimStart = 0f
+            trimEnd = 0f
             audioDefinitionLine = null
             rebuildSubjectDefinitions()
             viewModelScope.launch { savePackSettings() }
         } else {
             viewModelScope.launch {
-                readAudioDuration(uri)
-                savePackSettings()
+                mediaRepository.import(uri).getOrNull()?.let { ref ->
+                    audioMediaId = ref.id
+                    audioUri = ref.uri
+                    readAudioDuration(ref.uri)
+                    savePackSettings()
+                }
             }
         }
     }
@@ -371,14 +397,18 @@ class TaskEditorViewModel(
                             zip.addFile(ref.fileName, ref.uri)
                         }
 
-                        audioUri?.let { uri ->
+                        audioMediaId?.let { mediaId ->
                             val start = trimStart
-                            val end = if (trimEnd > trimStart) trimEnd else Float.MAX_VALUE
-                            val tempAudio = File.createTempFile("audio_${currentTask.id}_", ".wav", context.cacheDir)
-                            AudioTrimmer.trimToWav(context, uri, tempAudio, start, end).getOrThrow()
-                            val name = "task${currentTask.id}_audio_guide_0.wav"
-                            zip.addFile(name, tempAudio)
-                            tempAudio.delete()
+                            val end = effectiveTrimEnd(start, trimEnd)
+                            if (start < end) {
+                                val ref = mediaRepository.get(mediaId)
+                                    ?: throw IllegalStateException("Audio media missing: $mediaId")
+                                val tempAudio = File.createTempFile("audio_${currentTask.id}_", ".wav", context.cacheDir)
+                                AudioTrimmer.trimToWav(context, ref.uri, tempAudio, start, end).getOrThrow()
+                                val name = mediaRepository.audioFileNameFor(mediaId, start, end)
+                                zip.addFile(name, tempAudio)
+                                tempAudio.delete()
+                            }
                         }
 
                         val queueJson = buildQueueJson(currentTask, refs)
@@ -407,15 +437,17 @@ class TaskEditorViewModel(
         params["image_refs"] = buildJsonArray {
             refs.forEach { add(JsonPrimitive(it.fileName)) }
         }
-        params["audio_guide"] = audioUri?.let {
-            JsonPrimitive("task${currentTask.id}_audio_guide_0.wav")
+        params["audio_guide"] = audioMediaId?.let { id ->
+            JsonPrimitive(
+                mediaRepository.audioFileNameFor(id, trimStart, effectiveTrimEnd(trimStart, trimEnd))
+            )
         } ?: JsonNull
 
         val packSettings = buildJsonObject {
             put("image_media_ids", buildJsonArray {
                 imageMediaIds.forEach { add(JsonPrimitive(it)) }
             })
-            put("audio_uri", audioUri?.let { JsonPrimitive(it.toString()) } ?: JsonNull)
+            put("audio_media_id", audioMediaId?.let { JsonPrimitive(it) } ?: JsonNull)
             put("trim_start", JsonPrimitive(trimStart))
             put("trim_end", JsonPrimitive(trimEnd))
         }
@@ -430,6 +462,9 @@ class TaskEditorViewModel(
         repository.saveTask(updated)
         task = updated
     }
+
+    private fun effectiveTrimEnd(start: Float, end: Float): Float =
+        if (end > start) end else Float.MAX_VALUE
 
     private suspend fun savePackSettings() {
         saveMutex.withLock {
@@ -469,7 +504,11 @@ class TaskEditorViewModel(
         baseParams["image_refs"] = buildJsonArray {
             refs.forEach { add(JsonPrimitive(it.fileName)) }
         }
-        baseParams["audio_guide"] = JsonPrimitive("task${task.id}_audio_guide_0.wav")
+        baseParams["audio_guide"] = audioMediaId?.let { id ->
+            JsonPrimitive(
+                mediaRepository.audioFileNameFor(id, trimStart, effectiveTrimEnd(trimStart, trimEnd))
+            )
+        } ?: JsonNull
 
         val taskObject = buildJsonObject {
             put("id", JsonPrimitive(task.id))

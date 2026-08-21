@@ -232,10 +232,11 @@ fun PackScreen(
                     viewModel.presetNameMap[task.presetId] ?: ""
                 }
                 val taskImageUris = rememberTaskImageUris(task, app.mediaRepository)
+                val taskAudioUri = rememberTaskAudioUri(task, app.mediaRepository)
                 TaskItem(
                     index = index,
                     presetName = taskPresetName,
-                    audioUri = task.packAudioUri(),
+                    audioUri = taskAudioUri,
                     imageUris = taskImageUris,
                     onEdit = { onEditTask(task.id) },
                     onDelete = { viewModel.deleteTaskAndRenumber(task.id) }
@@ -849,10 +850,19 @@ private fun rememberTaskImageUris(task: Task, mediaRepository: MediaRepository):
     }.value
 }
 
-private fun Task.packAudioUri(): Uri? {
-    return payload["pack_settings"]?.jsonObject?.get("audio_uri")?.jsonPrimitive?.contentOrNull?.let { uriString ->
-        runCatching { Uri.parse(uriString) }.getOrNull()
-    }
+@Composable
+private fun rememberTaskAudioUri(task: Task, mediaRepository: MediaRepository): Uri? {
+    return produceState<Uri?>(initialValue = null, task) {
+        val packSettings = task.payload["pack_settings"]?.jsonObject
+        val mediaId = packSettings?.get("audio_media_id")?.jsonPrimitive?.contentOrNull
+        value = if (mediaId != null) {
+            mediaRepository.get(mediaId)?.uri
+        } else {
+            packSettings?.get("audio_uri")?.jsonPrimitive?.contentOrNull?.let { uriString ->
+                runCatching { Uri.parse(uriString) }.getOrNull()
+            }
+        }
+    }.value
 }
 
 @Composable

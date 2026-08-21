@@ -24,25 +24,29 @@ class MediaRepository(private val context: Context) {
         get() = File(mediaDir, "media_index.json")
 
     /**
-     * Imports an image into the media library.
+     * Imports a media file into the library.
      *
-     * The file is content-addressed by SHA-256. Importing the same bytes twice
-     * returns the same [MediaRef] without writing a second file.
+     * The entry is keyed by the SHA-256 hash of the source URI string, so the
+     * same URI always maps to the same [MediaRef]. Importing the same URI twice
+     * returns the same ref without writing a second file.
      */
     suspend fun import(uri: Uri): Result<MediaRef> = withContext(Dispatchers.IO) {
         runCatching {
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                ?: throw IllegalStateException("Failed to open input stream for $uri")
-
-            val id = sha256(bytes)
+            val id = sha256(uri.toString())
             val extension = extensionForUri(uri)
             val destFile = mediaFile(id, extension)
 
             if (!destFile.exists()) {
-                destFile.writeBytes(bytes)
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    destFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: throw IllegalStateException("Failed to open input stream for $uri")
+
                 updateIndex { current ->
                     current.filter { it.id != id } + MediaItem(
                         id = id,
+                        sourceUri = uri.toString(),
                         originalName = uri.lastPathSegment,
                         mimeType = context.contentResolver.getType(uri),
                         addedAt = System.currentTimeMillis()
@@ -93,6 +97,12 @@ class MediaRepository(private val context: Context) {
 
     fun fileNameFor(mediaId: String): String = "image_${mediaId}.png"
 
+    fun audioFileNameFor(mediaId: String, trimStart: Float, trimEnd: Float): String {
+        val startMs = (trimStart * 1000f).toLong()
+        val endTag = if (trimEnd == Float.MAX_VALUE) "END" else (trimEnd * 1000f).toLong().toString()
+        return "audio_${mediaId}_${startMs}_${endTag}.wav"
+    }
+
     private fun mediaFile(id: String, extension: String): File {
         val ext = extension.removePrefix(".").ifBlank { "bin" }
         return File(mediaDir, "${id}.${ext}")
@@ -129,8 +139,8 @@ class MediaRepository(private val context: Context) {
         indexFile.writeText(json.encodeToString(updated))
     }
 
-    private fun sha256(bytes: ByteArray): String {
+    private fun sha256(input: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(bytes).joinToString("") { "%02x".format(it) }
+        return digest.digest(input.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 }
