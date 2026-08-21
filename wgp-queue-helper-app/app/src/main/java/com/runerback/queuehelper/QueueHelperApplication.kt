@@ -1,6 +1,7 @@
 package com.runerback.queuehelper
 
 import android.app.Application
+import com.runerback.queuehelper.data.local.MediaRepository
 import com.runerback.queuehelper.data.local.PresetRepository
 import com.runerback.queuehelper.data.local.TaskRepository
 import com.runerback.queuehelper.data.template.TemplateLoader
@@ -12,6 +13,9 @@ class QueueHelperApplication : Application() {
         private set
 
     lateinit var taskRepository: TaskRepository
+        private set
+
+    lateinit var mediaRepository: MediaRepository
         private set
 
     lateinit var templateLoader: TemplateLoader
@@ -26,6 +30,7 @@ class QueueHelperApplication : Application() {
         }
         presetRepository = PresetRepository(this)
         taskRepository = TaskRepository(this)
+        mediaRepository = MediaRepository(this)
         templateLoader = TemplateLoader(this)
     }
 }

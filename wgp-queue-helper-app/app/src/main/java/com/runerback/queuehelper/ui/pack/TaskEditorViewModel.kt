@@ -18,7 +18,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.runerback.queuehelper.data.local.MediaRepository
 import com.runerback.queuehelper.data.local.TaskRepository
+import com.runerback.queuehelper.data.model.MediaRef
 import com.runerback.queuehelper.data.model.MiniMaxH3Ref2VaPrompt
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefaults
@@ -62,6 +64,7 @@ private const val MAX_IMAGES = 6
 class TaskEditorViewModel(
     private val context: Context,
     private val repository: TaskRepository,
+    private val mediaRepository: MediaRepository,
     private val templateLoader: TemplateLoader,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -90,6 +93,8 @@ class TaskEditorViewModel(
         private set
 
     val imageUris = mutableStateListOf<Uri>()
+
+    private val imageMediaIds = mutableStateListOf<String>()
 
     var audioUri by mutableStateOf<Uri?>(null)
         private set
@@ -159,14 +164,29 @@ class TaskEditorViewModel(
 
                 val packSettings = it.payload["pack_settings"]?.jsonObject
                 packSettings?.let { settings ->
-                    imageUris.clear()
-                    imageUris.addAll(
-                        settings["image_uris"]?.jsonArray?.mapNotNull { element ->
+                    val mediaIds = settings["image_media_ids"]?.jsonArray?.mapNotNull { element ->
+                        element.jsonPrimitive.contentOrNull
+                    }
+                    if (mediaIds != null) {
+                        imageMediaIds.clear()
+                        imageMediaIds.addAll(mediaIds)
+                        imageUris.clear()
+                        imageUris.addAll(mediaRepository.resolveIds(mediaIds).map { ref -> ref.uri })
+                    } else {
+                        val oldUris = settings["image_uris"]?.jsonArray?.mapNotNull { element ->
                             element.jsonPrimitive.contentOrNull?.let { uriString ->
                                 runCatching { Uri.parse(uriString) }.getOrNull()
                             }
                         } ?: emptyList()
-                    )
+                        val refs = oldUris.mapNotNull { uri -> mediaRepository.import(uri).getOrNull() }
+                        imageMediaIds.clear()
+                        imageMediaIds.addAll(refs.map { ref -> ref.id })
+                        imageUris.clear()
+                        imageUris.addAll(refs.map { ref -> ref.uri })
+                        if (refs.isNotEmpty()) {
+                            savePackSettings()
+                        }
+                    }
                     audioUri = settings["audio_uri"]?.jsonPrimitive?.contentOrNull?.let { uriString ->
                         runCatching { Uri.parse(uriString) }.getOrNull()
                     }
@@ -252,13 +272,22 @@ class TaskEditorViewModel(
     fun addImages(uris: List<Uri>) {
         val remaining = MAX_IMAGES - imageUris.size
         if (remaining <= 0) return
-        imageUris.addAll(uris.take(remaining))
-        viewModelScope.launch { savePackSettings() }
+        viewModelScope.launch {
+            val imported = uris.take(remaining).mapNotNull { uri ->
+                mediaRepository.import(uri).getOrNull()
+            }
+            imported.forEach { ref ->
+                imageUris.add(ref.uri)
+                imageMediaIds.add(ref.id)
+            }
+            savePackSettings()
+        }
     }
 
     fun removeImage(index: Int) {
         if (index !in imageUris.indices) return
         imageUris.removeAt(index)
+        imageMediaIds.removeAt(index)
         viewModelScope.launch { savePackSettings() }
     }
 
@@ -335,13 +364,11 @@ class TaskEditorViewModel(
                 runCatching {
                     val currentTask = task ?: throw IllegalStateException("Task not loaded")
                     val (outputStream, savedPath) = openDownloadsOutputStream("queue.zip")
-                    val imageNames = imageUris.mapIndexed { index, _ ->
-                        "task${currentTask.id}_image_refs_$index.png"
-                    }
+                    val refs = mediaRepository.resolveIds(imageMediaIds)
 
                     ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
-                        imageUris.forEachIndexed { index, uri ->
-                            zip.addFile(imageNames[index], uri)
+                        refs.forEach { ref ->
+                            zip.addFile(ref.fileName, ref.uri)
                         }
 
                         audioUri?.let { uri ->
@@ -354,13 +381,13 @@ class TaskEditorViewModel(
                             tempAudio.delete()
                         }
 
-                        val queueJson = buildQueueJson(currentTask, imageNames)
+                        val queueJson = buildQueueJson(currentTask, refs)
                         zip.putNextEntry(ZipEntry("queue.json"))
                         zip.write(queueJson.toByteArray(Charsets.UTF_8))
                         zip.closeEntry()
                     }
 
-                    persistPackSettings(currentTask, imageNames)
+                    persistPackSettings(currentTask, refs)
                     "Saved to $savedPath"
                 }.getOrElse {
                     LogBuffer.add("TaskEditorViewModel.pack: ${it.stackTraceToString()}")
@@ -372,21 +399,21 @@ class TaskEditorViewModel(
         }
     }
 
-    private suspend fun persistPackSettings(currentTask: Task, imageNames: List<String>) {
+    private suspend fun persistPackSettings(currentTask: Task, refs: List<MediaRef>) {
         val params = currentTask.payload["params"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
         params["prompt"] = JsonPrimitive(prompt.toPromptString())
         params["resolution"] = JsonPrimitive(resolution)
         params["video_length"] = JsonPrimitive(computedVideoLength())
         params["image_refs"] = buildJsonArray {
-            imageNames.forEach { add(JsonPrimitive(it)) }
+            refs.forEach { add(JsonPrimitive(it.fileName)) }
         }
         params["audio_guide"] = audioUri?.let {
             JsonPrimitive("task${currentTask.id}_audio_guide_0.wav")
         } ?: JsonNull
 
         val packSettings = buildJsonObject {
-            put("image_uris", buildJsonArray {
-                imageUris.forEach { add(JsonPrimitive(it.toString())) }
+            put("image_media_ids", buildJsonArray {
+                imageMediaIds.forEach { add(JsonPrimitive(it)) }
             })
             put("audio_uri", audioUri?.let { JsonPrimitive(it.toString()) } ?: JsonNull)
             put("trim_start", JsonPrimitive(trimStart))
@@ -407,10 +434,8 @@ class TaskEditorViewModel(
     private suspend fun savePackSettings() {
         saveMutex.withLock {
             val currentTask = task ?: return
-            val imageNames = imageUris.mapIndexed { index, _ ->
-                "task${currentTask.id}_image_refs_$index.png"
-            }
-            persistPackSettings(currentTask, imageNames)
+            val refs = mediaRepository.resolveIds(imageMediaIds)
+            persistPackSettings(currentTask, refs)
         }
     }
 
@@ -433,7 +458,7 @@ class TaskEditorViewModel(
         }
     }
 
-    private fun buildQueueJson(task: Task, imageNames: List<String>): String {
+    private fun buildQueueJson(task: Task, refs: List<MediaRef>): String {
         val baseParams = task.payload["params"]?.jsonObject
             ?.toMutableMap()
             ?: mutableMapOf()
@@ -442,7 +467,7 @@ class TaskEditorViewModel(
         baseParams["resolution"] = JsonPrimitive(resolution)
         baseParams["video_length"] = JsonPrimitive(computedVideoLength())
         baseParams["image_refs"] = buildJsonArray {
-            imageNames.forEach { add(JsonPrimitive(it)) }
+            refs.forEach { add(JsonPrimitive(it.fileName)) }
         }
         baseParams["audio_guide"] = JsonPrimitive("task${task.id}_audio_guide_0.wav")
 
@@ -478,12 +503,14 @@ class TaskEditorViewModel(
     class Factory(
         private val context: Context,
         private val repository: TaskRepository,
+        private val mediaRepository: MediaRepository,
         private val templateLoader: TemplateLoader
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
             return TaskEditorViewModel(
                 context,
                 repository,
+                mediaRepository,
                 templateLoader,
                 extras.createSavedStateHandle()
             ) as T

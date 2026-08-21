@@ -6,7 +6,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.runerback.queuehelper.data.local.MediaRepository
 import com.runerback.queuehelper.data.local.TaskRepository
+import com.runerback.queuehelper.data.model.MediaRef
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +35,7 @@ import java.util.zip.ZipOutputStream
 class PackAllUseCase(
     private val context: Context,
     private val taskRepository: TaskRepository,
+    private val mediaRepository: MediaRepository,
     private val presetId: Int?
 ) {
     private val json = Json { prettyPrint = true }
@@ -50,9 +53,22 @@ class PackAllUseCase(
             val taskObjects = mutableListOf<JsonObject>()
 
             ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
+                val allRefsById = mutableMapOf<String, MediaRef>()
+                val taskImageRefs = mutableMapOf<Int, List<MediaRef>>()
+
+                tasks.forEach { task ->
+                    val refs = resolveImageRefs(task)
+                    refs.forEach { ref -> allRefsById[ref.id] = ref }
+                    taskImageRefs[task.id] = refs
+                }
+
+                allRefsById.values.forEach { ref ->
+                    zip.addFile(ref.fileName, ref.uri)
+                }
+
                 tasks.forEach { task ->
                     val packSettings = task.payload["pack_settings"]?.jsonObject
-                    val imageNames = addImagesToZip(zip, task, packSettings)
+                    val imageNames = taskImageRefs[task.id]?.map { it.fileName } ?: emptyList()
                     val audioName = addAudioToZip(zip, task, packSettings)
 
                     val params = buildParams(task, imageNames, audioName)
@@ -81,22 +97,20 @@ class PackAllUseCase(
         }
     }
 
-    private fun addImagesToZip(
-        zip: ZipOutputStream,
-        task: Task,
-        packSettings: JsonObject?
-    ): List<String> {
-        val uris = packSettings?.get("image_uris")?.jsonArray?.mapNotNull { element ->
+    private suspend fun resolveImageRefs(task: Task): List<MediaRef> {
+        val packSettings = task.payload["pack_settings"]?.jsonObject
+        val mediaIds = packSettings?.get("image_media_ids")?.jsonArray?.mapNotNull { element ->
+            element.jsonPrimitive.contentOrNull
+        }
+        if (mediaIds != null) {
+            return mediaRepository.resolveIds(mediaIds)
+        }
+        val oldUris = packSettings?.get("image_uris")?.jsonArray?.mapNotNull { element ->
             element.jsonPrimitive.contentOrNull?.let { uriString ->
                 runCatching { Uri.parse(uriString) }.getOrNull()
             }
         } ?: emptyList()
-
-        return uris.mapIndexed { index, uri ->
-            val name = "task${task.id}_image_refs_$index.png"
-            zip.addFile(name, uri)
-            name
-        }
+        return oldUris.mapNotNull { uri -> mediaRepository.import(uri).getOrNull() }
     }
 
     private suspend fun addAudioToZip(

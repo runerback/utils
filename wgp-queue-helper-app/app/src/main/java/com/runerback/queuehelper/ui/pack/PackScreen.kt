@@ -58,6 +58,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -77,6 +78,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.runerback.queuehelper.QueueHelperApplication
 import kotlinx.coroutines.launch
+import com.runerback.queuehelper.data.local.MediaRepository
 import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.Token
@@ -132,7 +134,7 @@ fun PackScreen(
     val scope = rememberCoroutineScope()
     var isPacking by remember { mutableStateOf(false) }
     val packAllUseCase = remember {
-        PackAllUseCase(context, app.taskRepository, presetId)
+        PackAllUseCase(context, app.taskRepository, app.mediaRepository, presetId)
     }
 
     val storagePermissionLauncher = rememberLauncherForActivityResult(
@@ -229,11 +231,12 @@ fun PackScreen(
                 } else {
                     viewModel.presetNameMap[task.presetId] ?: ""
                 }
+                val taskImageUris = rememberTaskImageUris(task, app.mediaRepository)
                 TaskItem(
                     index = index,
                     presetName = taskPresetName,
                     audioUri = task.packAudioUri(),
-                    imageUris = task.packImageUris(),
+                    imageUris = taskImageUris,
                     onEdit = { onEditTask(task.id) },
                     onDelete = { viewModel.deleteTaskAndRenumber(task.id) }
                 )
@@ -341,6 +344,7 @@ fun TaskEditor(
         factory = TaskEditorViewModel.Factory(
             context,
             app.taskRepository,
+            app.mediaRepository,
             app.templateLoader
         )
     )
@@ -826,18 +830,29 @@ private fun ImageListItem(
     }
 }
 
+@Composable
+private fun rememberTaskImageUris(task: Task, mediaRepository: MediaRepository): List<Uri> {
+    return produceState<List<Uri>>(initialValue = emptyList(), task) {
+        val packSettings = task.payload["pack_settings"]?.jsonObject
+        val mediaIds = packSettings?.get("image_media_ids")?.jsonArray?.mapNotNull { element ->
+            element.jsonPrimitive.contentOrNull
+        }
+        value = if (mediaIds != null) {
+            mediaRepository.resolveIds(mediaIds).map { it.uri }
+        } else {
+            packSettings?.get("image_uris")?.jsonArray?.mapNotNull { element ->
+                element.jsonPrimitive.contentOrNull?.let { uriString ->
+                    runCatching { Uri.parse(uriString) }.getOrNull()
+                }
+            } ?: emptyList()
+        }
+    }.value
+}
+
 private fun Task.packAudioUri(): Uri? {
     return payload["pack_settings"]?.jsonObject?.get("audio_uri")?.jsonPrimitive?.contentOrNull?.let { uriString ->
         runCatching { Uri.parse(uriString) }.getOrNull()
     }
-}
-
-private fun Task.packImageUris(): List<Uri> {
-    return payload["pack_settings"]?.jsonObject?.get("image_uris")?.jsonArray?.mapNotNull { element ->
-        element.jsonPrimitive.contentOrNull?.let { uriString ->
-            runCatching { Uri.parse(uriString) }.getOrNull()
-        }
-    } ?: emptyList()
 }
 
 @Composable
