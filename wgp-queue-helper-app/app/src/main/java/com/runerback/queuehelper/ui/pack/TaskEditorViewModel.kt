@@ -18,6 +18,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import com.runerback.queuehelper.data.local.MediaRepository
 import com.runerback.queuehelper.data.local.TaskRepository
 import com.runerback.queuehelper.data.model.MediaRef
@@ -36,6 +39,8 @@ import com.runerback.queuehelper.domain.AudioTrimmer
 import com.runerback.queuehelper.ui.components.LogBuffer
 import com.runerback.queuehelper.ui.navigation.TaskEditorRoute
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -58,6 +63,7 @@ import java.io.FileOutputStream
 import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.math.roundToInt
 
 private const val MAX_IMAGES = 6
 
@@ -109,6 +115,20 @@ class TaskEditorViewModel(
 
     var trimEnd by mutableFloatStateOf(0f)
         private set
+
+    var isPreviewPlaying by mutableStateOf(false)
+        private set
+
+    var previewTrimmedOnly by mutableStateOf(true)
+        private set
+
+    var previewProgress by mutableFloatStateOf(0f)
+        private set
+
+    private var player: ExoPlayer? = null
+    private var playerListener: Player.Listener? = null
+
+    private var progressJob: kotlinx.coroutines.Job? = null
 
     val maxAudioDurationSeconds: Float
         get() = task?.payload?.get("params")?.jsonObject
@@ -310,6 +330,7 @@ class TaskEditorViewModel(
     }
 
     fun setAudio(uri: Uri?) {
+        stopPreview()
         if (uri == null) {
             audioUri = null
             audioMediaId = null
@@ -332,6 +353,7 @@ class TaskEditorViewModel(
     }
 
     fun updateTrimRange(start: Float, end: Float) {
+        stopPreview()
         val maxDuration = maxAudioDurationSeconds
         var newStart = start.coerceIn(0f, audioDurationSeconds)
         var newEnd = end.coerceIn(0f, audioDurationSeconds)
@@ -349,10 +371,133 @@ class TaskEditorViewModel(
             }
         }
 
-        trimStart = newStart
-        trimEnd = newEnd
+        trimStart = newStart.roundToMs()
+        trimEnd = newEnd.roundToMs()
         viewModelScope.launch { savePackSettings() }
     }
+
+    fun togglePreview() {
+        if (isPreviewPlaying) {
+            stopPreview()
+        } else {
+            startPreview()
+        }
+    }
+
+    fun updatePreviewTrimmedOnly(value: Boolean) {
+        if (value == previewTrimmedOnly) return
+        previewTrimmedOnly = value
+        stopPreview()
+    }
+
+    private fun startPreview() {
+        val uri = audioUri ?: return
+        val duration = audioDurationSeconds
+        if (duration <= 0f) return
+
+        try {
+            val currentPlayer = player ?: createPlayer().also { player = it }
+            stopProgressUpdates()
+
+            val mediaItem = if (previewTrimmedOnly) {
+                val startMs = (trimStart * 1000).toLong().coerceAtLeast(0L)
+                val endMs = (trimEnd * 1000).toLong().coerceAtLeast(startMs)
+                MediaItem.Builder()
+                    .setUri(uri)
+                    .setClippingConfiguration(
+                        MediaItem.ClippingConfiguration.Builder()
+                            .setStartPositionMs(startMs)
+                            .setEndPositionMs(endMs)
+                            .build()
+                    )
+                    .build()
+            } else {
+                MediaItem.fromUri(uri)
+            }
+
+            currentPlayer.setMediaItem(mediaItem)
+            previewProgress = 0f
+            currentPlayer.prepare()
+            currentPlayer.play()
+            isPreviewPlaying = true
+            startProgressUpdates()
+        } catch (e: Exception) {
+            LogBuffer.add("TaskEditorViewModel.startPreview: ${e.stackTraceToString()}")
+            isPreviewPlaying = false
+        }
+    }
+
+    fun stopPreview() {
+        stopProgressUpdates()
+        isPreviewPlaying = false
+        previewProgress = 0f
+        try {
+            player?.pause()
+            player?.seekTo(0)
+        } catch (e: Exception) {
+            LogBuffer.add("TaskEditorViewModel.stopPreview: ${e.stackTraceToString()}")
+        }
+    }
+
+    private fun createPlayer(): ExoPlayer {
+        val newPlayer = ExoPlayer.Builder(context).build()
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    stopPreview()
+                }
+            }
+
+            override fun onIsPlayingChanged(playing: Boolean) {
+                if (!playing && isPreviewPlaying) {
+                    stopPreview()
+                }
+            }
+        }
+        newPlayer.addListener(listener)
+        playerListener = listener
+        return newPlayer
+    }
+
+    private fun startProgressUpdates() {
+        progressJob?.cancel()
+        progressJob = viewModelScope.launch {
+            while (isActive) {
+                updatePreviewProgress()
+                delay(100)
+            }
+        }
+    }
+
+    private fun stopProgressUpdates() {
+        progressJob?.cancel()
+        progressJob = null
+    }
+
+    private fun updatePreviewProgress() {
+        val currentPlayer = player ?: return
+        val currentMs = currentPlayer.currentPosition.coerceAtLeast(0L)
+        val totalMs = when {
+            previewTrimmedOnly -> {
+                val endMs = (trimEnd * 1000).toLong()
+                val startMs = (trimStart * 1000).toLong()
+                (endMs - startMs).coerceAtLeast(1L)
+            }
+            else -> currentPlayer.duration.coerceAtLeast(1L)
+        }
+        previewProgress = (currentMs.toFloat() / totalMs.toFloat()).coerceIn(0f, 1f)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopProgressUpdates()
+        playerListener?.let { player?.removeListener(it) }
+        playerListener = null
+        player?.release()
+        player = null
+    }
+
+    private fun Float.roundToMs(): Float = (this * 1000f).roundToInt() / 1000f
 
     private suspend fun readAudioDuration(uri: Uri) {
         val durationMs = withContext(Dispatchers.IO) {

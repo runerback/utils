@@ -39,11 +39,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -51,6 +54,7 @@ import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -481,10 +485,15 @@ fun TaskEditor(
                             maxDuration = viewModel.maxAudioDurationSeconds,
                             trimStart = viewModel.trimStart,
                             trimEnd = viewModel.trimEnd,
+                            isPreviewPlaying = viewModel.isPreviewPlaying,
+                            previewTrimmedOnly = viewModel.previewTrimmedOnly,
+                            previewProgress = viewModel.previewProgress,
                             onTrimRangeChange = { start, end ->
                                 viewModel.updateTrimRange(start, end)
                             },
-                            onRemove = { viewModel.setAudio(null) }
+                            onRemove = { viewModel.setAudio(null) },
+                            onTogglePreview = { viewModel.togglePreview() },
+                            onTogglePreviewMode = { viewModel.updatePreviewTrimmedOnly(it) }
                         )
                     }
                 }
@@ -872,8 +881,13 @@ private fun AudioInfoCard(
     maxDuration: Float,
     trimStart: Float,
     trimEnd: Float,
+    isPreviewPlaying: Boolean,
+    previewTrimmedOnly: Boolean,
+    previewProgress: Float,
     onTrimRangeChange: (Float, Float) -> Unit,
     onRemove: () -> Unit,
+    onTogglePreview: () -> Unit,
+    onTogglePreviewMode: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var previousRange by remember(duration, maxDuration) { mutableStateOf(trimStart..trimEnd) }
@@ -939,6 +953,35 @@ private fun AudioInfoCard(
                 ) {
                     Text("Start: %.1f s".format(trimStart))
                     Text("End: %.1f s".format(trimEnd))
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    IconButton(onClick = onTogglePreview) {
+                        Icon(
+                            imageVector = if (isPreviewPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPreviewPlaying) "Stop preview" else "Play preview"
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { previewProgress },
+                        modifier = Modifier.weight(1f),
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Trimmed only",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Switch(
+                            checked = previewTrimmedOnly,
+                            onCheckedChange = onTogglePreviewMode
+                        )
+                    }
                 }
             }
         }
