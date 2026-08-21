@@ -28,6 +28,7 @@ class TaskRepository(private val context: Context) {
 
     private val tasksKey = stringPreferencesKey("task_list")
     private val nextIdKey = intPreferencesKey("next_id")
+    private val lastGlobalPresetIdKey = intPreferencesKey("last_global_preset_id")
 
     private fun tasksDir(): File = File(context.filesDir, "tasks").apply { mkdirs() }
 
@@ -76,6 +77,28 @@ class TaskRepository(private val context: Context) {
         }.getOrElse {
             LogBuffer.add("TaskRepository.loadTask($id): ${it.stackTraceToString()}")
             null
+        }
+    }
+
+    suspend fun loadAllTasks(): List<Task> = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = dataStore.data.first()
+            val listJson = prefs[tasksKey] ?: "[]"
+            val summaries = json.decodeFromString<List<TaskSummary>>(listJson)
+            summaries.mapNotNull { summary ->
+                val payloadFile = payloadFile(summary.id)
+                if (!payloadFile.exists()) return@mapNotNull null
+                val payload = json.decodeFromString<JsonObject>(payloadFile.readText())
+                Task(
+                    id = summary.id,
+                    presetId = summary.presetId,
+                    createdAt = summary.createdAt,
+                    payload = payload
+                )
+            }.sortedBy { it.createdAt }
+        }.getOrElse {
+            LogBuffer.add("TaskRepository.loadAllTasks: ${it.stackTraceToString()}")
+            emptyList()
         }
     }
 
@@ -157,6 +180,72 @@ class TaskRepository(private val context: Context) {
             }
         }.getOrElse {
             LogBuffer.add("TaskRepository.renumberTasks($presetId): ${it.stackTraceToString()}")
+        }
+    }
+
+    suspend fun deleteAllTasks() = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = dataStore.data.first()
+            val summaries = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
+            summaries.forEach { payloadFile(it.id).delete() }
+            dataStore.edit { prefs ->
+                prefs[tasksKey] = "[]"
+            }
+        }.onFailure {
+            LogBuffer.add("TaskRepository.deleteAllTasks: ${it.stackTraceToString()}")
+        }
+    }
+
+    suspend fun renumberAllTasks() = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = dataStore.data.first()
+            val summaries = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
+            val sorted = summaries.sortedBy { it.createdAt }
+
+            val newSummaries = sorted.mapIndexed { index, summary ->
+                val newId = index + 1
+                val oldId = summary.id
+                if (oldId != newId) {
+                    val oldFile = payloadFile(oldId)
+                    if (oldFile.exists()) {
+                        val payload = json.decodeFromString<JsonObject>(oldFile.readText())
+                        val updatedPayload = updatePayloadId(payload, newId)
+                        payloadFile(newId).writeText(json.encodeToString(updatedPayload))
+                        oldFile.delete()
+                    }
+                }
+                summary.copy(id = newId)
+            }
+
+            dataStore.edit { prefs ->
+                prefs[tasksKey] = json.encodeToString(newSummaries)
+                prefs[nextIdKey] = newSummaries.size + 1
+            }
+        }.onFailure {
+            LogBuffer.add("TaskRepository.renumberAllTasks: ${it.stackTraceToString()}")
+        }
+    }
+
+    suspend fun lastGlobalPresetId(): Int? = withContext(Dispatchers.IO) {
+        runCatching {
+            dataStore.data.first()[lastGlobalPresetIdKey]
+        }.getOrElse {
+            LogBuffer.add("TaskRepository.lastGlobalPresetId: ${it.stackTraceToString()}")
+            null
+        }
+    }
+
+    suspend fun setLastGlobalPresetId(id: Int?) = withContext(Dispatchers.IO) {
+        runCatching {
+            dataStore.edit { prefs ->
+                if (id == null) {
+                    prefs.remove(lastGlobalPresetIdKey)
+                } else {
+                    prefs[lastGlobalPresetIdKey] = id
+                }
+            }
+        }.onFailure {
+            LogBuffer.add("TaskRepository.setLastGlobalPresetId($id): ${it.stackTraceToString()}")
         }
     }
 

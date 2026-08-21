@@ -57,6 +57,7 @@ import com.runerback.queuehelper.ui.icons.TablerLogs
 fun PresetListScreen(
     onEditPreset: (Int) -> Unit,
     onPackPreset: (Int) -> Unit,
+    onOpenGlobalPack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -144,6 +145,12 @@ fun PresetListScreen(
                                 }
                             )
                         }
+                    }
+                    IconButton(onClick = onOpenGlobalPack) {
+                        Icon(
+                            imageVector = FluentuiSystemIconsFolderZip,
+                            contentDescription = "Open global pack tasks"
+                        )
                     }
                     IconButton(onClick = { showLogView = true }) {
                         Icon(

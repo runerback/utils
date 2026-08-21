@@ -33,13 +33,17 @@ import java.util.zip.ZipOutputStream
 class PackAllUseCase(
     private val context: Context,
     private val taskRepository: TaskRepository,
-    private val presetId: Int
+    private val presetId: Int?
 ) {
     private val json = Json { prettyPrint = true }
 
     suspend operator fun invoke(): String = withContext(Dispatchers.IO) {
         runCatching {
-            val tasks = taskRepository.loadTasks(presetId)
+            val tasks = if (presetId != null) {
+                taskRepository.loadTasks(presetId)
+            } else {
+                taskRepository.loadAllTasks()
+            }.sortedBy { it.createdAt }
             if (tasks.isEmpty()) throw IllegalStateException("No tasks to pack")
 
             val (outputStream, savedPath) = openDownloadsOutputStream("queue.zip")

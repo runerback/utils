@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.runerback.queuehelper.data.local.PresetRepository
 import com.runerback.queuehelper.data.local.TaskRepository
+import com.runerback.queuehelper.data.model.Preset
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefaults
 import com.runerback.queuehelper.data.model.SubjectDefinition
@@ -25,7 +26,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class PackViewModel(
-    private val presetId: Int,
+    private val presetId: Int?,
     private val presetRepository: PresetRepository,
     private val taskRepository: TaskRepository,
     private val templateLoader: TemplateLoader
@@ -37,40 +38,102 @@ class PackViewModel(
     var presetName by mutableStateOf("")
         private set
 
+    var presetNameMap by mutableStateOf<Map<Int, String>>(emptyMap())
+        private set
+
+    var presets by mutableStateOf<List<Preset>>(emptyList())
+        private set
+
     var isLoading by mutableStateOf(false)
+        private set
+
+    var showPresetPicker by mutableStateOf(false)
+        private set
+
+    var lastSelectedPresetId by mutableStateOf<Int?>(null)
         private set
 
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
         loadTasks()
+        loadLastSelectedPreset()
     }
 
     fun loadTasks() {
         viewModelScope.launch {
             isLoading = true
-            tasks = runCatching { taskRepository.loadTasks(presetId) }.getOrElse {
+            tasks = runCatching {
+                if (presetId != null) {
+                    taskRepository.loadTasks(presetId)
+                } else {
+                    taskRepository.loadAllTasks()
+                }
+            }.getOrElse {
                 LogBuffer.add("PackViewModel.loadTasks($presetId): ${it.stackTraceToString()}")
                 emptyList()
             }
-            presetName = runCatching { presetRepository.loadPreset(presetId)?.name }.getOrElse {
+            presetName = runCatching {
+                presetId?.let { presetRepository.loadPreset(it)?.name }
+            }.getOrElse {
                 LogBuffer.add("PackViewModel.loadPresetName($presetId): ${it.stackTraceToString()}")
                 null
             } ?: ""
+            val loadedPresets = runCatching {
+                presetRepository.loadPresets()
+            }.getOrElse {
+                LogBuffer.add("PackViewModel.loadPresets: ${it.stackTraceToString()}")
+                emptyList()
+            }
+            presetNameMap = loadedPresets.associate { it.id to it.name }
+            presets = loadedPresets
             isLoading = false
         }
     }
 
-    fun createTaskFromPreset() {
+    private fun loadLastSelectedPreset() {
+        if (presetId != null) return
+        viewModelScope.launch {
+            lastSelectedPresetId = runCatching {
+                taskRepository.lastGlobalPresetId()
+            }.getOrElse {
+                LogBuffer.add("PackViewModel.loadLastSelectedPreset: ${it.stackTraceToString()}")
+                null
+            }
+        }
+    }
+
+    fun requestCreateTask() {
+        if (presetId != null) {
+            createTaskFromPreset(presetId)
+        } else {
+            showPresetPicker = true
+        }
+    }
+
+    fun dismissPresetPicker() {
+        showPresetPicker = false
+    }
+
+    fun createTaskFromPreset(selectedPresetId: Int) {
         viewModelScope.launch {
             runCatching {
-                val preset = presetRepository.loadPreset(presetId) ?: return@launch
+                val preset = presetRepository.loadPreset(selectedPresetId) ?: return@launch
                 val id = taskRepository.nextId()
-                val task = buildTask(id, preset.payload)
+                val task = buildTask(id, selectedPresetId, preset.payload)
                 taskRepository.saveTask(task)
-                tasks = taskRepository.loadTasks(presetId)
+                tasks = if (presetId != null) {
+                    taskRepository.loadTasks(presetId)
+                } else {
+                    taskRepository.loadAllTasks()
+                }
+                if (presetId == null) {
+                    lastSelectedPresetId = selectedPresetId
+                    taskRepository.setLastGlobalPresetId(selectedPresetId)
+                }
+                showPresetPicker = false
             }.onFailure {
-                LogBuffer.add("PackViewModel.createTaskFromPreset($presetId): ${it.stackTraceToString()}")
+                LogBuffer.add("PackViewModel.createTaskFromPreset($selectedPresetId): ${it.stackTraceToString()}")
             }
         }
     }
@@ -79,8 +142,16 @@ class PackViewModel(
         viewModelScope.launch {
             runCatching {
                 taskRepository.deleteTask(taskId)
-                taskRepository.renumberTasks(presetId)
-                tasks = taskRepository.loadTasks(presetId)
+                if (presetId != null) {
+                    taskRepository.renumberTasks(presetId)
+                } else {
+                    taskRepository.renumberAllTasks()
+                }
+                tasks = if (presetId != null) {
+                    taskRepository.loadTasks(presetId)
+                } else {
+                    taskRepository.loadAllTasks()
+                }
             }.onFailure {
                 LogBuffer.add("PackViewModel.deleteTaskAndRenumber($taskId): ${it.stackTraceToString()}")
             }
@@ -90,7 +161,11 @@ class PackViewModel(
     fun clearAllTasks() {
         viewModelScope.launch {
             runCatching {
-                taskRepository.deleteTasksForPreset(presetId)
+                if (presetId != null) {
+                    taskRepository.deleteTasksForPreset(presetId)
+                } else {
+                    taskRepository.deleteAllTasks()
+                }
                 tasks = emptyList()
             }.onFailure {
                 LogBuffer.add("PackViewModel.clearAllTasks($presetId): ${it.stackTraceToString()}")
@@ -98,7 +173,7 @@ class PackViewModel(
         }
     }
 
-    private fun buildTask(id: Int, presetPayload: JsonObject): Task {
+    private fun buildTask(id: Int, taskPresetId: Int, presetPayload: JsonObject): Task {
         val baseParams = presetPayload["params"]?.jsonObject ?: JsonObject(emptyMap())
         val updatedParams = JsonObject(
             baseParams.toMutableMap().apply {
@@ -123,7 +198,7 @@ class PackViewModel(
 
         return Task(
             id = id,
-            presetId = presetId,
+            presetId = taskPresetId,
             createdAt = System.currentTimeMillis(),
             payload = payload
         )
@@ -131,7 +206,7 @@ class PackViewModel(
 
     @Suppress("UNCHECKED_CAST")
     class Factory(
-        private val presetId: Int,
+        private val presetId: Int?,
         private val presetRepository: PresetRepository,
         private val taskRepository: TaskRepository,
         private val templateLoader: TemplateLoader

@@ -99,7 +99,7 @@ private const val MAX_PICTURE_SLOTS = 6
 @Suppress("DEPRECATION")
 @Composable
 fun PackScreen(
-    presetId: Int,
+    presetId: Int?,
     onEditTask: (Int) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -170,7 +170,7 @@ fun PackScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Tasks - ${viewModel.presetName}") },
+                title = { Text(if (presetId != null) "Tasks - ${viewModel.presetName}" else "Tasks") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -180,7 +180,7 @@ fun PackScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.createTaskFromPreset() }) {
+                    IconButton(onClick = { viewModel.requestCreateTask() }) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Create task"
@@ -224,9 +224,14 @@ fun PackScreen(
                 .padding(padding)
         ) {
             itemsIndexed(viewModel.tasks, key = { _, task -> task.id }) { index, task ->
+                val taskPresetName = if (presetId != null) {
+                    viewModel.presetName
+                } else {
+                    viewModel.presetNameMap[task.presetId] ?: ""
+                }
                 TaskItem(
                     index = index,
-                    presetName = viewModel.presetName,
+                    presetName = taskPresetName,
                     audioUri = task.packAudioUri(),
                     imageUris = task.packImageUris(),
                     onEdit = { onEditTask(task.id) },
@@ -234,6 +239,15 @@ fun PackScreen(
                 )
             }
         }
+    }
+
+    if (viewModel.showPresetPicker) {
+        PresetPickerDialog(
+            presets = viewModel.presets,
+            initialPresetId = viewModel.lastSelectedPresetId,
+            onPresetSelected = { viewModel.createTaskFromPreset(it) },
+            onDismiss = { viewModel.dismissPresetPicker() }
+        )
     }
 }
 

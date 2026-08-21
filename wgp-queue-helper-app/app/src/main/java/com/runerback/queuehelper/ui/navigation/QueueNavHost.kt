@@ -19,7 +19,7 @@ data object PresetListRoute
 data class EditPresetRoute(val presetId: Int)
 
 @Serializable
-data class PackRoute(val presetId: Int)
+data class PackRoute(val presetId: Int? = null)
 
 @Serializable
 data class TaskEditorRoute(val taskId: Int)
@@ -41,6 +41,9 @@ fun QueueNavHost(
                 },
                 onPackPreset = { presetId ->
                     navController.navigate(PackRoute(presetId))
+                },
+                onOpenGlobalPack = {
+                    navController.navigate(PackRoute())
                 }
             )
         }
