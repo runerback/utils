@@ -11,6 +11,8 @@ val localProperties = Properties().apply {
     rootProject.file("local.properties").inputStream().use { load(it) }
 }
 
+val buildNumber = (System.currentTimeMillis() / 1000).toInt()
+
 android {
     namespace = "com.runerback.translator"
     compileSdk = 35
@@ -28,8 +30,8 @@ android {
         applicationId = "com.runerback.translator"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
     }
 
     splits {
@@ -87,7 +89,8 @@ android {
         outputs.configureEach {
             val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
             val abi = outputImpl.filters.find { it.filterType == "ABI" }?.identifier ?: "all"
-            outputImpl.outputFileName = "translator-${abi}-${buildType.name}.apk"
+            val version = defaultConfig.versionName ?: "unknown"
+            outputImpl.outputFileName = "translator-${abi}-${buildType.name}-${version}.apk"
         }
     }
 }
