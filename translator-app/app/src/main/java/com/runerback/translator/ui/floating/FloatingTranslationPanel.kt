@@ -49,6 +49,7 @@ sealed interface TranslationState {
 fun FloatingTranslationPanel(
     state: TranslationState,
     anchor: Rect,
+    showSimplify: Boolean,
     onSimplify: () -> Unit,
     onChinese: () -> Unit,
     onDismiss: () -> Unit,
@@ -143,18 +144,20 @@ fun FloatingTranslationPanel(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedButton(
-                    onClick = onSimplify,
-                    enabled = state !is TranslationState.Loading,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.White,
-                        contentColor = Color.Black,
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.Black),
-                    shape = RoundedCornerShape(0.dp),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Simplify", fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (showSimplify) {
+                    OutlinedButton(
+                        onClick = onSimplify,
+                        enabled = state !is TranslationState.Loading,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black,
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Black),
+                        shape = RoundedCornerShape(0.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Simplify", fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
                 OutlinedButton(
                     onClick = onChinese,

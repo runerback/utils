@@ -6,8 +6,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.runerback.translator.argostranslate.ArgosTranslateClient
 import com.runerback.translator.data.SettingsRepository
 import com.runerback.translator.ollama.OllamaClient
+import com.runerback.translator.translate.TranslationProvider
+import com.runerback.translator.translate.TranslationResult
+import com.runerback.translator.translate.Translator
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -51,17 +55,30 @@ class TranslationPanelViewModel(
         translate { translateToChinese(currentSourceText) }
     }
 
-    private fun translate(block: suspend OllamaClient.() -> com.runerback.translator.data.OllamaResponse) {
+    private fun translate(block: suspend Translator.() -> TranslationResult) {
         viewModelScope.launch {
             try {
+                val translator = createTranslator()
+                val result = block(translator)
+                state = TranslationState.Success(result.text)
+            } catch (e: Exception) {
+                state = TranslationState.Error(e.message ?: "Translation failed")
+            }
+        }
+    }
+
+    private suspend fun createTranslator(): Translator {
+        return when (settingsRepository.translationProvider.first()) {
+            TranslationProvider.OLLAMA -> {
                 val baseUrl = settingsRepository.baseUrl.first()
                 val model = settingsRepository.model.first()
                 val temperature = settingsRepository.temperature.first()
-                val client = OllamaClient(baseUrl)
-                val response = block(client)
-                state = TranslationState.Success(response.message.content)
-            } catch (e: Exception) {
-                state = TranslationState.Error(e.message ?: "Translation failed")
+                OllamaClient(baseUrl, model, temperature)
+            }
+            TranslationProvider.ARGOSTRANSLATE -> {
+                val baseUrl = settingsRepository.argosTranslateBaseUrl.first()
+                val sourceLanguage = settingsRepository.sourceLanguage.first()
+                ArgosTranslateClient(baseUrl, sourceLanguage)
             }
         }
     }

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.runerback.translator.bookshelf.Book
 import com.runerback.translator.bookshelf.BookSort
+import com.runerback.translator.translate.TranslationProvider
 import com.runerback.translator.util.LogManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -35,6 +36,23 @@ class SettingsRepository(private val context: Context) {
 
     val temperature: Flow<Double> = dataStore.data.map { prefs ->
         prefs[KEY_TEMPERATURE] ?: DEFAULT_TEMPERATURE
+    }
+
+    val translationProvider: Flow<TranslationProvider> = dataStore.data.map { prefs ->
+        prefs[KEY_TRANSLATION_PROVIDER]?.let { TranslationProvider.valueOf(it) }
+            ?: TranslationProvider.OLLAMA
+    }
+
+    val argosTranslateBaseUrl: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_ARGOSTRANSLATE_BASE_URL] ?: DEFAULT_ARGOSTRANSLATE_BASE_URL
+    }
+
+    val sourceLanguage: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_SOURCE_LANGUAGE] ?: DEFAULT_SOURCE_LANGUAGE
+    }
+
+    val showSimplifyButton: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_SHOW_SIMPLIFY_BUTTON] ?: true
     }
 
     val useFakeServer: Flow<Boolean> = dataStore.data.map { prefs ->
@@ -72,6 +90,30 @@ class SettingsRepository(private val context: Context) {
     suspend fun setTemperature(value: Double) {
         dataStore.edit { prefs ->
             prefs[KEY_TEMPERATURE] = value
+        }
+    }
+
+    suspend fun setTranslationProvider(provider: TranslationProvider) {
+        dataStore.edit { prefs ->
+            prefs[KEY_TRANSLATION_PROVIDER] = provider.name
+        }
+    }
+
+    suspend fun setArgosTranslateBaseUrl(value: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_ARGOSTRANSLATE_BASE_URL] = value
+        }
+    }
+
+    suspend fun setSourceLanguage(value: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_SOURCE_LANGUAGE] = value
+        }
+    }
+
+    suspend fun setShowSimplifyButton(value: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_SHOW_SIMPLIFY_BUTTON] = value
         }
     }
 
@@ -141,6 +183,10 @@ class SettingsRepository(private val context: Context) {
         private val KEY_BASE_URL = stringPreferencesKey("ollama_base_url")
         private val KEY_MODEL = stringPreferencesKey("ollama_model")
         private val KEY_TEMPERATURE = doublePreferencesKey("ollama_temperature")
+        private val KEY_TRANSLATION_PROVIDER = stringPreferencesKey("translation_provider")
+        private val KEY_ARGOSTRANSLATE_BASE_URL = stringPreferencesKey("argostranslate_base_url")
+        private val KEY_SOURCE_LANGUAGE = stringPreferencesKey("source_language")
+        private val KEY_SHOW_SIMPLIFY_BUTTON = booleanPreferencesKey("show_simplify_button")
         private val KEY_USE_FAKE_SERVER = booleanPreferencesKey("use_fake_server")
         private val KEY_READER_DEBUG_MODE = booleanPreferencesKey("reader_debug_mode")
         private val KEY_ROOT_FOLDER_URI = stringPreferencesKey("root_folder_uri")
@@ -150,5 +196,7 @@ class SettingsRepository(private val context: Context) {
         const val DEFAULT_BASE_URL = "http://127.0.0.1:11434"
         const val DEFAULT_MODEL = "qwen3:14b"
         const val DEFAULT_TEMPERATURE = 0.2
+        const val DEFAULT_ARGOSTRANSLATE_BASE_URL = "http://127.0.0.1:11435"
+        const val DEFAULT_SOURCE_LANGUAGE = "en"
     }
 }

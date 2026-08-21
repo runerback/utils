@@ -72,6 +72,7 @@ import com.runerback.translator.reader.pdf.PdfPageCache
 import com.runerback.translator.reader.pdf.PdfPaginator
 import com.runerback.translator.reader.pdf.PdfTextReaderScreen
 import com.runerback.translator.reader.text.TextReaderScreen
+import com.runerback.translator.translate.TranslationProvider
 import com.runerback.translator.ui.floating.FloatingTranslationPanel
 import com.runerback.translator.ui.floating.TranslationPanelViewModel
 import com.runerback.translator.ui.floating.TranslationPanelViewModelFactory
@@ -169,6 +170,7 @@ private fun ReaderScreen(
     val scope = rememberCoroutineScope()
 
     val readerDebugMode by SettingsManager.readerDebugMode.collectAsStateWithLifecycle(initialValue = false)
+    val showSimplifyButton by settingsRepository.showSimplifyButton.collectAsStateWithLifecycle(initialValue = true)
 
     var pageIndex by remember(book) { mutableIntStateOf(book.lastPage.coerceAtLeast(0)) }
     var targetPageIndex by remember(book) { mutableIntStateOf(pageIndex) }
@@ -403,6 +405,7 @@ private fun ReaderScreen(
             FloatingTranslationPanel(
                 state = viewModel.state,
                 anchor = viewModel.anchor,
+                showSimplify = showSimplifyButton,
                 onSimplify = { viewModel.onSimplify() },
                 onChinese = { viewModel.onChinese() },
                 onDismiss = { viewModel.dismiss() },

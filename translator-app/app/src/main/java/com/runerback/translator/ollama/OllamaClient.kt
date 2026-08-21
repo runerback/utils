@@ -5,13 +5,19 @@ import com.runerback.translator.data.OllamaMessage
 import com.runerback.translator.data.OllamaOptions
 import com.runerback.translator.data.OllamaRequest
 import com.runerback.translator.data.OllamaResponse
+import com.runerback.translator.translate.TranslationResult
+import com.runerback.translator.translate.Translator
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
 
-class OllamaClient(baseUrl: String) {
+class OllamaClient(
+    baseUrl: String,
+    model: String = DEFAULT_MODEL,
+    temperature: Double = DEFAULT_TEMPERATURE,
+) : Translator {
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -29,41 +35,25 @@ class OllamaClient(baseUrl: String) {
 
     private val api = retrofit.create(OllamaApi::class.java)
 
-    suspend fun translateToEnglish(
-        text: String,
-        model: String = DEFAULT_MODEL,
-        temperature: Double = DEFAULT_TEMPERATURE,
-    ): OllamaResponse = chat(
-        model = model,
-        temperature = temperature,
+    private val model = model
+    private val temperature = temperature
+
+    override suspend fun translateToEnglish(text: String): TranslationResult = chat(
         content = PromptTemplate.translateToEnglish(text),
-    )
+    ).toResult()
 
-    suspend fun simplifyEnglish(
-        text: String,
-        model: String = DEFAULT_MODEL,
-        temperature: Double = DEFAULT_TEMPERATURE,
-    ): OllamaResponse = chat(
-        model = model,
-        temperature = temperature,
+    override suspend fun simplifyEnglish(text: String): TranslationResult = chat(
         content = PromptTemplate.simplifyEnglish(text),
-    )
+    ).toResult()
 
-    suspend fun translateToChinese(
-        text: String,
-        model: String = DEFAULT_MODEL,
-        temperature: Double = DEFAULT_TEMPERATURE,
-    ): OllamaResponse = chat(
-        model = model,
-        temperature = temperature,
+    override suspend fun translateToChinese(text: String): TranslationResult = chat(
         content = PromptTemplate.translateToChinese(text),
-    )
+    ).toResult()
 
-    private suspend fun chat(
-        model: String,
-        temperature: Double,
-        content: String,
-    ): OllamaResponse {
+    private fun OllamaResponse.toResult(): TranslationResult =
+        TranslationResult(text = message.content)
+
+    private suspend fun chat(content: String): OllamaResponse {
         val request = OllamaRequest(
             model = model,
             think = false,
