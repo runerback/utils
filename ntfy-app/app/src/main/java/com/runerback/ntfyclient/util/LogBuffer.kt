@@ -28,4 +28,7 @@ object LogBuffer {
     fun clear() {
         _lines.value = emptyList()
     }
+
+    @Synchronized
+    fun getAll(): String = _lines.value.filter { it.isNotBlank() }.joinToString("\n")
 }
