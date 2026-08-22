@@ -35,7 +35,20 @@ class TranslationPanelViewModel(
         anchor = anchorRect
         isVisible = true
         state = TranslationState.Loading
-        translate { translateToEnglish(text) }
+        viewModelScope.launch {
+            val provider = settingsRepository.translationProvider.first()
+            val targetLanguage = if (provider == TranslationProvider.ARGOSTRANSLATE) {
+                settingsRepository.targetLanguage.first()
+            } else {
+                "en"
+            }
+            translate {
+                when (targetLanguage) {
+                    "zh" -> translateToChinese(text)
+                    else -> translateToEnglish(text)
+                }
+            }
+        }
     }
 
     fun dismiss() {

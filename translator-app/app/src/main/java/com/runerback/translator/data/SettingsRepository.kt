@@ -51,12 +51,28 @@ class SettingsRepository(private val context: Context) {
         prefs[KEY_SOURCE_LANGUAGE] ?: DEFAULT_SOURCE_LANGUAGE
     }
 
+    val targetLanguage: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_TARGET_LANGUAGE] ?: DEFAULT_TARGET_LANGUAGE
+    }
+
     val showSimplifyButton: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[KEY_SHOW_SIMPLIFY_BUTTON] ?: true
+        val provider = prefs[KEY_TRANSLATION_PROVIDER]?.let { TranslationProvider.valueOf(it) }
+            ?: TranslationProvider.OLLAMA
+        prefs[keyShowSimplifyButton(provider)] ?: prefs[KEY_SHOW_SIMPLIFY_BUTTON] ?: true
+    }
+
+    fun showSimplifyButton(provider: TranslationProvider): Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[keyShowSimplifyButton(provider)] ?: prefs[KEY_SHOW_SIMPLIFY_BUTTON] ?: true
     }
 
     val useFakeServer: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[KEY_USE_FAKE_SERVER] ?: false
+        val provider = prefs[KEY_TRANSLATION_PROVIDER]?.let { TranslationProvider.valueOf(it) }
+            ?: TranslationProvider.OLLAMA
+        prefs[keyUseFakeServer(provider)] ?: prefs[KEY_USE_FAKE_SERVER] ?: false
+    }
+
+    fun useFakeServer(provider: TranslationProvider): Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[keyUseFakeServer(provider)] ?: prefs[KEY_USE_FAKE_SERVER] ?: false
     }
 
     val readerDebugMode: Flow<Boolean> = dataStore.data.map { prefs ->
@@ -111,15 +127,21 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
-    suspend fun setShowSimplifyButton(value: Boolean) {
+    suspend fun setTargetLanguage(value: String) {
         dataStore.edit { prefs ->
-            prefs[KEY_SHOW_SIMPLIFY_BUTTON] = value
+            prefs[KEY_TARGET_LANGUAGE] = value
         }
     }
 
-    suspend fun setUseFakeServer(value: Boolean) {
+    suspend fun setShowSimplifyButton(provider: TranslationProvider, value: Boolean) {
         dataStore.edit { prefs ->
-            prefs[KEY_USE_FAKE_SERVER] = value
+            prefs[keyShowSimplifyButton(provider)] = value
+        }
+    }
+
+    suspend fun setUseFakeServer(provider: TranslationProvider, value: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[keyUseFakeServer(provider)] = value
         }
     }
 
@@ -186,6 +208,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_TRANSLATION_PROVIDER = stringPreferencesKey("translation_provider")
         private val KEY_ARGOSTRANSLATE_BASE_URL = stringPreferencesKey("argostranslate_base_url")
         private val KEY_SOURCE_LANGUAGE = stringPreferencesKey("source_language")
+        private val KEY_TARGET_LANGUAGE = stringPreferencesKey("target_language")
         private val KEY_SHOW_SIMPLIFY_BUTTON = booleanPreferencesKey("show_simplify_button")
         private val KEY_USE_FAKE_SERVER = booleanPreferencesKey("use_fake_server")
         private val KEY_READER_DEBUG_MODE = booleanPreferencesKey("reader_debug_mode")
@@ -193,10 +216,17 @@ class SettingsRepository(private val context: Context) {
         private val KEY_BOOKS = stringPreferencesKey("books_json")
         private val KEY_BOOK_SORT = stringPreferencesKey("book_sort")
 
+        private fun keyShowSimplifyButton(provider: TranslationProvider) =
+            booleanPreferencesKey("show_simplify_button_${provider.name.lowercase()}")
+
+        private fun keyUseFakeServer(provider: TranslationProvider) =
+            booleanPreferencesKey("use_fake_server_${provider.name.lowercase()}")
+
         const val DEFAULT_BASE_URL = "http://127.0.0.1:11434"
         const val DEFAULT_MODEL = "qwen3:14b"
         const val DEFAULT_TEMPERATURE = 0.2
         const val DEFAULT_ARGOSTRANSLATE_BASE_URL = "http://127.0.0.1:11435"
         const val DEFAULT_SOURCE_LANGUAGE = "en"
+        const val DEFAULT_TARGET_LANGUAGE = "en"
     }
 }

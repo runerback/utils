@@ -2,11 +2,8 @@
 
 package com.runerback.translator
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -67,7 +64,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.runerback.translator.bookshelf.Book
 import com.runerback.translator.bookshelf.BookScanner
@@ -109,10 +105,6 @@ private fun BookshelfScreen() {
     var showSortMenu by remember { mutableStateOf(false) }
     var pdfDialog by remember { mutableStateOf<Pair<Book, Int>?>(null) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { }
-
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
     ) { uri: Uri? ->
@@ -131,22 +123,6 @@ private fun BookshelfScreen() {
                 }
                 isScanning = false
             }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        val permissions = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(
-                Manifest.permission.READ_MEDIA_IMAGES,
-            )
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-            else -> emptyArray()
-        }
-        val toRequest = permissions.filter {
-            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (toRequest.isNotEmpty()) {
-            permissionLauncher.launch(toRequest.toTypedArray())
         }
     }
 
