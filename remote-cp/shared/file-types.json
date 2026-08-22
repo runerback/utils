@@ -22,7 +22,8 @@
     ".xlsx",
     ".zip",
     ".tar",
-	".patch"
+	".patch",
+	".gz"
   ],
   "imageMimeMap": {
     "image/bmp": "bmp",
