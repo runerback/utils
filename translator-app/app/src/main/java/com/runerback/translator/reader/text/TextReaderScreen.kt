@@ -8,16 +8,11 @@ import android.text.TextPaint
 import android.util.TypedValue
 import android.widget.TextView
 import com.runerback.translator.util.LogManager
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -25,15 +20,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.viewinterop.AndroidView
 
@@ -47,6 +41,8 @@ fun TextReaderScreen(
     onPageChange: (Int, Int) -> Unit = { _, _ -> },
     onTotalPages: (Int) -> Unit = {},
     onTranslate: (String, anchor: Rect) -> Unit,
+    onTextViewReady: (TextView?) -> Unit = {},
+    onSelectionChanged: (String?, anchor: Rect?) -> Unit = { _, _ -> },
 ) {
     val density = LocalDensity.current
     var containerSize by remember { mutableStateOf(Size.Zero) }
@@ -59,6 +55,11 @@ fun TextReaderScreen(
         minOf(calculatedPaddingPx, maxPaddingPx).toInt().coerceAtLeast(0)
     }
     var selection by remember { mutableStateOf<Selection?>(null) }
+    var boxWindowOffset by remember { mutableStateOf(Offset.Zero) }
+
+    DisposableEffect(Unit) {
+        onDispose { onTextViewReady(null) }
+    }
 
     LaunchedEffect(content, containerSize, paddingPx) {
         if (content.isEmpty()) {
@@ -102,13 +103,30 @@ fun TextReaderScreen(
         selection = null
     }
 
+    LaunchedEffect(selection, boxWindowOffset) {
+        val selected = selection
+        if (selected == null) {
+            onSelectionChanged(null, null)
+        } else {
+            onSelectionChanged(
+                selected.text,
+                Rect(
+                    (boxWindowOffset.x + selected.anchor.left).toInt(),
+                    (boxWindowOffset.y + selected.anchor.top).toInt(),
+                    (boxWindowOffset.x + selected.anchor.right).toInt(),
+                    (boxWindowOffset.y + selected.anchor.bottom).toInt(),
+                ),
+            )
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(0.dp)
             .onSizeChanged { size ->
                 containerSize = size.toSize()
-            },
+            }
+            .onGloballyPositioned { boxWindowOffset = it.positionInWindow() },
     ) {
         AndroidView(
             factory = { ctx ->
@@ -139,6 +157,7 @@ fun TextReaderScreen(
                         )
                     }
                 }
+                onTextViewReady(view)
                 view
             },
             update = { textView ->
@@ -156,16 +175,6 @@ fun TextReaderScreen(
             },
             modifier = Modifier.fillMaxSize(),
         )
-
-        selection?.let { (selected, anchor) ->
-            SelectionToolbar(
-                anchor = anchor,
-                onTranslate = {
-                    onTranslate(selected, anchor)
-                    selection = null
-                },
-            )
-        }
     }
 }
 
@@ -173,39 +182,6 @@ private data class Selection(
     val text: String,
     val anchor: Rect,
 )
-
-@Composable
-private fun SelectionToolbar(
-    anchor: Rect,
-    onTranslate: () -> Unit,
-) {
-    var toolbarSize by remember { mutableStateOf(IntSize.Zero) }
-    val toolbarWidth = toolbarSize.width
-    val toolbarHeight = toolbarSize.height
-    val centerX = (anchor.left + anchor.right) / 2
-    val x = centerX - toolbarWidth / 2
-    val y = if (anchor.top - toolbarHeight >= 0) {
-        anchor.top - toolbarHeight
-    } else {
-        anchor.bottom
-    }
-
-    Box(
-        modifier = Modifier
-            .offset { IntOffset(x, y) }
-            .onGloballyPositioned { toolbarSize = it.size }
-            .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
-            .background(Color.White, RoundedCornerShape(4.dp))
-            .clickable(onClick = onTranslate)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        Text(
-            text = "Translate",
-            color = Color.Black,
-            fontSize = 14.sp,
-        )
-    }
-}
 
 internal fun computePages(
     text: String,

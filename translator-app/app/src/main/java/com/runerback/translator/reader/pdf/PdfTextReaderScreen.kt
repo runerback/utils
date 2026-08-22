@@ -5,36 +5,32 @@ import android.widget.TextView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.runerback.translator.reader.text.SelectableTextView
 import com.runerback.translator.util.LogManager
@@ -62,6 +58,8 @@ fun PdfTextReaderScreen(
     onTranslate: (String, anchor: Rect) -> Unit,
     onPageChange: (Int, Int) -> Unit = { _, _ -> },
     onTotalPages: (Int) -> Unit = {},
+    onTextViewReady: (TextView?) -> Unit = {},
+    onSelectionChanged: (String?, anchor: Rect?) -> Unit = { _, _ -> },
     debug: Boolean = false,
 ) {
     LaunchedEffect(pageIndex, totalPages) {
@@ -90,6 +88,8 @@ fun PdfTextReaderScreen(
             menusVisible = menusVisible,
             debug = debug,
             onTranslate = onTranslate,
+            onTextViewReady = onTextViewReady,
+            onSelectionUpdate = onSelectionChanged,
         )
     }
 }
@@ -103,10 +103,34 @@ private fun TextPageContent(
     menusVisible: Boolean,
     debug: Boolean,
     onTranslate: (String, anchor: Rect) -> Unit,
+    onTextViewReady: (TextView?) -> Unit = {},
+    onSelectionUpdate: (String?, anchor: Rect?) -> Unit = { _, _ -> },
 ) {
     var selection by remember { mutableStateOf<Selection?>(null) }
+    var textViewWindowOffset by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
     val paddingPx = remember(density) { with(density) { 12.dp.toPx() }.toInt() }
+
+    DisposableEffect(Unit) {
+        onDispose { onTextViewReady(null) }
+    }
+
+    LaunchedEffect(selection, textViewWindowOffset) {
+        val selected = selection
+        if (selected == null) {
+            onSelectionUpdate(null, null)
+        } else {
+            onSelectionUpdate(
+                selected.text,
+                Rect(
+                    (textViewWindowOffset.x + selected.anchor.left).toInt(),
+                    (textViewWindowOffset.y + selected.anchor.top).toInt(),
+                    (textViewWindowOffset.x + selected.anchor.right).toInt(),
+                    (textViewWindowOffset.y + selected.anchor.bottom).toInt(),
+                ),
+            )
+        }
+    }
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -160,6 +184,7 @@ private fun TextPageContent(
                                 selection = Selection(text = selected, anchor = relativeAnchor)
                             }
                         }
+                        onTextViewReady(this)
                     }
                 },
                 update = { textView ->
@@ -177,7 +202,9 @@ private fun TextPageContent(
                         textView.text = text
                     }
                 },
-                modifier = Modifier.wrapContentHeight(),
+                modifier = Modifier
+                    .wrapContentHeight()
+                    .onGloballyPositioned { textViewWindowOffset = it.positionInWindow() },
             )
 
             images.forEach { image ->
@@ -194,54 +221,6 @@ private fun TextPageContent(
 
             Spacer(modifier = Modifier.height(12.dp))
         }
-
-        selection?.let { (selected, anchor) ->
-            if (debug) {
-                LogManager.d("PdfTextReaderScreen", "showing toolbar anchor=$anchor")
-            }
-            SelectionToolbar(
-                anchor = anchor,
-                onTranslate = {
-                    if (debug) {
-                        LogManager.d("PdfTextReaderScreen", "toolbar translate clicked textLength=${selected.length}")
-                    }
-                    onTranslate(selected, anchor)
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun SelectionToolbar(
-    anchor: Rect,
-    onTranslate: () -> Unit,
-) {
-    var toolbarSize by remember { mutableStateOf(IntSize.Zero) }
-    val toolbarWidth = toolbarSize.width
-    val toolbarHeight = toolbarSize.height
-    val centerX = (anchor.left + anchor.right) / 2
-    val x = centerX - toolbarWidth / 2
-    val y = if (anchor.top - toolbarHeight >= 0) {
-        anchor.top - toolbarHeight
-    } else {
-        anchor.bottom
-    }
-
-    Box(
-        modifier = Modifier
-            .offset { IntOffset(x, y) }
-            .onGloballyPositioned { toolbarSize = it.size }
-            .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
-            .background(Color.White, RoundedCornerShape(4.dp))
-            .clickable(onClick = onTranslate)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        Text(
-            text = "Translate",
-            color = Color.Black,
-            fontSize = 14.sp,
-        )
     }
 }
 
