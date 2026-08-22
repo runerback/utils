@@ -199,6 +199,8 @@ private fun ReaderScreen(
     var currentSelection by remember { mutableStateOf<Pair<String, Rect>?>(null) }
     var leftZoneWindowOffset by remember { mutableStateOf(Offset.Zero) }
     var rightZoneWindowOffset by remember { mutableStateOf(Offset.Zero) }
+    var topZoneWindowOffset by remember { mutableStateOf(Offset.Zero) }
+    var bottomZoneWindowOffset by remember { mutableStateOf(Offset.Zero) }
 
     fun saveProgress(page: Int) {
         scope.launch {
@@ -307,8 +309,36 @@ private fun ReaderScreen(
                 .fillMaxWidth()
                 .height(56.dp)
                 .align(Alignment.TopCenter)
+                .onGloballyPositioned { topZoneWindowOffset = it.positionInWindow() }
                 .pointerInput(Unit) {
-                    detectTapGestures(onTap = { showTopMenu = !showTopMenu; showBottomMenu = false })
+                    detectTapGestures(
+                        onLongPress = { offset ->
+                            val textView = activeTextView ?: return@detectTapGestures
+                            if (currentPageHasBitmap) return@detectTapGestures
+                            val touchWindowX = topZoneWindowOffset.x + offset.x
+                            val touchWindowY = topZoneWindowOffset.y + offset.y
+                            val location = IntArray(2)
+                            textView.getLocationInWindow(location)
+                            val localX = touchWindowX - location[0]
+                            val localY = touchWindowY - location[1]
+                            val charOffset = textView.getOffsetForPosition(localX, localY)
+                            if (charOffset < 0) return@detectTapGestures
+                            val text = textView.text?.toString() ?: return@detectTapGestures
+                            val (start, end) = findWordBounds(text, charOffset)
+                            if (start < end) {
+                                val spannable = textView.text as? android.text.Spannable ?: return@detectTapGestures
+                                Selection.setSelection(spannable, start, end)
+                            }
+                        },
+                        onTap = {
+                            if (activeTextView?.hasSelection() == true) {
+                                clearTextSelection(activeTextView)
+                            } else {
+                                showTopMenu = !showTopMenu
+                                showBottomMenu = false
+                            }
+                        },
+                    )
                 },
         )
 
@@ -318,8 +348,36 @@ private fun ReaderScreen(
                 .fillMaxWidth()
                 .height(56.dp)
                 .align(Alignment.BottomCenter)
+                .onGloballyPositioned { bottomZoneWindowOffset = it.positionInWindow() }
                 .pointerInput(Unit) {
-                    detectTapGestures(onTap = { showBottomMenu = !showBottomMenu; showTopMenu = false })
+                    detectTapGestures(
+                        onLongPress = { offset ->
+                            val textView = activeTextView ?: return@detectTapGestures
+                            if (currentPageHasBitmap) return@detectTapGestures
+                            val touchWindowX = bottomZoneWindowOffset.x + offset.x
+                            val touchWindowY = bottomZoneWindowOffset.y + offset.y
+                            val location = IntArray(2)
+                            textView.getLocationInWindow(location)
+                            val localX = touchWindowX - location[0]
+                            val localY = touchWindowY - location[1]
+                            val charOffset = textView.getOffsetForPosition(localX, localY)
+                            if (charOffset < 0) return@detectTapGestures
+                            val text = textView.text?.toString() ?: return@detectTapGestures
+                            val (start, end) = findWordBounds(text, charOffset)
+                            if (start < end) {
+                                val spannable = textView.text as? android.text.Spannable ?: return@detectTapGestures
+                                Selection.setSelection(spannable, start, end)
+                            }
+                        },
+                        onTap = {
+                            if (activeTextView?.hasSelection() == true) {
+                                clearTextSelection(activeTextView)
+                            } else {
+                                showBottomMenu = !showBottomMenu
+                                showTopMenu = false
+                            }
+                        },
+                    )
                 },
         )
 
