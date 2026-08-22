@@ -30,4 +30,11 @@
     <string name="download_attachments_unmetered_only">Download attachments on Wi-Fi only</string>
     <string name="attachment_pending">Attachment pending</string>
     <string name="attachment_downloaded">Attachment downloaded</string>
+    <string name="status_connecting">Connecting</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_error">Error</string>
+    <string name="history">History</string>
+    <string name="no_messages_yet">No messages yet.</string>
+    <string name="message_title_format">%1$s · %2$s</string>
 </resources>

@@ -49,6 +49,6 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
-        NotificationManagerCompat.from(context).notify(topicName.hashCode(), notification)
+        NotificationManagerCompat.from(context).notify(message.id.hashCode(), notification)
     }
 }

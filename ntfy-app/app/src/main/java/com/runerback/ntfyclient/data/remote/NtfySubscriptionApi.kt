@@ -29,6 +29,7 @@ class NtfySubscriptionApi {
         serverUrl: String,
         topic: String,
         token: String?,
+        onConnected: () -> Unit = {},
     ): Flow<NtfyMessage> = channelFlow {
         val baseUrl = serverUrl.trim().trimEnd('/')
         val url = "$baseUrl/$topic/json".toHttpUrlOrNull()
@@ -52,6 +53,8 @@ class NtfySubscriptionApi {
                         close(IOException("Subscription failed: ${response.code} ${response.message}"))
                         return@launch
                     }
+
+                    onConnected()
 
                     val source = response.body?.source()
                         ?: run {

@@ -1,17 +1,23 @@
 package com.runerback.ntfyclient.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -35,11 +41,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.ntfyclient.R
+import com.runerback.ntfyclient.data.ConnectionState
 import com.runerback.ntfyclient.data.local.Topic
 import com.runerback.ntfyclient.data.local.db.MessageEntity
 import com.runerback.ntfyclient.ui.components.LogViewDialog
@@ -55,6 +63,9 @@ fun HomeScreen(
     val receiveTopics by viewModel.receiveTopics.collectAsState()
     val sendTopics by viewModel.sendTopics.collectAsState()
     val latestMessages by viewModel.latestMessages.collectAsState()
+    val connectionStates by viewModel.connectionStates.collectAsState()
+    val historyTopic by viewModel.historyTopic.collectAsState()
+    val historyMessages by viewModel.historyMessages.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
     var topicName by remember { mutableStateOf("") }
@@ -122,8 +133,10 @@ fun HomeScreen(
                     items(topics, key = { it.name }) { topic ->
                         TopicItem(
                             topic = topic,
+                            connectionState = if (selectedTab == TopicTab.Receive) connectionStates[topic.name] else null,
                             latestMessage = if (selectedTab == TopicTab.Receive) latestMessages[topic.name] else null,
                             showSettings = selectedTab == TopicTab.Receive,
+                            onHistory = { viewModel.showHistory(topic.name) },
                             onSettings = { topicBeingEdited = topic },
                             onDelete = { viewModel.removeTopic(topic) }
                         )
@@ -180,6 +193,14 @@ fun HomeScreen(
         LogViewDialog(onDismiss = { showLogView = false })
     }
 
+    historyTopic?.let { topic ->
+        MessageHistoryDialog(
+            topic = topic,
+            messages = historyMessages,
+            onDismiss = { viewModel.clearHistory() }
+        )
+    }
+
     if (showSettings) {
         SettingsDialog(onDismiss = { showSettings = false })
     }
@@ -188,8 +209,10 @@ fun HomeScreen(
 @Composable
 private fun TopicItem(
     topic: Topic,
+    connectionState: ConnectionState?,
     latestMessage: MessageEntity?,
     showSettings: Boolean,
+    onHistory: () -> Unit,
     onSettings: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -209,12 +232,23 @@ private fun TopicItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = topic.name,
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = topic.name,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    if (showSettings) {
+                        ConnectionStatus(connectionState)
+                    }
+                }
                 Row {
                     if (showSettings) {
+                        IconButton(onClick = onHistory) {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = stringResource(R.string.history)
+                            )
+                        }
                         IconButton(onClick = onSettings) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -255,6 +289,132 @@ private fun TopicItem(
             }
         }
     }
+}
+
+@Composable
+private fun ConnectionStatus(
+    state: ConnectionState?,
+    modifier: Modifier = Modifier
+) {
+    val (label, color) = when (state) {
+        ConnectionState.CONNECTED -> stringResource(R.string.status_connected) to MaterialTheme.colorScheme.primary
+        ConnectionState.CONNECTING -> stringResource(R.string.status_connecting) to MaterialTheme.colorScheme.tertiary
+        ConnectionState.ERROR -> stringResource(R.string.status_error) to MaterialTheme.colorScheme.error
+        ConnectionState.DISCONNECTED,
+        null -> stringResource(R.string.status_disconnected) to MaterialTheme.colorScheme.outline
+    }
+
+    Row(
+        modifier = modifier.padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 6.dp)
+        )
+    }
+}
+
+@Composable
+private fun MessageHistoryDialog(
+    topic: String,
+    messages: List<MessageEntity>,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.history) + ": $topic") },
+        text = {
+            if (messages.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.no_messages_yet),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(messages, key = { it.id }) { message ->
+                        HistoryMessageItem(message)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.close))
+            }
+        },
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun HistoryMessageItem(
+    message: MessageEntity,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            val header = if (message.title != null) {
+                stringResource(R.string.message_title_format, message.title, formatTime(message.receivedAt))
+            } else {
+                formatTime(message.receivedAt)
+            }
+            Text(
+                text = header,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (!message.message.isNullOrBlank()) {
+                Text(
+                    text = message.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            if (message.attachmentUrl != null) {
+                val attachmentText = when (message.attachmentDownloadState) {
+                    com.runerback.ntfyclient.data.local.db.AttachmentDownloadState.DOWNLOADED ->
+                        stringResource(R.string.attachment_downloaded)
+                    else -> stringResource(R.string.attachment_pending)
+                }
+                Text(
+                    text = attachmentText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun formatTime(timestamp: Long): String {
+    val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+    return java.time.Instant.ofEpochMilli(timestamp)
+        .atZone(java.time.ZoneId.systemDefault())
+        .format(formatter)
 }
 
 @Composable
