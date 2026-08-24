@@ -196,7 +196,7 @@ private fun BatchCountStepper(
     enabled: Boolean,
     modifier: Modifier = Modifier,
     min: Int = 1,
-    max: Int = 20
+    max: Int = 128
 ) {
     Row(
         modifier = modifier.height(48.dp),
