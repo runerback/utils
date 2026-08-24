@@ -137,6 +137,52 @@ body {
   border-top: 1px solid var(--border);
 }
 
+.topic-card {
+  padding: 0;
+}
+
+.topic-card-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 16px;
+  cursor: pointer;
+  margin-bottom: 0;
+  align-items: flex-start;
+}
+
+.topic-card-toggle:hover {
+  background: #f6f8fa;
+}
+
+.topic-card-toggle strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.topic-card-body {
+  padding: 0 16px 16px;
+}
+
+.topic-card-body.collapsed {
+  display: none;
+}
+
+.topic-card-body.expanded {
+  display: block;
+}
+
+.topic-card-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
