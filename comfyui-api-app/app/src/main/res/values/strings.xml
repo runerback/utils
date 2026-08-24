@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ComfyUI Api</string>
+
+    <string name="generation_channel_name">Generation progress</string>
+    <string name="generation_channel_description">Shows progress for running ComfyUI generation tasks</string>
+    <string name="generation_service_title">ComfyUI generation running</string>
+    <string name="generation_service_connecting">Connecting…</string>
+    <string name="generation_service_idle">Idle</string>
+    <string name="generation_service_completed">Completed</string>
+    <string name="generation_service_cancelled">Cancelled</string>
+    <string name="generation_service_error">Error: %1$s</string>
+    <string name="generation_service_cancel">Cancel all</string>
 </resources>

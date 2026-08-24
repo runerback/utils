@@ -1,7 +1,6 @@
 package com.runerback.comfyuiapi.ui
 
 import android.net.Uri
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.runerback.comfyuiapi.data.model.EditableParameter
@@ -11,52 +10,46 @@ import com.runerback.comfyuiapi.data.model.GenerationStatus
 import com.runerback.comfyuiapi.data.model.ParameterKey
 import com.runerback.comfyuiapi.data.model.QueueState
 import com.runerback.comfyuiapi.data.model.TaskItem
-import com.runerback.comfyuiapi.data.model.TaskStatus
 import com.runerback.comfyuiapi.data.model.UiState
 import com.runerback.comfyuiapi.data.model.Workflow
 import com.runerback.comfyuiapi.data.repository.ComfyRepository
-import com.runerback.comfyuiapi.data.repository.GenerationResult
 import com.runerback.comfyuiapi.data.repository.LoadResult
 import com.runerback.comfyuiapi.domain.SchemaParser
 import com.runerback.comfyuiapi.domain.extractOptions
 import com.runerback.comfyuiapi.domain.resolveOptionSource
 import com.runerback.comfyuiapi.domain.resolveValue
+import com.runerback.comfyuiapi.service.GenerationCoordinator
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import com.runerback.comfyuiapi.ui.components.randomSeed
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val repository: ComfyRepository,
-    private val schemaParser: SchemaParser
+    private val schemaParser: SchemaParser,
+    private val coordinator: GenerationCoordinator
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val _allOutputs = MutableStateFlow<List<GeneratedOutput>>(emptyList())
-    val allOutputs: StateFlow<List<GeneratedOutput>> = _allOutputs.asStateFlow()
+    val allOutputs: StateFlow<List<GeneratedOutput>> = coordinator.outputs
 
     var loadedWorkflow: Workflow? = null
         private set
     var loadedSchema: JsonObject? = null
         private set
     private var pendingSchemaUri: Uri? = null
-    private var queueRunner: Job? = null
 
     init {
         viewModelScope.launch {
@@ -72,6 +65,21 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             repository.generationTimeoutMs.collect { ms ->
                 _uiState.update { it.copy(generationTimeoutMs = ms) }
+            }
+        }
+        viewModelScope.launch {
+            coordinator.queueState.collect { queue ->
+                _uiState.update { it.copy(queue = queue) }
+            }
+        }
+        viewModelScope.launch {
+            coordinator.generationStatus.collect { status ->
+                _uiState.update { it.copy(generationStatus = status) }
+            }
+        }
+        viewModelScope.launch {
+            coordinator.preview.collect { preview ->
+                _uiState.update { it.copy(preview = preview) }
             }
         }
     }
@@ -465,187 +473,33 @@ class MainViewModel @Inject constructor(
                 }
             }
 
-            _uiState.update { state ->
-                val startIndex = state.queue.nextIndex
-                val newItems = snapshots.mapIndexed { offset, snapshot ->
-                    TaskItem(
-                        id = UUID.randomUUID().toString(),
-                        index = startIndex + offset,
-                        valuesSnapshot = snapshot
-                    )
-                }
-                state.copy(
-                    queue = state.queue.copy(
-                        items = state.queue.items + newItems,
-                        nextIndex = startIndex + snapshots.size
-                    )
-                )
-            }
-
-            LogBuffer.add("generate: enqueued ${snapshots.size} tasks, queue size=${_uiState.value.queue.items.size}")
-            startQueueRunnerIfNeeded()
-        }
-    }
-
-    private fun startQueueRunnerIfNeeded() {
-        if (queueRunner?.isActive == true) return
-        queueRunner = viewModelScope.launch {
-            while (isActive) {
-                val state = _uiState.value
-                val next = state.queue.items.firstOrNull { it.status == TaskStatus.Queued }
-                if (next == null) {
-                    _uiState.update { state ->
-                        state.copy(generationStatus = GenerationStatus.Idle)
-                    }
-                    break
-                }
-                runTask(next)
-            }
-            queueRunner = null
-        }
-    }
-
-    private suspend fun CoroutineScope.runTask(task: TaskItem) {
-        val workflow = loadedWorkflow ?: return
-        val serverUrl = _uiState.value.serverUrl
-        val patched = repository.patchWorkflow(workflow, task.valuesSnapshot)
-        LogBuffer.add("runTask: starting task #${task.index}")
-
-        var completed = false
-        var failedMessage: String? = null
-
-        val flowJob = launch {
-            try {
-                repository.generate(serverUrl, patched).collect { result ->
-                    when (result) {
-                        is GenerationResult.Connecting -> {
-                            _uiState.update { state ->
-                                state.copy(
-                                    generationStatus = GenerationStatus.Running(
-                                        currentQueueIndex = task.index,
-                                        queueSize = state.queue.items.size
-                                    )
-                                )
-                            }
-                        }
-                        is GenerationResult.Running -> {
-                            LogBuffer.add("runTask: task #${task.index} node=${result.currentNode} progress=${result.progress}")
-                            _uiState.update { state ->
-                                state.copy(
-                                    generationStatus = GenerationStatus.Running(
-                                        currentNode = result.currentNode,
-                                        progress = result.progress,
-                                        currentQueueIndex = task.index,
-                                        queueSize = state.queue.items.size
-                                    ),
-                                    queue = state.queue.copy(
-                                        items = state.queue.items.map { item ->
-                                            if (item.id == task.id) {
-                                                item.copy(progress = result.progress)
-                                            } else item
-                                        }
-                                    )
-                                )
-                            }
-                        }
-                        is GenerationResult.Preview -> {
-                            _uiState.update { it.copy(preview = result.image) }
-                        }
-                        is GenerationResult.Completed -> {
-                            _allOutputs.update { it + result.outputs }
-                            completed = true
-                        }
-                        is GenerationResult.Error -> {
-                            failedMessage = result.message
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                failedMessage = e.message ?: "Task failed"
-            }
-        }
-
-        updateQueueItem(task.id) { it.copy(status = TaskStatus.Running, job = flowJob) }
-
-        flowJob.join()
-
-        val finalStatus = when {
-            flowJob.isCancelled -> TaskStatus.Cancelled
-            failedMessage != null -> TaskStatus.Failed(failedMessage!!)
-            completed -> TaskStatus.Completed
-            else -> TaskStatus.Failed("Task ended unexpectedly")
-        }
-        updateQueueItem(task.id) { it.copy(status = finalStatus, progress = null, job = null) }
-        LogBuffer.add("runTask: task #${task.index} finished with status=$finalStatus")
-    }
-
-    private fun updateQueueItem(id: String, transform: (TaskItem) -> TaskItem) {
-        _uiState.update { state ->
-            val newItems = state.queue.items.map { item ->
-                if (item.id == id) transform(item) else item
-            }
-            state.copy(queue = state.queue.copy(items = newItems))
+            LogBuffer.add("generate: enqueuing ${snapshots.size} tasks")
+            coordinator.enqueue(serverUrl, workflow, snapshots)
         }
     }
 
     fun cancelCurrentTask() {
-        val serverUrl = _uiState.value.serverUrl
-        val running = _uiState.value.queue.items.firstOrNull { it.status == TaskStatus.Running }
-        if (running == null) return
-        LogBuffer.add("cancelCurrentTask: task #${running.index}")
-        running.job?.cancel()
-        viewModelScope.launch {
-            if (serverUrl.isNotBlank()) {
-                repository.cancelGeneration(serverUrl)
-            }
-        }
+        LogBuffer.add("cancelCurrentTask")
+        coordinator.cancelCurrent()
     }
 
     fun cancelQueuedTasks(ids: List<String>) {
-        if (ids.isEmpty()) return
-        LogBuffer.add("cancelQueuedTasks: ${ids.size} tasks")
-        _uiState.update { state ->
-            val newItems = state.queue.items.filterNot { it.id in ids && it.status == TaskStatus.Queued }
-            state.copy(queue = state.queue.copy(items = newItems))
-        }
+        coordinator.cancelQueued(ids)
     }
 
     fun cancelAllQueued() {
         LogBuffer.add("cancelAllQueued")
-        _uiState.update { state ->
-            val newItems = state.queue.items.filter { it.status != TaskStatus.Queued }
-            state.copy(queue = state.queue.copy(items = newItems))
-        }
+        coordinator.cancelAllQueued()
     }
 
     fun cancelAll() {
-        val serverUrl = _uiState.value.serverUrl
         LogBuffer.add("cancelAll")
-        queueRunner?.cancel()
-        queueRunner = null
-        viewModelScope.launch {
-            if (serverUrl.isNotBlank()) {
-                repository.cancelGeneration(serverUrl)
-            }
-            _uiState.update { state ->
-                state.copy(
-                    queue = QueueState(),
-                    generationStatus = GenerationStatus.Cancelled,
-                    errorMessage = null
-                )
-            }
-        }
+        coordinator.cancelAll()
     }
 
     fun clearQueue() {
         LogBuffer.add("clearQueue")
-        _uiState.update { state ->
-            state.copy(
-                queue = QueueState(),
-                generationStatus = GenerationStatus.Idle,
-                errorMessage = null
-            )
-        }
+        coordinator.clearQueue()
     }
 
     fun saveOutputToDownloads(

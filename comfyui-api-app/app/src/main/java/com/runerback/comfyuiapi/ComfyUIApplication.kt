@@ -1,6 +1,7 @@
 package com.runerback.comfyuiapi
 
 import android.app.Application
+import com.runerback.comfyuiapi.service.ComfyGenerationService
 import com.runerback.comfyuiapi.ui.components.LogBuffer
 import dagger.hilt.android.HiltAndroidApp
 
@@ -9,6 +10,7 @@ class ComfyUIApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         LogBuffer.init(this)
+        ComfyGenerationService.createNotificationChannel(this)
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             LogBuffer.add("FATAL EXCEPTION on thread ${thread.name}: ${throwable.message}")

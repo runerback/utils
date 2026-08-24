@@ -1,7 +1,6 @@
 package com.runerback.comfyuiapi.data.model
 
 import androidx.compose.ui.graphics.ImageBitmap
-import kotlinx.coroutines.Job
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
@@ -57,8 +56,7 @@ data class TaskItem(
     val index: Int,
     val valuesSnapshot: Map<ParameterKey, JsonElement>,
     val status: TaskStatus = TaskStatus.Queued,
-    val progress: Pair<Int, Int>? = null,
-    val job: Job? = null
+    val progress: Pair<Int, Int>? = null
 )
 
 data class QueueState(
