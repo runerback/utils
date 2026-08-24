@@ -1,0 +1,31 @@
+[Unit]
+Description=ntfy Manager Web UI
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/ntfy-mgr
+
+# Host is always 0.0.0.0
+Environment="NTFY_MGR_HOST=0.0.0.0"
+
+# Required: pick a free port greater than 20000
+Environment="NTFY_MGR_PORT="
+
+# URL of the running ntfy server used to validate admin credentials
+Environment="NTFY_BASE_URL=http://localhost"
+
+# Path to the ntfy binary; leave as "ntfy" if it is on PATH
+Environment="NTFY_CLI=ntfy"
+
+# Required: a long random string used by Flask to sign session cookies
+Environment="SECRET_KEY="
+
+ExecStart=/opt/ntfy-mgr/.venv/bin/python /opt/ntfy-mgr/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

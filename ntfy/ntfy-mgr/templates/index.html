@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% macro permission_options(selected='read-write') %}
+  <option value="read-write" {% if selected == 'read-write' %}selected{% endif %}>read-write</option>
+  <option value="read-only" {% if selected == 'read-only' %}selected{% endif %}>read-only</option>
+  <option value="write-only" {% if selected == 'write-only' %}selected{% endif %}>write-only</option>
+{% endmacro %}
+
+{% block content %}
+<header class="page-header">
+  <h1>ntfy Manager</h1>
+  <div class="admin-info">
+    <span>{{ session.username }}</span>
+    <a class="btn" href="{{ url_for('logout') }}">Logout</a>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn {% if active_tab == 'users' %}active{% endif %}" data-tab="users">Users</button>
+  <button class="tab-btn {% if active_tab == 'topics' %}active{% endif %}" data-tab="topics">Topics</button>
+</div>
+
+<section id="tab-users" class="tab-content {% if active_tab == 'users' %}active{% endif %}">
+  <div class="panel">
+    <h2>Add user</h2>
+    <form method="post" action="{{ url_for('add_user') }}" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="username" placeholder="Username" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Add</button>
+    </form>
+  </div>
+
+  {% for user in users %}
+    {% if user.name != '*' and user.name != 'everyone' %}
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <strong>{{ user.name }}</strong>
+            <span class="tag">{{ user.role }}</span>
+            <span class="muted">(tier: {{ user.tier }})</span>
+          </div>
+          <form method="post" action="{{ url_for('delete_user', name=user.name) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-danger" onclick="return confirm('Delete user {{ user.name }}?')">Delete user</button>
+          </form>
+        </div>
+
+        <div class="section">
+          <h3>Accesses</h3>
+          {% if user.accesses %}
+            <ul class="item-list">
+              {% for access in user.accesses %}
+                {% if access.permission != 'no' %}
+                  <li>
+                    <span>{{ access.topic }} <span class="tag">{{ access.permission }}</span></span>
+                    <form method="post" action="{{ url_for('revoke_user_access', name=user.name) }}" class="inline-form">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="topic" value="{{ access.topic }}">
+                      <button type="submit" class="btn-small btn-danger">Revoke</button>
+                    </form>
+                  </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">No topic-specific permissions</p>
+          {% endif %}
+
+          <form method="post" action="{{ url_for('grant_user_access', name=user.name) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="topic" placeholder="Topic" required>
+            <select name="permission" required>{{ permission_options() }}</select>
+            <button type="submit">Grant access</button>
+          </form>
+        </div>
+
+        <div class="section">
+          <h3>Tokens</h3>
+          {% if token_map.get(user.name) %}
+            <ul class="item-list">
+              {% for token in token_map[user.name] %}
+                <li>
+                  <span>
+                    <code>{{ token.value }}</code>
+                    {% if token.label %}<span class="tag">{{ token.label }}</span>{% endif %}
+                    <span class="muted">{{ token.expires }}</span>
+                  </span>
+                  <form method="post" action="{{ url_for('delete_user_token', name=user.name, token=token.value) }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn-small btn-danger">Delete</button>
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">No tokens</p>
+          {% endif %}
+
+          <form method="post" action="{{ url_for('add_user_token', name=user.name) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="expires">
+              <option value="">never</option>
+              <option value="5d">5 days</option>
+              <option value="30d">30 days</option>
+              <option value="365d">365 days</option>
+            </select>
+            <input type="text" name="label" placeholder="Label (optional)">
+            <button type="submit">Add token</button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+  {% endfor %}
+</section>
+
+<section id="tab-topics" class="tab-content {% if active_tab == 'topics' %}active{% endif %}">
+  <div class="panel">
+    <button id="create-topic-btn" class="btn">+ Create topic</button>
+  </div>
+
+  {% for topic in topic_data %}
+    <div class="card">
+      <div class="card-header">
+        <strong>{{ topic.name }}</strong>
+        <form method="post" action="{{ url_for('delete_topic') }}" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="topic" value="{{ topic.name }}">
+          <button type="submit" class="btn-danger" onclick="return confirm('Delete topic {{ topic.name }}? This will revoke access for all users.')">Delete topic</button>
+        </form>
+      </div>
+
+      {% if topic.accessors %}
+        <ul class="item-list">
+          {% for accessor in topic.accessors %}
+            <li>
+              <span>{{ accessor.username }} <span class="tag">{{ accessor.permission }}</span></span>
+              <form method="post" action="{{ url_for('revoke_topic_access') }}" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="topic" value="{{ topic.name }}">
+                <input type="hidden" name="username" value="{{ accessor.username }}">
+                <button type="submit" class="btn-small btn-danger">Revoke</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">No user access rules</p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('grant_topic_access') }}" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="topic" value="{{ topic.name }}">
+        <select name="username" required>
+          <option value="">Select user</option>
+          {% for user in users %}
+            {% if user.name != '*' and user.name != 'everyone' %}
+              <option value="{{ user.name }}">{{ user.name }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        <select name="permission" required>{{ permission_options() }}</select>
+        <button type="submit">Grant access</button>
+      </form>
+    </div>
+  {% endfor %}
+</section>
+
+<div id="create-topic-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Create topic</h2>
+      <button type="button" class="modal-close">&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('create_topic') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Topic name</label>
+      <input type="text" name="topic" placeholder="topic-name" required>
+
+      <h3>Users</h3>
+      {% for user in users %}
+        {% if user.name != '*' and user.name != 'everyone' and user.role != 'admin' %}
+          <div class="user-perm-row">
+            <label>
+              <input type="checkbox" name="users" value="{{ user.name }}">
+              {{ user.name }}
+            </label>
+            <select name="permission_{{ user.name }}">{{ permission_options() }}</select>
+          </div>
+        {% endif %}
+      {% endfor %}
+
+      <div class="modal-actions">
+        <button type="button" class="btn modal-cancel">Cancel</button>
+        <button type="submit">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  const modal = document.getElementById('create-topic-modal');
+  document.getElementById('create-topic-btn').addEventListener('click', () => modal.classList.add('active'));
+  document.querySelector('.modal-close').addEventListener('click', () => modal.classList.remove('active'));
+  document.querySelector('.modal-cancel').addEventListener('click', () => modal.classList.remove('active'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+</script>
+{% endblock %}
