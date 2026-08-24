@@ -141,7 +141,7 @@ body {
   padding: 0;
 }
 
-.topic-card-toggle {
+button.card-header.topic-card-toggle {
   width: 100%;
   background: transparent;
   border: none;
@@ -154,7 +154,7 @@ body {
   align-items: flex-start;
 }
 
-.topic-card-toggle:hover {
+button.card-header.topic-card-toggle:hover {
   background: #f6f8fa;
 }
 

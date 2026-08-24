@@ -12,6 +12,7 @@ def test_users_tab_collapsible_cards():
     env.globals["url_for"] = lambda endpoint, **kwargs: f"/{endpoint}"
     env.globals["csrf_token"] = lambda: "test-csrf-token"
     env.globals["get_flashed_messages"] = lambda *args, **kwargs: []
+    env.globals["static_version"] = lambda filename: 1
 
     template = env.get_template("index.html")
     html = template.render(

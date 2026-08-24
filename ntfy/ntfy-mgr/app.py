@@ -1,4 +1,5 @@
 from functools import wraps
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -12,6 +13,13 @@ app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 app.config["WTF_CSRF_TIME_LIMIT"] = None
 csrf = CSRFProtect(app)
+
+
+def static_version(filename: str) -> int:
+    return int((Path(app.root_path) / "static" / filename).stat().st_mtime)
+
+
+app.add_template_global(static_version, "static_version")
 
 
 def require_login(f):
