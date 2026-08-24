@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ import com.runerback.ntfyclient.data.ConnectionState
 import com.runerback.ntfyclient.data.local.Topic
 import com.runerback.ntfyclient.data.local.db.MessageEntity
 import com.runerback.ntfyclient.ui.components.LogViewDialog
+import com.runerback.ntfyclient.ui.send.SendScreen
 import com.runerback.ntfyclient.ui.settings.SettingsDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,6 +79,7 @@ fun HomeScreen(
     var topicBeingEdited by remember { mutableStateOf<Topic?>(null) }
     var showLogView by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var selectedSendTopic by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -139,8 +142,11 @@ fun HomeScreen(
                         TopicItem(
                             topic = topic,
                             connectionState = if (selectedTab == TopicTab.Receive) connectionStates[topic.name] else null,
-                            latestMessage = if (selectedTab == TopicTab.Receive) latestMessages[topic.name] else null,
+                            latestMessage = latestMessages[topic.name],
                             showSettings = selectedTab == TopicTab.Receive,
+                            onOpen = if (selectedTab == TopicTab.Send) {
+                                { selectedSendTopic = topic.name }
+                            } else null,
                             onHistory = { viewModel.showHistory(topic.name) },
                             onSettings = { topicBeingEdited = topic },
                             onDelete = { viewModel.removeTopic(topic) }
@@ -149,6 +155,13 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    selectedSendTopic?.let { topic ->
+        SendScreen(
+            topic = topic,
+            onBack = { selectedSendTopic = null }
+        )
     }
 
     if (showAddDialog) {
@@ -217,6 +230,7 @@ private fun TopicItem(
     connectionState: ConnectionState?,
     latestMessage: MessageEntity?,
     showSettings: Boolean,
+    onOpen: (() -> Unit)? = null,
     onHistory: () -> Unit,
     onSettings: () -> Unit,
     onDelete: () -> Unit,
@@ -226,6 +240,7 @@ private fun TopicItem(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable(enabled = onOpen != null, onClick = { onOpen?.invoke() })
     ) {
         Column(
             modifier = Modifier
