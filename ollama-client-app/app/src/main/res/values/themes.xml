@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OllamaClient" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#3F8F62</item>
+        <item name="android:colorPrimaryDark">#1B4D3E</item>
+        <item name="android:colorAccent">#55D6BE</item>
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

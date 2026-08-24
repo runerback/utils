@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Chat bubble -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,34 h48 a8,8 0 0 1 8,8 v36 a8,8 0 0 1 -8,8 h-38 l-14,12 v-12 h-6 a8,8 0 0 1 -8,-8 v-36 a8,8 0 0 1 8,-8 z" />
+
+    <!-- Stylized "O" / llama eye inside the bubble -->
+    <path
+        android:fillColor="#1B4D3E"
+        android:pathData="M54,46 c6,0 10,5 10,11 s-4,11 -10,11 s-10,-5 -10,-11 s4,-11 10,-11 z M54,51 c-3,0 -5,3 -5,6 s2,6 5,6 s5,-3 5,-6 s-2,-6 -5,-6 z" />
+
+    <!-- Small highlight dot -->
+    <path
+        android:fillColor="#55D6BE"
+        android:pathData="M68,44 a3,3 0 1 1 -6,0 a3,3 0 1 1 6,0 z" />
+</vector>
