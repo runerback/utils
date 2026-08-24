@@ -69,7 +69,7 @@ _user_header_re = re.compile(
     r"^user\s+(\S+)\s+\(role:\s*(\S+),\s*tier:\s*(\S+?)(?:,\s*server config)?\)"
 )
 _access_re = re.compile(
-    r"^-\s+(read-write|read-only|write-only|no)\s+access\s+to\s+topic\s+(\S+?)(?:\s+\(server config\))?"
+    r"^-\s+(read-write|read-only|write-only|no)\s+access\s+to\s+topic\s+(\S+)(?:\s+\(server config\))?"
 )
 
 
