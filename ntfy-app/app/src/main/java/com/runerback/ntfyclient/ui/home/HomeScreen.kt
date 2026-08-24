@@ -1,5 +1,8 @@
 package com.runerback.ntfyclient.ui.home
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
@@ -42,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -365,6 +370,7 @@ private fun HistoryMessageItem(
     message: MessageEntity,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = androidx.compose.material3.CardDefaults.cardColors(
@@ -376,16 +382,41 @@ private fun HistoryMessageItem(
                 .fillMaxWidth()
                 .padding(12.dp)
         ) {
-            val header = if (message.title != null) {
-                stringResource(R.string.message_title_format, message.title, formatTime(message.receivedAt))
-            } else {
-                formatTime(message.receivedAt)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val header = if (message.title != null) {
+                    stringResource(R.string.message_title_format, message.title, formatTime(message.receivedAt))
+                } else {
+                    formatTime(message.receivedAt)
+                }
+                Text(
+                    text = header,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                val textToCopy = message.message ?: message.title
+                if (!textToCopy.isNullOrBlank()) {
+                    IconButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(ClipboardManager::class.java)
+                            val clip = ClipData.newPlainText("message", textToCopy)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(context, R.string.copied, Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = stringResource(R.string.copy),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
-            Text(
-                text = header,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
             if (!message.message.isNullOrBlank()) {
                 Text(
                     text = message.message,
