@@ -93,6 +93,50 @@ body {
   margin-bottom: 16px;
 }
 
+.user-card {
+  padding: 0;
+}
+
+.user-card-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 16px;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+.user-card-toggle:hover {
+  background: #f6f8fa;
+}
+
+.user-card-toggle .toggle-icon {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-left: 12px;
+}
+
+.user-card-body {
+  padding: 0 16px 16px;
+}
+
+.user-card-body.collapsed {
+  display: none;
+}
+
+.user-card-body.expanded {
+  display: block;
+}
+
+.user-card-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;

@@ -33,81 +33,87 @@
 
   {% for user in users %}
     {% if user.name != '*' and user.name != 'everyone' %}
-      <div class="card">
-        <div class="card-header">
+      <div class="card user-card">
+        <button type="button" class="card-header user-card-toggle">
           <div>
             <strong>{{ user.name }}</strong>
             <span class="tag">{{ user.role }}</span>
             <span class="muted">(tier: {{ user.tier }})</span>
           </div>
-          <form method="post" action="{{ url_for('delete_user', name=user.name) }}" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn-danger" onclick="return confirm('Delete user {{ user.name }}?')">Delete user</button>
-          </form>
-        </div>
+          <span class="toggle-icon" aria-hidden="true">▶</span>
+        </button>
 
-        <div class="section">
-          <h3>Accesses</h3>
-          {% if user.accesses %}
-            <ul class="item-list">
-              {% for access in user.accesses %}
-                {% if access.permission != 'no' %}
+        <div class="user-card-body collapsed">
+          <div class="section">
+            <h3>Accesses</h3>
+            {% if user.accesses %}
+              <ul class="item-list">
+                {% for access in user.accesses %}
+                  {% if access.permission != 'no' %}
+                    <li>
+                      <span>{{ access.topic }} <span class="tag">{{ access.permission }}</span></span>
+                      <form method="post" action="{{ url_for('revoke_user_access', name=user.name) }}" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="topic" value="{{ access.topic }}">
+                        <button type="submit" class="btn-small btn-danger">Revoke</button>
+                      </form>
+                    </li>
+                  {% endif %}
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="muted">No topic-specific permissions</p>
+            {% endif %}
+
+            <form method="post" action="{{ url_for('grant_user_access', name=user.name) }}" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="text" name="topic" placeholder="Topic" required>
+              <select name="permission" required>{{ permission_options() }}</select>
+              <button type="submit">Grant access</button>
+            </form>
+          </div>
+
+          <div class="section">
+            <h3>Tokens</h3>
+            {% if token_map.get(user.name) %}
+              <ul class="item-list">
+                {% for token in token_map[user.name] %}
                   <li>
-                    <span>{{ access.topic }} <span class="tag">{{ access.permission }}</span></span>
-                    <form method="post" action="{{ url_for('revoke_user_access', name=user.name) }}" class="inline-form">
+                    <span>
+                      <code>{{ token.value }}</code>
+                      {% if token.label %}<span class="tag">{{ token.label }}</span>{% endif %}
+                      <span class="muted">{{ token.expires }}</span>
+                    </span>
+                    <form method="post" action="{{ url_for('delete_user_token', name=user.name, token=token.value) }}" class="inline-form">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <input type="hidden" name="topic" value="{{ access.topic }}">
-                      <button type="submit" class="btn-small btn-danger">Revoke</button>
+                      <button type="submit" class="btn-small btn-danger">Delete</button>
                     </form>
                   </li>
-                {% endif %}
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="muted">No topic-specific permissions</p>
-          {% endif %}
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="muted">No tokens</p>
+            {% endif %}
 
-          <form method="post" action="{{ url_for('grant_user_access', name=user.name) }}" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="text" name="topic" placeholder="Topic" required>
-            <select name="permission" required>{{ permission_options() }}</select>
-            <button type="submit">Grant access</button>
-          </form>
-        </div>
+            <form method="post" action="{{ url_for('add_user_token', name=user.name) }}" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <select name="expires">
+                <option value="">never</option>
+                <option value="5d">5 days</option>
+                <option value="30d">30 days</option>
+                <option value="365d">365 days</option>
+              </select>
+              <input type="text" name="label" placeholder="Label (optional)">
+              <button type="submit">Add token</button>
+            </form>
+          </div>
 
-        <div class="section">
-          <h3>Tokens</h3>
-          {% if token_map.get(user.name) %}
-            <ul class="item-list">
-              {% for token in token_map[user.name] %}
-                <li>
-                  <span>
-                    <code>{{ token.value }}</code>
-                    {% if token.label %}<span class="tag">{{ token.label }}</span>{% endif %}
-                    <span class="muted">{{ token.expires }}</span>
-                  </span>
-                  <form method="post" action="{{ url_for('delete_user_token', name=user.name, token=token.value) }}" class="inline-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn-small btn-danger">Delete</button>
-                  </form>
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="muted">No tokens</p>
-          {% endif %}
-
-          <form method="post" action="{{ url_for('add_user_token', name=user.name) }}" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <select name="expires">
-              <option value="">never</option>
-              <option value="5d">5 days</option>
-              <option value="30d">30 days</option>
-              <option value="365d">365 days</option>
-            </select>
-            <input type="text" name="label" placeholder="Label (optional)">
-            <button type="submit">Add token</button>
-          </form>
+          <div class="user-card-footer">
+            <form method="post" action="{{ url_for('delete_user', name=user.name) }}" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-danger" onclick="return confirm('Delete user {{ user.name }}?')">Delete user</button>
+            </form>
+          </div>
         </div>
       </div>
     {% endif %}
@@ -213,5 +219,16 @@
   document.querySelector('.modal-close').addEventListener('click', () => modal.classList.remove('active'));
   document.querySelector('.modal-cancel').addEventListener('click', () => modal.classList.remove('active'));
   modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+
+  document.querySelectorAll('.user-card-toggle').forEach(toggle => {
+    toggle.addEventListener('click', () => {
+      const body = toggle.nextElementSibling;
+      const icon = toggle.querySelector('.toggle-icon');
+      const isCollapsed = body.classList.contains('collapsed');
+      body.classList.toggle('collapsed', !isCollapsed);
+      body.classList.toggle('expanded', isCollapsed);
+      if (icon) icon.textContent = isCollapsed ? '▼' : '▶';
+    });
+  });
 </script>
 {% endblock %}
