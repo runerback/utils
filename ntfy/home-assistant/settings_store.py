@@ -9,19 +9,21 @@ def _key(name: str) -> str:
 
 
 def get_messages_server_url() -> str:
-    return db.get_setting(_key("messages.server_url"), config.NTFY_BASE_URL) or config.NTFY_BASE_URL
+    value = (db.get_setting(_key("messages.server_url"), config.NTFY_BASE_URL) or config.NTFY_BASE_URL).strip()
+    return value.rstrip("/")
 
 
 def set_messages_server_url(value: str) -> None:
-    db.set_setting(_key("messages.server_url"), value.rstrip("/"))
+    db.set_setting(_key("messages.server_url"), value.strip().rstrip("/"))
 
 
 def get_messages_token() -> Optional[str]:
-    return db.get_setting(_key("messages.token"))
+    value = db.get_setting(_key("messages.token"))
+    return value.strip() if value else None
 
 
 def set_messages_token(value: Optional[str]) -> None:
-    db.set_setting(_key("messages.token"), value or "")
+    db.set_setting(_key("messages.token"), (value or "").strip())
 
 
 def get_logs_path() -> str:

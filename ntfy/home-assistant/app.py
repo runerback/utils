@@ -240,6 +240,7 @@ def api_list_topics():
                 "name": row["name"],
                 "latest_body": row["latest_body"],
                 "latest_sent_at": row["latest_sent_at"],
+                "status": subscriber.get_status(row["name"]) or "unknown",
             }
             for row in rows
         ]

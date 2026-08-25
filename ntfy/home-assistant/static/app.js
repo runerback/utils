@@ -86,13 +86,14 @@ function renderTopics(topics) {
   }
 
   topics.forEach((topic) => {
+    const statusLabel = topic.status === "write_only" ? "send-only" : "";
     const el = document.createElement("div");
     el.className = "card topic-item";
     el.innerHTML = `
       <div class="topic-main">
-        <span class="topic-status"></span>
+        <span class="topic-status" title="${topic.status || "unknown"}"></span>
         <div class="topic-info">
-          <div class="topic-name">${escapeHtml(topic.name)}</div>
+          <div class="topic-name">${escapeHtml(topic.name)} ${statusLabel ? `<span class="tag">${statusLabel}</span>` : ""}</div>
           <div class="topic-preview">${escapeHtml(
             topic.latest_body || "No messages yet"
           )}</div>

@@ -51,16 +51,27 @@ def _stream_topic(
     token: Optional[str],
     incoming_queue: queue.Queue,
     stop_event: threading.Event,
+    status_callback: Callable[[str, str], None],
 ) -> None:
     url = f"{server_url}/{topic}/json"
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
+    logger.info("Subscribing to ntfy topic %s (auth=%s)", topic, bool(token))
+
     while not stop_event.is_set():
         try:
             with requests.get(url, headers=headers, stream=True, timeout=60) as resp:
+                if resp.status_code == 403:
+                    logger.info(
+                        "Topic %s is write-only (403); stopping subscription", topic
+                    )
+                    status_callback(topic, "write_only")
+                    break
                 resp.raise_for_status()
+                status_callback(topic, "connected")
+                logger.info("Connected to ntfy topic %s", topic)
                 for line in resp.iter_lines(decode_unicode=True):
                     if stop_event.is_set():
                         break
@@ -77,22 +88,30 @@ def _stream_topic(
         if stop_event.wait(5):
             break
 
+    status_callback(topic, "stopped")
+
 
 class NtfySubscriber:
     def __init__(self) -> None:
         self._queue: queue.Queue[NtfyMessage] = queue.Queue()
         self._threads: dict[str, threading.Thread] = {}
         self._stop_events: dict[str, threading.Event] = {}
+        self._status: dict[str, str] = {}
         self._lock = threading.Lock()
+
+    def _set_status(self, topic: str, status: str) -> None:
+        with self._lock:
+            self._status[topic] = status
 
     def subscribe(self, server_url: str, topic: str, token: Optional[str]) -> None:
         with self._lock:
             if topic in self._threads:
                 return
+            self._status[topic] = "connecting"
             stop_event = threading.Event()
             thread = threading.Thread(
                 target=_stream_topic,
-                args=(server_url, topic, token, self._queue, stop_event),
+                args=(server_url, topic, token, self._queue, stop_event, self._set_status),
                 daemon=True,
             )
             self._threads[topic] = thread
@@ -103,6 +122,7 @@ class NtfySubscriber:
         with self._lock:
             stop_event = self._stop_events.pop(topic, None)
             thread = self._threads.pop(topic, None)
+            self._status.pop(topic, None)
         if stop_event:
             stop_event.set()
         if thread:
@@ -112,6 +132,10 @@ class NtfySubscriber:
         topics = list(self._threads.keys())
         for topic in topics:
             self.unsubscribe(topic)
+
+    def get_status(self, topic: str) -> Optional[str]:
+        with self._lock:
+            return self._status.get(topic)
 
     def get_message(self, timeout: Optional[float] = None) -> Optional[NtfyMessage]:
         try:
