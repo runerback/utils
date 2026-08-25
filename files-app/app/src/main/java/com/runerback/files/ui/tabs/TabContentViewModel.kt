@@ -93,17 +93,24 @@ abstract class TabContentViewModel(
     }
 
     fun loadRoot() {
-        if (!isReady) return
+        if (!isReady) {
+            LogBuffer.add("TabContentViewModel.loadRoot: skipped, isReady=false")
+            return
+        }
         viewModelScope.launch {
+            LogBuffer.add("TabContentViewModel.loadRoot: starting")
             _isLoading.value = true
             try {
                 withTimeout(AppSettings.smbTimeoutMillis.value) {
                     repository.loadRoot().onSuccess { root ->
+                        LogBuffer.add("TabContentViewModel.loadRoot: root loaded ${root.name} (${root.id})")
                         _rootId.value = root.id
                         if (root.isDirectory) {
                             repository.listChildren(root.id).onSuccess { children ->
+                                LogBuffer.add("TabContentViewModel.loadRoot: ${children.size} children loaded")
                                 _tree.value = children
                             }.onFailure { e ->
+                                LogBuffer.add("TabContentViewModel.loadRoot: children failed - ${e.message}")
                                 _tree.value = listOf(root)
                                 _error.value = "Failed to load root children: ${e.message}"
                             }
@@ -111,11 +118,13 @@ abstract class TabContentViewModel(
                             _tree.value = listOf(root)
                         }
                     }.onFailure { e ->
+                        LogBuffer.add("TabContentViewModel.loadRoot: root failed - ${e.message}")
                         _tree.value = emptyList()
                         _error.value = "Failed to load root: ${e.message}"
                     }
                 }
             } catch (e: Exception) {
+                LogBuffer.add("TabContentViewModel.loadRoot: exception - ${e.message}")
                 _tree.value = emptyList()
                 _error.value = "Failed to load root: ${e.message}"
             } finally {

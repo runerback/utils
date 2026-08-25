@@ -85,6 +85,7 @@ class FilesViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 settingsDataSource.tabs.collect { tabs ->
+                    LogBuffer.add("FilesViewModel.init tabs.collect: ${tabs.size} tabs, local rootUri=${tabs.find { it.source is FileSource.Local }?.source}")
                     _tabs.value = tabs
                     if (_selectedTabIndex.value >= tabs.size) {
                         _selectedTabIndex.value = (tabs.size - 1).coerceAtLeast(0)
@@ -302,15 +303,18 @@ class FilesViewModel @Inject constructor(
     }
 
     fun setLocalRoot(tabId: String, uri: Uri) {
+        LogBuffer.add("FilesViewModel.setLocalRoot: tabId=$tabId, uri=$uri")
+        val currentTabs = tabs.value
+        val updatedTabs = currentTabs.map { tab ->
+            if (tab.id == tabId) tab.copy(source = FileSource.Local(uri)) else tab
+        }
+        _tabs.value = updatedTabs
+        clearTabStore(tabId)
+        LogBuffer.add("FilesViewModel.setLocalRoot: updated in-memory tabs and cleared tab store")
         viewModelScope.launch {
             try {
-                val savedTabs = settingsDataSource.tabs.first()
-                val updatedTabs = savedTabs.map { tab ->
-                    if (tab.id == tabId) tab.copy(source = FileSource.Local(uri)) else tab
-                }
                 settingsDataSource.saveTabs(updatedTabs)
-                _tabs.value = updatedTabs
-                clearTabStore(tabId)
+                LogBuffer.add("FilesViewModel.setLocalRoot: persisted tabs")
             } catch (e: Exception) {
                 LogBuffer.add("FilesViewModel.setLocalRoot: ${e.stackTraceToString()}")
             }
@@ -318,6 +322,7 @@ class FilesViewModel @Inject constructor(
     }
 
     fun getTabViewModel(tabId: String): TabContentViewModel {
+        LogBuffer.add("FilesViewModel.getTabViewModel: tabId=$tabId, current tabs=${tabs.value.map { it.id to it.source }}")
         val store = tabStores.getOrPut(tabId) { ViewModelStore() }
         val factory = TabContentViewModelFactory(tabId, tabs.value, repositoryFactory)
         return ViewModelProvider(store, factory)[TabContentViewModel::class.java]

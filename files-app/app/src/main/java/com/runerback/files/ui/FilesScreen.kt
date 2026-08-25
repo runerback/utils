@@ -55,6 +55,7 @@ import com.runerback.files.data.model.FileSource
 import com.runerback.files.data.settings.AppSettings
 import com.runerback.files.ui.components.DeleteConfirmDialog
 import com.runerback.files.ui.components.LanShareDialog
+import com.runerback.files.ui.components.LogBuffer
 import com.runerback.files.ui.components.LogViewDialog
 import com.runerback.files.ui.components.NewFolderDialog
 import com.runerback.files.ui.components.NewTextFileDialog
@@ -94,6 +95,7 @@ fun FilesScreen(
     val activeTabId = activeTab?.id
 
     val contentViewModel = remember(activeTab) {
+        LogBuffer.add("FilesScreen: contentViewModel remember activeTab=$activeTab")
         activeTabId?.let { viewModel.getTabViewModel(it) }
     }
 

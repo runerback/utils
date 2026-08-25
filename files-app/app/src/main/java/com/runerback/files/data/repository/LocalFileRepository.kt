@@ -29,13 +29,22 @@ class LocalFileRepository(
         return runCatching {
             if (isDirectFileAccess) {
                 val file = rootFile ?: throw IOException("Invalid file path: $treeUri")
+                LogBuffer.add(
+                    "LocalFileRepository.loadRoot direct: path=${file.absolutePath}, " +
+                    "exists=${file.exists()}, isDir=${file.isDirectory}, canRead=${file.canRead()}"
+                )
+                if (!file.exists()) throw IOException("Root path does not exist: ${file.absolutePath}")
+                if (!file.canRead()) throw IOException("Root path not readable: ${file.absolutePath}")
                 fileToNode(file)
             } else {
                 val treeId = DocumentsContract.getTreeDocumentId(treeUri)
                 val rootDocumentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeId)
+                LogBuffer.add("LocalFileRepository.loadRoot document: treeId=$treeId, docUri=$rootDocumentUri")
                 queryDocument(rootDocumentUri)
                     ?: throw IOException("Cannot load root document for $treeUri")
             }
+        }.onFailure { e ->
+            LogBuffer.add("LocalFileRepository.loadRoot FAILED: ${e.message}")
         }
     }
 
@@ -44,19 +53,27 @@ class LocalFileRepository(
         return runCatching {
             if (isDirectFileAccess) {
                 val parentFile = File(parentId)
-                val files = parentFile.listFiles() ?: emptyArray()
+                LogBuffer.add(
+                    "LocalFileRepository.listChildren direct: path=${parentFile.absolutePath}, " +
+                    "exists=${parentFile.exists()}, isDir=${parentFile.isDirectory}, canRead=${parentFile.canRead()}"
+                )
+                val files = parentFile.listFiles()
+                LogBuffer.add("LocalFileRepository.listChildren direct: listFiles returned ${files?.size ?: "null"}")
                 files
-                    .filter { !isHidden(it.name) }
-                    .map { fileToNode(it) }
-                    .sortedWith(
+                    ?.filter { !isHidden(it.name) }
+                    ?.map { fileToNode(it) }
+                    ?.sortedWith(
                         compareByDescending<FileNode> { it.isDirectory }.thenBy { it.name.lowercase() }
                     )
+                    ?: emptyList()
             } else {
                 val parentUri = Uri.parse(parentId)
                 val parentDocumentId = DocumentsContract.getDocumentId(parentUri)
                 val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocumentId)
                 queryChildren(childrenUri)
             }
+        }.onFailure { e ->
+            LogBuffer.add("LocalFileRepository.listChildren FAILED: ${e.message}")
         }
     }
 

@@ -35,6 +35,7 @@ import androidx.core.content.PermissionChecker
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.runerback.files.ui.components.ErrorBanner
 import com.runerback.files.ui.components.FileTree
+import com.runerback.files.ui.components.LogBuffer
 
 @Composable
 fun LocalTabContent(
@@ -81,15 +82,32 @@ fun LocalTabContent(
 
     val rootUri = viewModel.source.rootUri
 
+    LogBuffer.add(
+        "LocalTabContent: SDK=${Build.VERSION.SDK_INT}, " +
+        "fullAccess=$hasFullStorageAccess, basic=$hasBasicPermission, rootUri=$rootUri"
+    )
+
     LaunchedEffect(hasFullStorageAccess, hasBasicPermission, rootUri) {
+        LogBuffer.add(
+            "LocalTabContent.LaunchedEffect: rootUri=$rootUri, " +
+            "fullAccess=$hasFullStorageAccess, basic=$hasBasicPermission"
+        )
         if (rootUri.toString().isEmpty()) {
             val canBrowse = hasFullStorageAccess || (
                 hasBasicPermission && Build.VERSION.SDK_INT < Build.VERSION_CODES.R
             )
             if (canBrowse) {
                 val storageRoot = Uri.fromFile(Environment.getExternalStorageDirectory())
+                LogBuffer.add(
+                    "LocalTabContent: auto-selecting storage root " +
+                    "path=${Environment.getExternalStorageDirectory()?.absolutePath}, uri=$storageRoot"
+                )
                 onSetLocalRoot(storageRoot)
+            } else {
+                LogBuffer.add("LocalTabContent: cannot auto-browse, waiting for permission or folder selection")
             }
+        } else {
+            LogBuffer.add("LocalTabContent: rootUri already set, skipping auto-select")
         }
     }
 
