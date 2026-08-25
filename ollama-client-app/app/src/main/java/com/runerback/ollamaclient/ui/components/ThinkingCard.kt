@@ -5,7 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -28,6 +30,7 @@ import com.runerback.ollamaclient.R
 @Composable
 fun ThinkingCard(
     thinking: String,
+    isThinking: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -41,14 +44,23 @@ fun ThinkingCard(
         ),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 40.dp)
                     .clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (isThinking) {
+                    LoadingIndicator(
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Text(
                     text = stringResource(R.string.thinking),
                     style = MaterialTheme.typography.titleSmall,

@@ -11,6 +11,8 @@
     <string name="cancel">Cancel</string>
     <string name="server_url">Ollama server endpoint</string>
     <string name="server_url_hint">http://localhost:11434</string>
+    <string name="model">Model</string>
+    <string name="refresh_models">Refresh models</string>
     <string name="think">Think</string>
     <string name="thinking">Thinking</string>
     <string name="show_thinking">Show thinking</string>

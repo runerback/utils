@@ -1,13 +1,14 @@
 package com.runerback.ollamaclient.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,7 +20,6 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,7 +68,7 @@ fun OllamaClientScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val listState = rememberLazyListState()
 
-    LaunchedEffect(messages.size, messages.lastOrNull()?.content) {
+    LaunchedEffect(messages.size, messages.lastOrNull()?.content, messages.lastOrNull()?.thinking) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
@@ -102,38 +102,44 @@ fun OllamaClientScreen(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
+                Box(
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text(stringResource(R.string.no_messages_yet)) },
-                    minLines = 3,
-                    maxLines = maxInputLines,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences,
-                        imeAction = ImeAction.Send
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSend = {
-                            focusManager.clearFocus()
-                            viewModel.send(input)
-                            input = ""
-                        }
-                    )
-                )
-                IconButton(
-                    onClick = {
-                        maxInputLines = if (maxInputLines == 3) 8 else 3
-                    }
+                    contentAlignment = Alignment.TopEnd,
                 ) {
-                    Icon(
-                        imageVector = if (maxInputLines == 3) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                        contentDescription = if (maxInputLines == 3) {
-                            stringResource(R.string.expand_input)
-                        } else {
-                            stringResource(R.string.collapse_input)
-                        }
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(stringResource(R.string.no_messages_yet)) },
+                        minLines = 3,
+                        maxLines = maxInputLines,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences,
+                            imeAction = ImeAction.Send
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onSend = {
+                                focusManager.clearFocus()
+                                viewModel.send(input)
+                                input = ""
+                            }
+                        )
                     )
+                    IconButton(
+                        onClick = {
+                            maxInputLines = if (maxInputLines == 3) 8 else 3
+                        },
+                        modifier = Modifier.padding(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (maxInputLines == 3) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                            contentDescription = if (maxInputLines == 3) {
+                                stringResource(R.string.expand_input)
+                            } else {
+                                stringResource(R.string.collapse_input)
+                            }
+                        )
+                    }
                 }
                 IconButton(
                     onClick = {
@@ -176,21 +182,15 @@ fun OllamaClientScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(messages, key = { it.hashCode() }) { message ->
-                    MessageItem(message = message)
-                }
-
-                if (isLoading) {
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Start,
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.padding(8.dp),
-                            )
-                        }
-                    }
+                itemsIndexed(
+                    items = messages,
+                    key = { _, message -> message.id },
+                ) { index, message ->
+                    val isLastAssistant = index == messages.lastIndex && message.role == "assistant"
+                    MessageItem(
+                        message = message,
+                        isThinking = isLoading && isLastAssistant,
+                    )
                 }
             }
         }
@@ -208,6 +208,7 @@ fun OllamaClientScreen(
 @Composable
 private fun MessageItem(
     message: Message,
+    isThinking: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val isUser = message.role == "user"
@@ -230,8 +231,11 @@ private fun MessageItem(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (!isUser && message.thinking.isNotBlank()) {
-                    ThinkingCard(thinking = message.thinking)
+                if (!isUser && (message.thinking.isNotBlank() || isThinking)) {
+                    ThinkingCard(
+                        thinking = message.thinking,
+                        isThinking = isThinking,
+                    )
                 }
 
                 Text(

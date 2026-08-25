@@ -9,11 +9,17 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -21,6 +27,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
@@ -32,7 +41,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.ollamaclient.R
+import com.runerback.ollamaclient.ui.components.LoadingIndicator
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(
     onDismiss: () -> Unit,
@@ -40,8 +51,13 @@ fun SettingsDialog(
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
 ) {
     val serverUrl by viewModel.serverUrl.collectAsState()
+    val model by viewModel.model.collectAsState()
+    val models by viewModel.models.collectAsState()
+    val isLoadingModels by viewModel.isLoadingModels.collectAsState()
+    val modelsError by viewModel.modelsError.collectAsState()
     val think by viewModel.think.collectAsState()
     val focusManager = LocalFocusManager.current
+    var expanded by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -93,6 +109,64 @@ fun SettingsDialog(
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        OutlinedTextField(
+                            value = model,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.model)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                        ) {
+                            models.forEach { modelName ->
+                                DropdownMenuItem(
+                                    text = { Text(modelName) },
+                                    onClick = {
+                                        viewModel.onModelChange(modelName)
+                                        expanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    IconButton(
+                        onClick = viewModel::loadModels,
+                        enabled = !isLoadingModels,
+                    ) {
+                        if (isLoadingModels) {
+                            LoadingIndicator(modifier = Modifier.padding(4.dp))
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = stringResource(R.string.refresh_models),
+                            )
+                        }
+                    }
+                }
+
+                if (modelsError.isNotBlank()) {
+                    Text(
+                        text = modelsError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
