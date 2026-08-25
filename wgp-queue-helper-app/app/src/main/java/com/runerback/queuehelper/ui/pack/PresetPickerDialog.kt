@@ -1,5 +1,6 @@
 package com.runerback.queuehelper.ui.pack
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.runerback.queuehelper.data.model.Preset
+import com.runerback.queuehelper.ui.components.LogBuffer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,11 +45,17 @@ fun PresetPickerDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tag = "PresetPickerDialog"
+    Log.d(tag, "shown with ${presets.size} presets, initialPresetId=$initialPresetId")
+    LogBuffer.add("PresetPickerDialog shown with ${presets.size} presets, initialPresetId=$initialPresetId")
+
     var expanded by remember { mutableStateOf(false) }
     var selectedId by remember { mutableStateOf(initialPresetId) }
     var searchQuery by remember {
         mutableStateOf(presets.find { it.id == initialPresetId }?.name ?: "")
     }
+    Log.d(tag, "initial selectedId=$selectedId, searchQuery=$searchQuery")
+    LogBuffer.add("PresetPickerDialog initial selectedId=$selectedId, searchQuery=$searchQuery")
 
     val filtered = remember(presets, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -119,6 +127,8 @@ fun PresetPickerDialog(
                             DropdownMenuItem(
                                 text = { Text(preset.name) },
                                 onClick = {
+                                    Log.d(tag, "preset selected id=${preset.id}, name=${preset.name}")
+                                    LogBuffer.add("PresetPickerDialog preset selected id=${preset.id}, name=${preset.name}")
                                     selectedId = preset.id
                                     searchQuery = preset.name
                                     expanded = false
@@ -138,6 +148,8 @@ fun PresetPickerDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
+                            Log.d(tag, "Create Task clicked, selectedId=$selectedId")
+                            LogBuffer.add("PresetPickerDialog Create Task clicked, selectedId=$selectedId")
                             selectedId?.let { onPresetSelected(it) }
                         },
                         enabled = selectedId != null

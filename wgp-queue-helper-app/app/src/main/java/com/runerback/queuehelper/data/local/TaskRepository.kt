@@ -1,6 +1,7 @@
 package com.runerback.queuehelper.data.local
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -22,6 +23,10 @@ import java.io.File
 private val Context.taskDataStore: DataStore<Preferences> by preferencesDataStore(name = "tasks")
 
 class TaskRepository(private val context: Context) {
+
+    companion object {
+        private const val TAG = "TaskRepository"
+    }
 
     private val dataStore = context.taskDataStore
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
@@ -103,8 +108,12 @@ class TaskRepository(private val context: Context) {
     }
 
     suspend fun saveTask(task: Task): Task = withContext(Dispatchers.IO) {
+        Log.d(TAG, "saveTask(${task.id}) started")
+        LogBuffer.add("TaskRepository.saveTask(${task.id}) started")
         runCatching {
             payloadFile(task.id).writeText(json.encodeToString(task.payload))
+            Log.d(TAG, "saveTask(${task.id}) payload file written")
+            LogBuffer.add("TaskRepository.saveTask(${task.id}) payload file written")
 
             dataStore.edit { prefs ->
                 val existing = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
@@ -115,8 +124,11 @@ class TaskRepository(private val context: Context) {
                 )
                 prefs[tasksKey] = json.encodeToString(updated)
             }
+            Log.d(TAG, "saveTask(${task.id}) datastore updated")
+            LogBuffer.add("TaskRepository.saveTask(${task.id}) datastore updated")
             task
         }.getOrElse {
+            Log.e(TAG, "saveTask(${task.id}) failed", it)
             LogBuffer.add("TaskRepository.saveTask(${task.id}): ${it.stackTraceToString()}")
             task
         }
@@ -259,17 +271,22 @@ class TaskRepository(private val context: Context) {
     }
 
     suspend fun nextId(): Int = withContext(Dispatchers.IO) {
+        Log.d(TAG, "nextId() generating...")
+        LogBuffer.add("TaskRepository.nextId() generating...")
         dataStore.edit { prefs ->
             val current = prefs[nextIdKey] ?: 1
             prefs[nextIdKey] = current + 1
         }
-        dataStore.data.first()[nextIdKey]?.minus(1) ?: 1
+        val id = dataStore.data.first()[nextIdKey]?.minus(1) ?: 1
+        Log.d(TAG, "nextId() generated id=$id")
+        LogBuffer.add("TaskRepository.nextId() generated id=$id")
+        id
     }
 
     @kotlinx.serialization.Serializable
     private data class TaskSummary(
         val id: Int,
-        val presetId: Int,
+        val presetId: Int = 0,
         val createdAt: Long
     )
 }

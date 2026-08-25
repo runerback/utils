@@ -1,6 +1,7 @@
 package com.runerback.queuehelper.data.local
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -23,6 +24,10 @@ private val Context.presetDataStore: DataStore<Preferences> by preferencesDataSt
 
 class PresetRepository(private val context: Context) {
 
+    companion object {
+        private const val TAG = "PresetRepository"
+    }
+
     private val dataStore = context.presetDataStore
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 
@@ -34,13 +39,21 @@ class PresetRepository(private val context: Context) {
     private fun payloadFile(id: Int): File = File(presetsDir(), "preset_$id.json")
 
     suspend fun loadPresets(): List<Preset> = withContext(Dispatchers.IO) {
+        Log.d(TAG, "loadPresets() started")
+        LogBuffer.add("PresetRepository.loadPresets() started")
         runCatching {
             val prefs = dataStore.data.first()
             val listJson = prefs[presetsKey] ?: "[]"
             val summaries = json.decodeFromString<List<PresetSummary>>(listJson)
+            Log.d(TAG, "loadPresets() found ${summaries.size} preset summaries")
+            LogBuffer.add("PresetRepository.loadPresets() found ${summaries.size} preset summaries")
             summaries.mapNotNull { summary ->
                 val payloadFile = payloadFile(summary.id)
-                if (!payloadFile.exists()) return@mapNotNull null
+                if (!payloadFile.exists()) {
+                    Log.w(TAG, "loadPresets() payload file missing for preset id=${summary.id}, name=${summary.name}")
+                    LogBuffer.add("PresetRepository.loadPresets() payload file missing for preset id=${summary.id}, name=${summary.name}")
+                    return@mapNotNull null
+                }
                 val payload = json.decodeFromString<JsonObject>(payloadFile.readText())
                 Preset(
                     id = summary.id,
@@ -51,17 +64,27 @@ class PresetRepository(private val context: Context) {
                 )
             }.sortedBy { it.createdAt }
         }.getOrElse {
+            Log.e(TAG, "loadPresets() failed", it)
             LogBuffer.add("PresetRepository.loadPresets: ${it.stackTraceToString()}")
             emptyList()
+        }.also {
+            Log.d(TAG, "loadPresets() returning ${it.size} presets")
+            LogBuffer.add("PresetRepository.loadPresets() returning ${it.size} presets")
         }
     }
 
     suspend fun loadPreset(id: Int): Preset? = withContext(Dispatchers.IO) {
+        Log.d(TAG, "loadPreset($id) started")
+        LogBuffer.add("PresetRepository.loadPreset($id) started")
         runCatching {
             loadPresets().find { it.id == id }
         }.getOrElse {
+            Log.e(TAG, "loadPreset($id) failed", it)
             LogBuffer.add("PresetRepository.loadPreset($id): ${it.stackTraceToString()}")
             null
+        }.also {
+            Log.d(TAG, "loadPreset($id) returned ${it?.name ?: "null"}")
+            LogBuffer.add("PresetRepository.loadPreset($id) returned ${it?.name ?: "null"}")
         }
     }
 
