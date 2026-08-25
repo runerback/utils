@@ -2,3 +2,5 @@ Flask~=3.0
 Flask-WTF~=1.2
 python-dotenv~=1.0
 requests~=2.32
+asgiref~=3.8
+uvicorn[standard]~=0.30

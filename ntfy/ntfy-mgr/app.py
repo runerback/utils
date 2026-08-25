@@ -3,8 +3,10 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+from asgiref.wsgi import WsgiToAsgi
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import cli
 import config
@@ -13,6 +15,9 @@ app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 app.config["WTF_CSRF_TIME_LIMIT"] = None
 csrf = CSRFProtect(app)
+app.wsgi_app = ProxyFix(
+    app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+)
 
 
 def static_version(filename: str) -> int:
@@ -240,6 +245,8 @@ def revoke_topic_access():
         f"Access revoked for {username} on {topic}",
     )
 
+
+asgi_app = WsgiToAsgi(app)
 
 if __name__ == "__main__":
     app.run(host=config.HOST, port=config.PORT)

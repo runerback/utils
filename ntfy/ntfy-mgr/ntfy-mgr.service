@@ -8,11 +8,11 @@ User=root
 Group=root
 WorkingDirectory=/opt/ntfy-mgr
 
-# Host is always 0.0.0.0
-Environment="NTFY_MGR_HOST=0.0.0.0"
+# Uvicorn binds on localhost; nginx faces the public
+Environment="NTFY_MGR_HOST=127.0.0.1"
 
-# Required: pick a free port greater than 20000
-Environment="NTFY_MGR_PORT="
+# Port uvicorn listens on; nginx proxies to this
+Environment="NTFY_MGR_PORT=8000"
 
 # URL of the running ntfy server used to validate admin credentials
 Environment="NTFY_BASE_URL=http://localhost"
@@ -23,7 +23,12 @@ Environment="NTFY_CLI=ntfy"
 # Required: a long random string used by Flask to sign session cookies
 Environment="SECRET_KEY="
 
-ExecStart=/opt/ntfy-mgr/.venv/bin/python /opt/ntfy-mgr/app.py
+ExecStart=/opt/ntfy-mgr/.venv/bin/uvicorn app:asgi_app \
+    --host ${NTFY_MGR_HOST} \
+    --port ${NTFY_MGR_PORT} \
+    --workers 1 \
+    --proxy-headers \
+    --access-log
 Restart=on-failure
 RestartSec=5
 

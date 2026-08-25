@@ -2,3 +2,4 @@
 .venv/
 protos/
 .env.local
+.pytest_cache/
