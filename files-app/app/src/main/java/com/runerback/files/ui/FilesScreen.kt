@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -53,6 +54,7 @@ import com.runerback.files.BuildConfig
 import com.runerback.files.data.model.FileSource
 import com.runerback.files.data.settings.AppSettings
 import com.runerback.files.ui.components.DeleteConfirmDialog
+import com.runerback.files.ui.components.LanShareDialog
 import com.runerback.files.ui.components.LogViewDialog
 import com.runerback.files.ui.components.NewFolderDialog
 import com.runerback.files.ui.components.NewTextFileDialog
@@ -78,6 +80,10 @@ fun FilesScreen(
     val smbDialogState by viewModel.smbDialogState.collectAsStateWithLifecycle()
     val settingsDialogVisible by viewModel.settingsDialogVisible.collectAsStateWithLifecycle()
     val smbTimeoutMillis by AppSettings.smbTimeoutMillis.collectAsStateWithLifecycle()
+    val lanSharingEnabled by AppSettings.lanSharingEnabled.collectAsStateWithLifecycle()
+    val lanShareDialogVisible by viewModel.lanShareDialogVisible.collectAsStateWithLifecycle()
+    val lanShareUrl by viewModel.lanShareUrl.collectAsStateWithLifecycle()
+    val lanShareSharedFiles by viewModel.lanShareSharedFiles.collectAsStateWithLifecycle()
     var showLogView by remember { mutableStateOf(false) }
 
     val safeSelectedIndex = remember(selectedTabIndex, tabs.size) {
@@ -111,6 +117,18 @@ fun FilesScreen(
 
     val canDelete by if (contentViewModel != null) {
         contentViewModel.canDelete.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf(false) }
+    }
+
+    val selectedFiles by if (contentViewModel != null) {
+        contentViewModel.selectedFiles.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf(emptyList()) }
+    }
+
+    val hasSelectedFiles by if (contentViewModel != null) {
+        contentViewModel.hasSelectedFiles.collectAsStateWithLifecycle()
     } else {
         remember { mutableStateOf(false) }
     }
@@ -261,35 +279,35 @@ fun FilesScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { /* TODO: copy */ }) {
-                    Icon(
-                        imageVector = FluentuiSystemIconsCopy,
-                        contentDescription = "Copy"
-                    )
+                if (!isMultiSelectActive) {
+                    IconButton(onClick = { /* TODO: copy */ }) {
+                        Icon(
+                            imageVector = FluentuiSystemIconsCopy,
+                            contentDescription = "Copy"
+                        )
+                    }
+                    IconButton(onClick = { /* TODO: cut */ }) {
+                        Icon(
+                            imageVector = FluentuiSystemIconsCut,
+                            contentDescription = "Cut"
+                        )
+                    }
                 }
-                IconButton(onClick = { /* TODO: cut */ }) {
-                    Icon(
-                        imageVector = FluentuiSystemIconsCut,
-                        contentDescription = "Cut"
-                    )
+                if (canDelete) {
+                    IconButton(onClick = { contentViewModel?.openDeleteDialog() }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete"
+                        )
+                    }
                 }
-                IconButton(
-                    onClick = { contentViewModel?.openDeleteDialog() },
-                    enabled = canDelete,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete"
-                    )
-                }
-                IconButton(
-                    onClick = { /* TODO: rename */ },
-                    enabled = !isMultiSelectActive
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Rename"
-                    )
+                if (!isMultiSelectActive) {
+                    IconButton(onClick = { /* TODO: rename */ }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Rename"
+                        )
+                    }
                 }
                 IconButton(onClick = { contentViewModel?.toggleMultiSelect() }) {
                     Icon(
@@ -302,23 +320,33 @@ fun FilesScreen(
                         }
                     )
                 }
-                IconButton(
-                    onClick = { contentViewModel?.openNewFolderDialog() },
-                    enabled = !isMultiSelectActive
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CreateNewFolder,
-                        contentDescription = "New Folder"
-                    )
+                if (!isMultiSelectActive) {
+                    IconButton(onClick = { contentViewModel?.openNewFolderDialog() }) {
+                        Icon(
+                            imageVector = Icons.Default.CreateNewFolder,
+                            contentDescription = "New Folder"
+                        )
+                    }
+                    IconButton(onClick = { contentViewModel?.openNewTextDialog() }) {
+                        Icon(
+                            imageVector = FluentuiSystemIconsTextAdd,
+                            contentDescription = "New Text"
+                        )
+                    }
                 }
-                IconButton(
-                    onClick = { contentViewModel?.openNewTextDialog() },
-                    enabled = !isMultiSelectActive
-                ) {
-                    Icon(
-                        imageVector = FluentuiSystemIconsTextAdd,
-                        contentDescription = "New Text"
-                    )
+                if (lanSharingEnabled && isMultiSelectActive && hasSelectedFiles) {
+                    IconButton(
+                        onClick = {
+                            activeTab?.source?.let { source ->
+                                viewModel.startLanShare(selectedFiles, source)
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share"
+                        )
+                    }
                 }
             }
         }
@@ -387,8 +415,20 @@ fun FilesScreen(
     if (settingsDialogVisible) {
         SettingsDialog(
             currentSmbTimeoutMillis = smbTimeoutMillis,
-            onSave = { viewModel.saveSmbTimeoutMillis(it) },
+            currentLanSharingEnabled = lanSharingEnabled,
+            onSave = { timeout, enabled ->
+                viewModel.saveSmbTimeoutMillis(timeout)
+                viewModel.saveLanSharingEnabled(enabled)
+            },
             onDismiss = { viewModel.dismissSettingsDialog() },
+        )
+    }
+
+    if (lanShareDialogVisible && lanShareUrl != null) {
+        LanShareDialog(
+            shareUrl = lanShareUrl!!,
+            sharedFiles = lanShareSharedFiles,
+            onDismiss = { viewModel.stopLanShare() },
         )
     }
 

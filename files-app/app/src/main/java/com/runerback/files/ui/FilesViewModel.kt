@@ -1,21 +1,26 @@
 package com.runerback.files.ui
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import com.runerback.files.data.datasource.SettingsDataSource
+import com.runerback.files.data.model.FileNode
 import com.runerback.files.data.model.FileSource
 import com.runerback.files.data.model.TabConfig
 import com.runerback.files.data.repository.FileRepositoryFactory
 import com.runerback.files.data.repository.SMBFileRepository
 import com.runerback.files.data.settings.AppSettings
+import com.runerback.files.share.LanShareManager
+import com.runerback.files.share.LanShareServer
 import com.runerback.files.ui.components.LogBuffer
 import com.runerback.files.ui.tabs.LocalTabContentViewModel
 import com.runerback.files.ui.tabs.SmbTabContentViewModel
 import com.runerback.files.ui.tabs.TabContentViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,8 +32,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class FilesViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val settingsDataSource: SettingsDataSource,
-    private val repositoryFactory: FileRepositoryFactory
+    private val repositoryFactory: FileRepositoryFactory,
+    private val lanShareManager: LanShareManager,
 ) : ViewModel() {
 
     private val _tabs = MutableStateFlow(
@@ -50,6 +57,15 @@ class FilesViewModel @Inject constructor(
 
     private val _settingsDialogVisible = MutableStateFlow(false)
     val settingsDialogVisible: StateFlow<Boolean> = _settingsDialogVisible.asStateFlow()
+
+    private val _lanShareDialogVisible = MutableStateFlow(false)
+    val lanShareDialogVisible: StateFlow<Boolean> = _lanShareDialogVisible.asStateFlow()
+
+    private val _lanShareUrl = MutableStateFlow<String?>(null)
+    val lanShareUrl: StateFlow<String?> = _lanShareUrl.asStateFlow()
+
+    private val _lanShareSharedFiles = MutableStateFlow<Map<String, LanShareServer.SharedFile>>(emptyMap())
+    val lanShareSharedFiles: StateFlow<Map<String, LanShareServer.SharedFile>> = _lanShareSharedFiles.asStateFlow()
 
     private val tabStores = mutableMapOf<String, ViewModelStore>()
 
@@ -168,6 +184,44 @@ class FilesViewModel @Inject constructor(
         }
     }
 
+    fun saveLanSharingEnabled(enabled: Boolean) {
+        try {
+            AppSettings.saveLanSharingEnabled(enabled)
+        } catch (e: Exception) {
+            LogBuffer.add("FilesViewModel.saveLanSharingEnabled: ${e.stackTraceToString()}")
+        }
+    }
+
+    fun startLanShare(files: List<FileNode>, source: FileSource) {
+        if (files.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val url = lanShareManager.startShare(context, files, source)
+                if (url != null) {
+                    _lanShareUrl.value = url
+                    _lanShareSharedFiles.value = lanShareManager.sharedFiles.value
+                    _lanShareDialogVisible.value = true
+                } else {
+                    LogBuffer.add("FilesViewModel.startLanShare: failed to start server")
+                }
+            } catch (e: Exception) {
+                LogBuffer.add("FilesViewModel.startLanShare: ${e.stackTraceToString()}")
+            }
+        }
+    }
+
+    fun stopLanShare() {
+        try {
+            lanShareManager.stopShare(context)
+        } catch (e: Exception) {
+            LogBuffer.add("FilesViewModel.stopLanShare: ${e.stackTraceToString()}")
+        } finally {
+            _lanShareDialogVisible.value = false
+            _lanShareUrl.value = null
+            _lanShareSharedFiles.value = emptyMap()
+        }
+    }
+
     fun saveSmbServer(config: FileSource.Smb) {
         viewModelScope.launch {
             try {
@@ -274,6 +328,9 @@ class FilesViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        if (lanShareManager.isSharing()) {
+            lanShareManager.stopShare(context)
+        }
         tabStores.values.forEach { it.clear() }
         tabStores.clear()
         super.onCleared()

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -17,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,11 +30,13 @@ import androidx.compose.ui.window.DialogProperties
 @Composable
 fun SettingsDialog(
     currentSmbTimeoutMillis: Long,
-    onSave: (Long) -> Unit,
+    currentLanSharingEnabled: Boolean,
+    onSave: (Long, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var timeoutMs by remember { mutableLongStateOf(currentSmbTimeoutMillis) }
     val timeoutSeconds = (timeoutMs / 1000).toInt()
+    var lanSharingEnabled by remember { mutableStateOf(currentLanSharingEnabled) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -81,11 +85,25 @@ fun SettingsDialog(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = lanSharingEnabled,
+                        onCheckedChange = { lanSharingEnabled = it }
+                    )
+                    Text(
+                        text = "Enable LAN sharing",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
                 ) {
                     Button(
                         onClick = {
-                            onSave(timeoutMs)
+                            onSave(timeoutMs, lanSharingEnabled)
                             onDismiss()
                         }
                     ) {

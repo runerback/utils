@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
@@ -64,6 +65,19 @@ abstract class TabContentViewModel(
         val hasDeletableFolder = currentFolderId != null && currentFolderId != rootId
         hasSelectedFiles || hasDeletableFolder
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val selectedFiles: StateFlow<List<FileNode>> = combine(
+        _multiSelectActive,
+        _selectedNodeIds,
+        _tree
+    ) { multiSelect, selectedIds, tree ->
+        if (!multiSelect || selectedIds.isEmpty()) emptyList()
+        else selectedIds.mapNotNull { id -> findNode(tree, id) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val hasSelectedFiles: StateFlow<Boolean> = selectedFiles
+        .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _newTextDialogVisible = MutableStateFlow(false)
     val newTextDialogVisible: StateFlow<Boolean> = _newTextDialogVisible.asStateFlow()
