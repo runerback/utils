@@ -1,5 +1,9 @@
 package com.runerback.ntfyclient.ui.settings
 
+import android.content.Context
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -21,8 +26,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -43,7 +52,40 @@ fun SettingsDialog(
     val serverUrl by viewModel.serverUrl.collectAsState()
     val token by viewModel.token.collectAsState()
     val hasToken by viewModel.hasToken.collectAsState()
+    val downloadUnmeteredOnly by viewModel.downloadAttachmentsUnmeteredOnly.collectAsState()
+    val backgroundListeningEnabled by viewModel.backgroundListeningEnabled.collectAsState()
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    var showBatteryDialog by remember { mutableStateOf(false) }
+
+    if (showBatteryDialog) {
+        AlertDialog(
+            onDismissRequest = { showBatteryDialog = false },
+            title = { Text(stringResource(R.string.background_listening_battery_title)) },
+            text = { Text(stringResource(R.string.background_listening_battery_text)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBatteryDialog = false
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val intent = android.content.Intent(
+                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            )
+                            context.startActivity(intent)
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.open_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBatteryDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -143,7 +185,6 @@ fun SettingsDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    val downloadUnmeteredOnly by viewModel.downloadAttachmentsUnmeteredOnly.collectAsState()
                     Checkbox(
                         checked = downloadUnmeteredOnly,
                         onCheckedChange = viewModel::onDownloadAttachmentsUnmeteredOnlyChange,
@@ -153,6 +194,35 @@ fun SettingsDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(start = 8.dp),
                     )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Checkbox(
+                        checked = backgroundListeningEnabled,
+                        onCheckedChange = { checked ->
+                            viewModel.onBackgroundListeningEnabledChange(checked)
+                            if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+                                if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+                                    showBatteryDialog = true
+                                }
+                            }
+                        },
+                    )
+                    Column(modifier = Modifier.padding(start = 8.dp)) {
+                        Text(
+                            text = stringResource(R.string.background_listening),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.background_listening_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
 
                 Row(

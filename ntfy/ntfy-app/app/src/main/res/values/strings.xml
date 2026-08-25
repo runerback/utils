@@ -42,4 +42,11 @@
     <string name="collapse_input">Collapse input</string>
     <string name="message_sent">Sent</string>
     <string name="send_failed">Failed to send: %1$s</string>
+    <string name="background_listening">Background listening</string>
+    <string name="background_listening_description">Keep receiving messages when the app is closed or the screen is locked. Shows a persistent notification.</string>
+    <string name="background_listening_notification_title">Ntfy Client</string>
+    <string name="background_listening_notification_text">Listening for messages in the background</string>
+    <string name="background_listening_battery_title">Battery optimization</string>
+    <string name="background_listening_battery_text">For reliable background delivery, please allow the app to ignore battery optimizations.</string>
+    <string name="open_settings">Open settings</string>
 </resources>

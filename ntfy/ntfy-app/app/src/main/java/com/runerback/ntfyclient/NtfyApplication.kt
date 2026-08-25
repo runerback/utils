@@ -15,6 +15,7 @@ class NtfyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         NotificationHelper.createChannel(this)
+        NotificationHelper.createServiceChannel(this)
         subscriptionManager = SubscriptionManager(this, applicationScope)
         subscriptionManager.start()
     }

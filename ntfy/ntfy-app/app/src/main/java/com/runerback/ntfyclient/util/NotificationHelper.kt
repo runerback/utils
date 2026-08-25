@@ -16,6 +16,8 @@ object NotificationHelper {
 
     private const val CHANNEL_ID = "ntfy_messages"
     private const val CHANNEL_NAME = "Ntfy messages"
+    const val SERVICE_CHANNEL_ID = "ntfy_service"
+    private const val SERVICE_CHANNEL_NAME = "Background service"
 
     fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -24,6 +26,19 @@ object NotificationHelper {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_DEFAULT,
             )
+            NotificationManagerCompat.from(context).createNotificationChannel(channel)
+        }
+    }
+
+    fun createServiceChannel(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                SERVICE_CHANNEL_ID,
+                SERVICE_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                setShowBadge(false)
+            }
             NotificationManagerCompat.from(context).createNotificationChannel(channel)
         }
     }

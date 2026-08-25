@@ -1,5 +1,6 @@
 package com.runerback.ntfyclient.ui.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -7,6 +8,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.runerback.ntfyclient.data.local.SettingsRepository
 import com.runerback.ntfyclient.data.local.TokenRepository
+import com.runerback.ntfyclient.service.SubscriptionForegroundService
+import com.runerback.ntfyclient.work.SubscriptionServiceWatchdogWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +19,7 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val tokenRepository: TokenRepository,
+    private val appContext: Context,
 ) : ViewModel() {
 
     private val _serverUrl = MutableStateFlow("")
@@ -30,12 +34,17 @@ class SettingsViewModel(
     private val _downloadAttachmentsUnmeteredOnly = MutableStateFlow(true)
     val downloadAttachmentsUnmeteredOnly: StateFlow<Boolean> = _downloadAttachmentsUnmeteredOnly.asStateFlow()
 
+    private val _backgroundListeningEnabled = MutableStateFlow(false)
+    val backgroundListeningEnabled: StateFlow<Boolean> = _backgroundListeningEnabled.asStateFlow()
+
     init {
         viewModelScope.launch {
             _serverUrl.value = settingsRepository.serverUrl.first()
             _hasToken.value = tokenRepository.hasToken
             _downloadAttachmentsUnmeteredOnly.value =
                 settingsRepository.downloadAttachmentsUnmeteredOnly.first()
+            _backgroundListeningEnabled.value =
+                settingsRepository.backgroundListeningEnabled.first()
         }
     }
 
@@ -51,10 +60,24 @@ class SettingsViewModel(
         _downloadAttachmentsUnmeteredOnly.value = value
     }
 
+    fun onBackgroundListeningEnabledChange(value: Boolean) {
+        _backgroundListeningEnabled.value = value
+    }
+
     fun save() {
         viewModelScope.launch {
             settingsRepository.setServerUrl(_serverUrl.value.trim())
             settingsRepository.setDownloadAttachmentsUnmeteredOnly(_downloadAttachmentsUnmeteredOnly.value)
+            val wasEnabled = settingsRepository.backgroundListeningEnabled.first()
+            val nowEnabled = _backgroundListeningEnabled.value
+            settingsRepository.setBackgroundListeningEnabled(nowEnabled)
+            if (nowEnabled) {
+                SubscriptionForegroundService.start(appContext)
+                SubscriptionServiceWatchdogWorker.schedule(appContext)
+            } else if (wasEnabled) {
+                SubscriptionForegroundService.stop(appContext)
+                SubscriptionServiceWatchdogWorker.cancel(appContext)
+            }
             val trimmedToken = _token.value.trim()
             if (trimmedToken.isNotBlank()) {
                 tokenRepository.setToken(trimmedToken)
@@ -81,6 +104,7 @@ class SettingsViewModel(
                 SettingsViewModel(
                     SettingsRepository(context),
                     TokenRepository(context),
+                    context,
                 )
             }
         }
