@@ -76,18 +76,20 @@
           <div class="section">
             <h3>Tokens</h3>
             {% if token_map.get(user.name) %}
-              <ul class="item-list">
+              <ul class="item-list token-list">
                 {% for token in token_map[user.name] %}
-                  <li>
-                    <span>
-                      <code>{{ token.value }}</code>
-                      {% if token.label %}<span class="tag">{{ token.label }}</span>{% endif %}
-                      <span class="muted">{{ token.expires }}</span>
-                    </span>
-                    <form method="post" action="{{ url_for('delete_user_token', name=user.name, token=token.value) }}" class="inline-form">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button type="submit" class="btn-small btn-danger">Delete</button>
-                    </form>
+                  <li class="token-item">
+                    <div class="token-row">
+                      <code class="token-value">{{ token.value }}</code>
+                      <form method="post" action="{{ url_for('delete_user_token', name=user.name, token=token.value) }}" class="inline-form delete-token-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="icon-btn btn-danger" aria-label="Delete token" onclick="return confirm('Delete token {{ token.value }}?')">🗑</button>
+                      </form>
+                    </div>
+                    {% if token.label %}
+                      <div class="token-row muted"><span class="token-meta-label">Alias:</span> {{ token.label }}</div>
+                    {% endif %}
+                    <div class="token-row muted"><span class="token-meta-label">Expires:</span> {{ token.expires or 'never' }}</div>
                   </li>
                 {% endfor %}
               </ul>
