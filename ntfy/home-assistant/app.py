@@ -129,43 +129,54 @@ def _subscribe_all_topics() -> None:
 
 def _ntfy_consumer() -> None:
     while True:
-        msg = subscriber.get_message(timeout=1.0)
-        if msg is None:
-            continue
-
-        topic_row = db.get_topic_by_name(msg.topic)
-        if topic_row is None:
-            continue
-
-        sender = msg.title or None
         try:
-            db.add_message(
-                topic_id=topic_row["id"],
-                body=msg.message,
-                sender=sender,
-                is_outgoing=False,
+            msg = subscriber.get_message(timeout=1.0)
+            if msg is None:
+                continue
+
+            topic_row = db.get_topic_by_name(msg.topic)
+            if topic_row is None:
+                continue
+
+            sender = msg.title or None
+
+            # Skip echoes of our own recently-sent messages.
+            if db.find_recent_duplicate(
+                topic_row["id"], msg.message, sender, is_outgoing=True
+            ):
+                continue
+
+            sent_at = None
+            if msg.time:
+                try:
+                    sent_at = datetime.fromtimestamp(int(msg.time), tz=timezone.utc).isoformat()
+                except (ValueError, OSError):
+                    sent_at = None
+            if not sent_at:
+                sent_at = datetime.now(timezone.utc).isoformat()
+
+            try:
+                db.add_message(
+                    topic_id=topic_row["id"],
+                    body=msg.message,
+                    sender=sender,
+                    is_outgoing=False,
+                    sent_at=sent_at,
+                )
+            except Exception as exc:
+                logger.warning("Failed to store incoming message: %s", exc)
+
+            _broadcast(
+                {
+                    "type": "message",
+                    "topic": msg.topic,
+                    "sender": sender,
+                    "body": msg.message,
+                    "sent_at": sent_at,
+                }
             )
         except Exception as exc:
-            logger.warning("Failed to store incoming message: %s", exc)
-
-        sent_at = None
-        if msg.time:
-            try:
-                sent_at = datetime.fromtimestamp(int(msg.time), tz=timezone.utc).isoformat()
-            except (ValueError, OSError):
-                sent_at = None
-        if not sent_at:
-            sent_at = datetime.now(timezone.utc).isoformat()
-
-        _broadcast(
-            {
-                "type": "message",
-                "topic": msg.topic,
-                "sender": sender,
-                "body": msg.message,
-                "sent_at": sent_at,
-            }
-        )
+            logger.exception("Unexpected error in ntfy consumer: %s", exc)
 
 
 # Start background consumer thread once at import time.
@@ -300,7 +311,31 @@ def api_send_message(topic_id: int):
     server_url = settings_store.get_messages_server_url()
     token = settings_store.get_messages_token()
     username = session["username"]
+    sent_at = datetime.now(timezone.utc).isoformat()
 
+    # Store and broadcast immediately so the UI feels responsive.
+    try:
+        db.add_message(
+            topic_id=topic_id,
+            body=body,
+            sender=username,
+            is_outgoing=True,
+            sent_at=sent_at,
+        )
+    except Exception as exc:
+        logger.warning("Failed to store outgoing message: %s", exc)
+
+    _broadcast(
+        {
+            "type": "message",
+            "topic": topic["name"],
+            "sender": username,
+            "body": body,
+            "sent_at": sent_at,
+        }
+    )
+
+    # Post to ntfy in the background; ntfy echo will be de-duplicated.
     headers = {"X-Title": username}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -314,8 +349,7 @@ def api_send_message(topic_id: int):
         )
         resp.raise_for_status()
     except requests.RequestException as exc:
-        logger.warning("Failed to send message: %s", exc)
-        return jsonify({"error": "Failed to send message to ntfy server"}), 502
+        logger.warning("Failed to send message to ntfy: %s", exc)
 
     return jsonify({"ok": True}), 201
 

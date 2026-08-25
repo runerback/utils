@@ -137,6 +137,8 @@ async function openChatroom(id, name) {
   chatroomEl.classList.remove("hidden");
   chatTopicNameEl.textContent = name;
   chatMessagesEl.innerHTML = "";
+  chatInput.value = "";
+  chatInput.disabled = false;
 
   const resp = await api(`/api/topics/${id}/messages`);
   const messages = await resp.json();
@@ -150,6 +152,7 @@ function closeChatroom() {
   currentTopicId = null;
   chatroomEl.classList.add("hidden");
   topicListEl.classList.remove("hidden");
+  chatInput.value = "";
   if (eventSource) {
     eventSource.close();
     eventSource = null;
@@ -161,12 +164,23 @@ chatForm.addEventListener("submit", async (e) => {
   const body = chatInput.value.trim();
   if (!body || !currentTopicId) return;
 
+  const submitBtn = chatForm.querySelector('button[type="submit"]');
+  chatInput.disabled = true;
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Sending...";
+
   const resp = await api(`/api/topics/${currentTopicId}/messages`, {
     method: "POST",
     body: new URLSearchParams({ body }),
   });
+
+  chatInput.disabled = false;
+  submitBtn.disabled = false;
+  submitBtn.textContent = "Send";
+
   if (resp.ok) {
     chatInput.value = "";
+    chatInput.focus();
   } else {
     const data = await resp.json();
     alert(data.error || "Failed to send message");
@@ -203,13 +217,15 @@ function connectSSE() {
       appendMessage({
         sender: data.sender,
         body: data.body,
-        sent_at: new Date().toISOString(),
+        sent_at: data.sent_at || new Date().toISOString(),
       });
     }
   };
   eventSource.onerror = () => {
-    eventSource.close();
-    eventSource = null;
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
     setTimeout(connectSSE, 3000);
   };
 }

@@ -138,6 +138,36 @@ def test_logs_endpoint():
     assert "test log line" in data["lines"]
 
 
+def test_send_message_stores_and_broadcasts():
+    client = app_module.app.test_client()
+    token = _login(client)
+
+    topic_name = f"send-test-{id(client)}"
+    # Add topic
+    resp = client.post(
+        "/api/topics",
+        headers={"X-CSRFToken": token},
+        data={"name": topic_name},
+    )
+    assert resp.status_code == 201, resp.get_json()
+    topic_id = resp.get_json()["id"]
+
+    # Send will fail to reach ntfy in tests, but should still store locally.
+    resp = client.post(
+        f"/api/topics/{topic_id}/messages",
+        headers={"X-CSRFToken": token},
+        data={"body": "hello world"},
+    )
+    assert resp.status_code == 201
+
+    # Message should appear in history
+    resp = client.get(f"/api/topics/{topic_id}/messages", headers={"X-CSRFToken": token})
+    messages = resp.get_json()
+    assert len(messages) == 1
+    assert messages[0]["body"] == "hello world"
+    assert messages[0]["is_mine"] is True
+
+
 if __name__ == "__main__":
     import tempfile
 

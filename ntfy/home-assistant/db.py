@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -163,6 +163,30 @@ def add_message(
         message_id = int(cur.lastrowid)
         _prune_messages(conn, topic_id)
     return message_id
+
+
+def find_recent_duplicate(
+    topic_id: int,
+    body: str,
+    sender: Optional[str],
+    is_outgoing: bool,
+    window_seconds: int = 30,
+) -> Optional[sqlite3.Row]:
+    """Find a recent message with the same body/sender to avoid echo duplicates."""
+    since = (
+        datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+    ).isoformat()
+    with get_connection() as conn:
+        return conn.execute(
+            """
+            SELECT * FROM messages
+            WHERE topic_id = ? AND body = ? AND sender IS ? AND is_outgoing = ?
+              AND sent_at > ?
+            ORDER BY sent_at DESC
+            LIMIT 1
+            """,
+            (topic_id, body, sender, 1 if is_outgoing else 0, since),
+        ).fetchone()
 
 
 def _prune_messages(conn: sqlite3.Connection, topic_id: int, limit: int = 500) -> None:
