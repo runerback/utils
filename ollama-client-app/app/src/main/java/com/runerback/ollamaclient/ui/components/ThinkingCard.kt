@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
@@ -81,15 +82,17 @@ fun ThinkingCard(
             }
 
             if (expanded) {
-                Text(
-                    text = thinking,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .padding(top = 8.dp)
-                        .heightIn(max = 200.dp)
-                        .verticalScroll(rememberScrollState()),
-                )
+                SelectionContainer() {
+                    Text(
+                        text = thinking,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .heightIn(max = 200.dp)
+                            .verticalScroll(rememberScrollState()),
+                    )
+                }
             }
         }
     }
