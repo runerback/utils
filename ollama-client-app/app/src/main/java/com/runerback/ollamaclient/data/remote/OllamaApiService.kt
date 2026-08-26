@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -31,6 +32,7 @@ open class OllamaApiService {
         model: String,
         messages: List<Message>,
         think: Boolean,
+        onCallCreated: (Call) -> Unit = {},
     ): Flow<Message> = flow {
         val url = "$baseUrl/api/chat"
         val requestBody = buildRequestBody(model, messages, think)
@@ -41,11 +43,14 @@ open class OllamaApiService {
             .post(requestBody)
             .build()
 
+        val call = client.newCall(request)
+        onCallCreated(call)
+
         var rawContent = ""
         var thinkingFromField = ""
 
         try {
-            client.newCall(request).execute().use { response ->
+            call.execute().use { response ->
                 if (!response.isSuccessful) {
                     val body = response.body?.string()?.take(500) ?: ""
                     LogBuffer.append("HTTP error ${response.code} at $url body=$body")

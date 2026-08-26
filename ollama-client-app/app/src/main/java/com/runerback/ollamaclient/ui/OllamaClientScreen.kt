@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -110,24 +111,37 @@ fun OllamaClientScreen(
                     ),
                     keyboardActions = KeyboardActions(
                         onSend = {
-                            focusManager.clearFocus()
-                            viewModel.send(input)
-                            input = ""
+                            if (!isLoading) {
+                                focusManager.clearFocus()
+                                viewModel.send(input)
+                                input = ""
+                            }
                         }
                     )
                 )
-                IconButton(
-                    onClick = {
-                        focusManager.clearFocus()
-                        viewModel.send(input)
-                        input = ""
-                    },
-                    enabled = input.isNotBlank() && !isLoading,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = stringResource(R.string.send)
-                    )
+                if (isLoading) {
+                    IconButton(
+                        onClick = { viewModel.stop() },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Stop,
+                            contentDescription = stringResource(R.string.stop)
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = {
+                            focusManager.clearFocus()
+                            viewModel.send(input)
+                            input = ""
+                        },
+                        enabled = input.isNotBlank(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = stringResource(R.string.send)
+                        )
+                    }
                 }
             }
         }
