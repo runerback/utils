@@ -18,8 +18,6 @@
     <string name="show_thinking">Show thinking</string>
     <string name="hide_thinking">Hide thinking</string>
     <string name="no_logs_yet">No logs yet.</string>
-    <string name="expand_input">Expand input</string>
-    <string name="collapse_input">Collapse input</string>
     <string name="send">Send</string>
     <string name="no_messages_yet">No messages yet.</string>
 </resources>

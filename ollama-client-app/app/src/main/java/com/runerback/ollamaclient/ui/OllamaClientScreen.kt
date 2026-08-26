@@ -1,7 +1,6 @@
 package com.runerback.ollamaclient.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,8 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -61,7 +57,6 @@ fun OllamaClientScreen(
     var showSettings by remember { mutableStateOf(false) }
 
     var input by remember { mutableStateOf("") }
-    var maxInputLines by remember { mutableIntStateOf(3) }
     val focusManager = LocalFocusManager.current
 
     val messages by viewModel.messages.collectAsState()
@@ -102,45 +97,25 @@ fun OllamaClientScreen(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box(
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.TopEnd,
-                ) {
-                    OutlinedTextField(
-                        value = input,
-                        onValueChange = { input = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(stringResource(R.string.no_messages_yet)) },
-                        minLines = 3,
-                        maxLines = maxInputLines,
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Sentences,
-                            imeAction = ImeAction.Send
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onSend = {
-                                focusManager.clearFocus()
-                                viewModel.send(input)
-                                input = ""
-                            }
-                        )
+                    placeholder = { Text(stringResource(R.string.no_messages_yet)) },
+                    minLines = 3,
+                    maxLines = 3,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Send
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSend = {
+                            focusManager.clearFocus()
+                            viewModel.send(input)
+                            input = ""
+                        }
                     )
-                    IconButton(
-                        onClick = {
-                            maxInputLines = if (maxInputLines == 3) 8 else 3
-                        },
-                        modifier = Modifier.padding(4.dp),
-                    ) {
-                        Icon(
-                            imageVector = if (maxInputLines == 3) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                            contentDescription = if (maxInputLines == 3) {
-                                stringResource(R.string.expand_input)
-                            } else {
-                                stringResource(R.string.collapse_input)
-                            }
-                        )
-                    }
-                }
+                )
                 IconButton(
                     onClick = {
                         focusManager.clearFocus()
