@@ -150,6 +150,7 @@ def list_users(username: str = Depends(get_current_username)) -> List[UserItem]:
             ],
         )
         for user in users
+        if user.role == "user"
     ]
 
 
