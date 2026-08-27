@@ -1,0 +1,39 @@
+[Unit]
+Description=ntfy Manager API Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/ntfy-mgr/ntfy-mgr-server
+
+# Uvicorn binds on localhost; nginx faces the public
+Environment="NTFY_MGR_HOST=127.0.0.1"
+
+# Port uvicorn listens on; nginx proxies to this
+Environment="NTFY_MGR_PORT=8000"
+
+# URL of the running ntfy server used to validate admin credentials
+Environment="NTFY_BASE_URL=http://localhost"
+
+# Path to the ntfy binary; leave as "ntfy" if it is on PATH
+Environment="NTFY_CLI=ntfy"
+
+# Comma-separated list of origins allowed to call the API via CORS
+Environment="NTFY_MGR_CORS_ORIGINS="
+
+# Required: a long random string used to sign API tokens
+Environment="SECRET_KEY="
+
+ExecStart=/opt/ntfy-mgr/ntfy-mgr-server/.venv/bin/uvicorn ntfy_mgr_server.main:app \
+    --host ${NTFY_MGR_HOST} \
+    --port ${NTFY_MGR_PORT} \
+    --workers 1 \
+    --proxy-headers \
+    --access-log
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

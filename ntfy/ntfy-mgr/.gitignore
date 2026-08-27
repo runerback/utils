@@ -2,4 +2,20 @@
 .venv/
 protos/
 .env.local
-.pytest_cache/
+__pycache__/
+
+# Android
+.gradle/
+build/
+.kotlin/
+.idea/
+*.iml
+local.properties
+secrets.properties
+*.apk
+*.aab
+*.dex
+
+# Node
+node_modules/
+dist/

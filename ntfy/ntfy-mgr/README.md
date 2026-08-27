@@ -1,26 +1,29 @@
 # ntfy-mgr
 
-A minimal web UI for managing a local ntfy server: users, topic access rules, and user tokens.
+A management interface for a local ntfy server: users, topic access rules, and user tokens.
 
-## Features
+This repository is split into three sub-projects:
 
-- Login validated against the running ntfy server (admin only).
-- **Users** tab: add/delete users, grant/revoke topic access, add/delete tokens.
-- **Topics** tab: create/delete topics, grant/revoke user access per topic.
-- Runs as a systemd service on Linux.
+- [`ntfy-mgr-server`](ntfy-mgr-server/) — Headless Python API server (FastAPI) that wraps the local `ntfy` CLI.
+- [`ntfy-mgr-app`](ntfy-mgr-app/) — Android client written in Kotlin and Jetpack Compose.
+- [`ntfy-mgr-web`](ntfy-mgr-web/) — Lightweight browser client built with React and Vite.
+
+All clients talk to `ntfy-mgr-server` over the same HTTP/JSON API.
 
 ## Requirements
 
-- Python 3.x
-- ntfy server running on the same host
-- Root access (the service executes the `ntfy` CLI directly)
+- A running ntfy server on the same host as `ntfy-mgr-server`.
+- Root access on the server host (the service executes the `ntfy` CLI directly).
+- Python 3.x for the server.
+- Android SDK for the Android app.
+- Node.js 18+ for the web client.
 
-## Install
+## Server deployment
 
 1. Copy the project to `/opt/ntfy-mgr`:
    ```bash
    cp -r . /opt/ntfy-mgr
-   cd /opt/ntfy-mgr
+   cd /opt/ntfy-mgr/ntfy-mgr-server
    ```
 
 2. Create a virtual environment and install dependencies:
@@ -33,6 +36,7 @@ A minimal web UI for managing a local ntfy server: users, topic access rules, an
    - `NTFY_MGR_PORT` — a free port greater than 20000.
    - `SECRET_KEY` — a long random string, e.g. output of `openssl rand -hex 32`.
    - `NTFY_BASE_URL` — the URL of the running ntfy server (default `http://localhost`).
+   - `NTFY_MGR_CORS_ORIGINS` — comma-separated origins allowed to call the API.
 
 4. Install and start the systemd service:
    ```bash
@@ -43,25 +47,74 @@ A minimal web UI for managing a local ntfy server: users, topic access rules, an
 
 5. Open the chosen port in your firewall as needed.
 
-## Local development
+6. Configure nginx using `ntfy-mgr.nginx` as a template.
 
-Create a `.env` file in the project root:
+## Server local development
+
+Create a `.env.local` file in `ntfy-mgr-server/`:
 
 ```bash
 NTFY_MGR_HOST=127.0.0.1
 NTFY_MGR_PORT=20808
 SECRET_KEY=dev-secret-change-me
 NTFY_BASE_URL=http://localhost
+NTFY_CLI=ntfy
+NTFY_MGR_CORS_ORIGINS=http://localhost:5173
 ```
 
 Then run:
 
 ```bash
-python app.py
+cd ntfy-mgr-server
+.venv/bin/uvicorn ntfy_mgr_server.main:app --reload
 ```
+
+FastAPI auto-generated docs are available at `/docs`.
+
+## Web client
+
+```bash
+cd ntfy-mgr-web
+npm install
+npm run dev
+```
+
+Set `VITE_API_URL` to point at the server, or use the Vite dev proxy (default `http://127.0.0.1:20808`).
+
+## Android client
+
+Open `ntfy-mgr-app/` in Android Studio, or build from the command line:
+
+```bash
+cd ntfy-mgr-app
+./gradlew assembleDebug
+```
+
+Set the server URL in `local.properties` (`API_URL`) or in the app login screen.
+
+## API contract
+
+All endpoints return JSON. Errors use `{ "detail": "..." }`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/auth/login` | no | Validate ntfy admin credentials, return token |
+| POST | `/auth/logout` | yes | (Optional) invalidate token |
+| GET | `/users` | yes | List users and their accesses/tokens |
+| POST | `/users` | yes | Create user |
+| DELETE | `/users/{name}` | yes | Delete user |
+| POST | `/users/{name}/access` | yes | Grant topic access |
+| DELETE | `/users/{name}/access/{topic}` | yes | Revoke topic access |
+| POST | `/users/{name}/tokens` | yes | Create token |
+| DELETE | `/users/{name}/tokens/{token}` | yes | Delete token |
+| GET | `/topics` | yes | List topics with accessors |
+| POST | `/topics/{topic}/access` | yes | Grant user access |
+| DELETE | `/topics/{topic}/access/{username}` | yes | Revoke user access |
+| DELETE | `/topics/{topic}` | yes | Delete topic |
 
 ## Notes
 
-- The session cookie expires when the browser tab is closed or the user clicks **Logout**.
-- "Create topic" and "Delete topic" in the UI operate on access rules; ntfy itself creates topics on first publish.
-- All state changes are performed through the `ntfy` CLI; no separate database is used.
+- The server validates admin credentials against the running ntfy server (`GET {NTFY_BASE_URL}/v1/account`).
+- Successful login returns a short-lived JWT; clients must send it as `Authorization: Bearer <token>`.
+- "Create topic" and "Delete topic" operate on access rules; ntfy itself creates topics on first publish.
+- No separate database is used; all state changes are performed through the `ntfy` CLI.

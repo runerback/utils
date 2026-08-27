@@ -1,0 +1,29 @@
+upstream ntfy_mgr {
+    server 127.0.0.1:$UPSTREAM_PORT;
+}
+
+server {
+    listen $NTFY_MGR_PORT;
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 5;
+    gzip_types
+        text/plain
+        text/css
+        application/json
+        application/javascript
+        text/xml
+        application/xml
+        application/xml+rss
+        text/javascript;
+
+    location / {
+        proxy_pass http://ntfy_mgr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
