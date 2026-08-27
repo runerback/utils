@@ -81,6 +81,19 @@ npm run dev
 
 Set `VITE_API_URL` to point at the server, or use the Vite dev proxy (default `http://127.0.0.1:20808`).
 
+### Web deployment
+
+1. Build the static bundle:
+   ```bash
+   cd ntfy-mgr-web
+   npm install
+   npm run build
+   ```
+
+2. Use `ntfy-mgr-web/nginx.conf` as a template. It serves `dist/` and proxies `/api` to `ntfy-mgr-server`.
+
+3. `dist/` is generated at build time and should not be committed.
+
 ## Android client
 
 Open `ntfy-mgr-app/` in Android Studio, or build from the command line:
@@ -91,6 +104,28 @@ cd ntfy-mgr-app
 ```
 
 Set the server URL in `local.properties` (`API_URL`) or in the app login screen.
+
+For release builds, add signing config to `local.properties`:
+
+```properties
+RELEASE_STORE_FILE=/path/to/your-release-key.jks
+RELEASE_KEY_ALIAS=your-key-alias
+RELEASE_STORE_PASSWORD=your-store-password
+RELEASE_KEY_PASSWORD=your-key-password
+```
+
+Then run:
+
+```bash
+cd ntfy-mgr-app
+./gradlew assembleRelease
+```
+
+Or use the PowerShell helper:
+
+```powershell
+.\build.ps1 -Task assembleRelease
+```
 
 ## API contract
 

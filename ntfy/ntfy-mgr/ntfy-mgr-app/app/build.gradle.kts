@@ -17,6 +17,23 @@ android {
     namespace = "com.runerback.ntfymgr"
     compileSdk = 35
 
+    val releaseStoreFile = localProperties.getProperty("RELEASE_STORE_FILE")
+    val releaseKeyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+    val releaseStorePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+    val releaseKeyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+    val hasReleaseSigning = !releaseStoreFile.isNullOrBlank()
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                keyAlias = releaseKeyAlias
+                storePassword = releaseStorePassword
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.runerback.ntfymgr"
         minSdk = 26
@@ -30,6 +47,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

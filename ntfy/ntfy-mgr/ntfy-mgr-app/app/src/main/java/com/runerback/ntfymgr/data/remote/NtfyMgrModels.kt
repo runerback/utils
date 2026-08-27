@@ -15,14 +15,14 @@ class LoginResponse(
 )
 
 @Serializable
-class AccessItem(
+data class AccessItem(
     val topic: String,
     val permission: String,
     val provisioned: Boolean = false,
 )
 
 @Serializable
-class TokenItem(
+data class TokenItem(
     val value: String,
     val label: String? = null,
     val expires: String,
@@ -32,7 +32,7 @@ class TokenItem(
 )
 
 @Serializable
-class UserItem(
+data class UserItem(
     val name: String,
     val role: String,
     val tier: String,
@@ -42,13 +42,13 @@ class UserItem(
 )
 
 @Serializable
-class TopicAccessor(
+data class TopicAccessor(
     val username: String,
     val permission: String,
 )
 
 @Serializable
-class TopicItem(
+data class TopicItem(
     val name: String,
     val accessors: List<TopicAccessor> = emptyList(),
 )

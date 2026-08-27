@@ -24,10 +24,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun LoginScreen(
-    serverUrl: String,
     error: String?,
     onLogin: (String, String) -> Unit,
-    onServerUrlChange: (String) -> Unit,
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -46,20 +44,10 @@ fun LoginScreen(
         )
 
         OutlinedTextField(
-            value = serverUrl,
-            onValueChange = onServerUrlChange,
-            label = { Text("Server URL") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-        )
-
-        OutlinedTextField(
             value = username,
             onValueChange = { username = it },
             label = { Text("Username") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
+            modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
         )
 

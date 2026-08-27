@@ -1,5 +1,6 @@
 package com.runerback.ntfymgr.data.remote
 
+import com.runerback.ntfymgr.util.LogBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -120,6 +121,7 @@ class NtfyMgrApi {
         }
 
     private inline fun <reified T> executeJson(request: Request): T {
+        LogBuffer.append("${request.method} ${request.url}")
         client.newCall(request).execute().use { response ->
             val bodyText = response.body?.string()
             if (!response.isSuccessful) {
@@ -128,14 +130,19 @@ class NtfyMgrApi {
                 } catch (_: Exception) {
                     bodyText ?: response.message
                 }
+                LogBuffer.append("Response ${response.code}: $detail")
                 throw IOException("${response.code}: $detail")
             }
+            LogBuffer.append("Response ${response.code}")
             return json.decodeFromString(bodyText ?: throw IOException("Empty response"))
         }
     }
 
     private fun Request.Builder.auth(): Request.Builder {
-        token?.let { header("Authorization", "Bearer $it") }
+        token?.let {
+            header("Authorization", "Bearer $it")
+            LogBuffer.append("Added Authorization header")
+        } ?: LogBuffer.append("No token available")
         return this
     }
 
