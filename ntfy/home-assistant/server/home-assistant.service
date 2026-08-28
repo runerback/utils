@@ -1,12 +1,12 @@
 [Unit]
-Description=Home Assistant Web UI
+Description=Home Assistant Service
 After=network.target
 
 [Service]
 Type=simple
 User=root
 Group=root
-WorkingDirectory=/opt/home-assistant/server
+WorkingDirectory=/opt/home-assistant
 
 # Uvicorn binds on localhost; nginx faces the public
 Environment="HOME_ASSISTANT_HOST=127.0.0.1"

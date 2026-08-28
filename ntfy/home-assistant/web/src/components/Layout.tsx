@@ -1,18 +1,21 @@
+import { useRouter } from 'preact-router'
 import { username, logout } from '../auth.ts'
 
 const tabs = [
   { path: '/', label: 'Home' },
   { path: '/messages', label: 'Messages' },
   { path: '/devices', label: 'Devices' },
-  { path: '/logs', label: 'Logs' },
   { path: '/settings', label: 'Settings' },
 ]
 
-function isActive(path: string): boolean {
-  return window.location.pathname === path || (path !== '/' && window.location.pathname.startsWith(path))
+function isActive(path: string, currentPath: string): boolean {
+  return currentPath === path || (path !== '/' && currentPath.startsWith(path))
 }
 
 export function Layout({ children }: { children: any }) {
+  const [route] = useRouter()
+  const currentPath = route.path || route.url
+
   return (
     <div class="container">
       <header class="page-header">
@@ -28,7 +31,7 @@ export function Layout({ children }: { children: any }) {
           <a
             key={tab.path}
             href={tab.path}
-            class={isActive(tab.path) ? 'tab-btn active' : 'tab-btn'}
+            class={isActive(tab.path, currentPath) ? 'tab-btn active' : 'tab-btn'}
           >
             {tab.label}
           </a>

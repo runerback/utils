@@ -108,25 +108,6 @@ def test_settings_roundtrip(client: TestClient):
     assert data["logs.use_journal"] == "true"
 
 
-def test_logs_endpoint(client: TestClient):
-    token = _login(client)
-
-    log_path = Path(os.environ["LOG_PATH"]).resolve()
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_path.write_text("test log line\n", encoding="utf-8")
-
-    client.post(
-        "/api/settings",
-        headers={"X-CSRFToken": token},
-        data={"logs.path": str(log_path), "logs.use_journal": "false"},
-    )
-
-    resp = client.get("/api/logs", headers={"X-CSRFToken": token})
-    data = resp.json()
-    assert resp.status_code == 200, f"unexpected status {resp.status_code}: {data}"
-    assert "test log line" in data["lines"]
-
-
 def test_send_message_stores_and_broadcasts(client: TestClient):
     token = _login(client)
 

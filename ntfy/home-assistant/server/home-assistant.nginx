@@ -21,13 +21,6 @@ server {
 
     client_max_body_size 20M;
 
-    root /opt/home-assistant/web/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
     location /api/messages/stream {
         proxy_pass http://home_assistant_server;
         proxy_http_version 1.1;

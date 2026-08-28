@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, config, db, events
-from .api import logs, messages, settings, system, topics
+from .api import messages, settings, system, topics
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,7 +42,6 @@ app.add_middleware(
 
 app.include_router(topics.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
-app.include_router(logs.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 
