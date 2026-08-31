@@ -19,7 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,7 +27,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,10 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.queuehelper.QueueHelperApplication
-import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Token
 import com.runerback.queuehelper.ui.pack.InlineTokenEditor
@@ -68,8 +64,6 @@ fun EditPresetScreen(
 
     val subjects = viewModel.subjectDefaults.map { SubjectDefinition(0, it.number, it.description) }
 
-    var editingDefault by remember { mutableStateOf<SubjectDefault?>(null) }
-    var showDefaultDialog by remember { mutableStateOf(false) }
     var activeField by remember { mutableStateOf<Pair<String, TokenFieldAvailability>?>(null) }
     var pendingInsertToken by remember { mutableStateOf<Token?>(null) }
     val density = LocalDensity.current
@@ -89,8 +83,7 @@ fun EditPresetScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        viewModel.save()
-                        onBack()
+                        viewModel.save { onBack() }
                     }) {
                         Icon(
                             imageVector = Icons.Default.Check,
@@ -143,10 +136,7 @@ fun EditPresetScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                     OutlinedButton(
-                        onClick = {
-                            editingDefault = null
-                            showDefaultDialog = true
-                        }
+                        onClick = { viewModel.addDefaultSubject("") }
                     ) {
                         Text("Add Subject")
                     }
@@ -319,78 +309,4 @@ fun EditPresetScreen(
         }
     }
 }
-
-    if (showDefaultDialog) {
-        DefaultSubjectDialog(
-            default = editingDefault,
-            onDismiss = { showDefaultDialog = false },
-            onConfirm = { description ->
-                val current = editingDefault
-                if (current == null) {
-                    viewModel.addDefaultSubject(description)
-                } else {
-                    viewModel.updateDefaultSubject(current.number, description)
-                }
-                showDefaultDialog = false
-            }
-        )
-    }
-}
-
-@Composable
-private fun DefaultSubjectDialog(
-    default: SubjectDefault?,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var description by remember(default) { mutableStateOf(default?.description ?: "") }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = if (default == null) "Add Default Subject" else "Edit Default Subject",
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                InlineTokenEditor(
-                    value = description,
-                    onValueChange = { description = it },
-                    subjects = emptyList(),
-                    imageUris = emptyList(),
-                    label = { Text("Description") },
-                    availableSubjects = false,
-                    availablePictures = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    maxLines = 6
-                )
-
-                Row(
-                    horizontalArrangement = Arrangement.End,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
-                    TextButton(
-                        onClick = {
-                            onConfirm(description)
-                            onDismiss()
-                        }
-                    ) {
-                        Text("Save")
-                    }
-                }
-            }
-        }
-    }
 }

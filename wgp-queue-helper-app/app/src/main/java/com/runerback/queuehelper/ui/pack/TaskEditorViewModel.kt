@@ -227,7 +227,13 @@ class TaskEditorViewModel(
                     }
                     trimStart = settings["trim_start"]?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
                     trimEnd = settings["trim_end"]?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
-                    audioUri?.let { uri -> readAudioDuration(uri) }
+                    audioUri?.let { uri ->
+                        readAudioDuration(uri)
+                        if (audioDefinitionLine == null) {
+                            audioDefinitionLine = audioDefault
+                            shouldSavePackSettings = true
+                        }
+                    }
                 }
                 if (shouldSavePackSettings) {
                     savePackSettings()
@@ -292,11 +298,6 @@ class TaskEditorViewModel(
         rebuildSubjectDefinitions()
     }
 
-    fun addAudioDefinition() {
-        audioDefinitionLine = audioDefault
-        rebuildSubjectDefinitions()
-    }
-
     fun removeAudioDefinition() {
         audioDefinitionLine = null
         rebuildSubjectDefinitions()
@@ -345,7 +346,9 @@ class TaskEditorViewModel(
                 mediaRepository.import(uri).getOrNull()?.let { ref ->
                     audioMediaId = ref.id
                     audioUri = ref.uri
+                    audioDefinitionLine = audioDefault
                     readAudioDuration(ref.uri)
+                    rebuildSubjectDefinitions()
                     savePackSettings()
                 }
             }

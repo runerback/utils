@@ -163,7 +163,7 @@ class EditPresetViewModel(
         audioDefault = value
     }
 
-    fun save() {
+    fun save(onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             runCatching {
                 preset?.let { current ->
@@ -197,6 +197,7 @@ class EditPresetViewModel(
             }.onFailure {
                 LogBuffer.add("EditPresetViewModel.save($presetId): ${it.stackTraceToString()}")
             }
+            onComplete()
         }
     }
 

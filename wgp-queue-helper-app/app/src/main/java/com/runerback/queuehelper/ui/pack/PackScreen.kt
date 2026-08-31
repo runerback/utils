@@ -545,7 +545,6 @@ fun TaskEditor(
                         AudioDefinitionControl(
                             audioUri = viewModel.audioUri,
                             audioDefinitionLine = viewModel.audioDefinitionLine,
-                            onAdd = { viewModel.addAudioDefinition() },
                             onRemove = { viewModel.removeAudioDefinition() }
                         )
                     }
@@ -744,7 +743,6 @@ fun PicturePickerDialog(
 private fun AudioDefinitionControl(
     audioUri: Uri?,
     audioDefinitionLine: String?,
-    onAdd: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -752,11 +750,6 @@ private fun AudioDefinitionControl(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier.fillMaxWidth()
     ) {
-        Text(
-            text = "Audio definition",
-            style = MaterialTheme.typography.titleSmall
-        )
-
         when {
             audioUri == null -> {
                 Text(
@@ -767,12 +760,11 @@ private fun AudioDefinitionControl(
             }
 
             audioDefinitionLine == null -> {
-                OutlinedButton(
-                    onClick = onAdd,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Add Audio")
-                }
+                Text(
+                    text = "No audio definition available.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             else -> {
@@ -789,12 +781,6 @@ private fun AudioDefinitionControl(
                             modifier = Modifier.weight(1f),
                             maxLines = 2
                         )
-                        IconButton(onClick = onRemove) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Remove audio definition"
-                            )
-                        }
                     }
                 }
             }
