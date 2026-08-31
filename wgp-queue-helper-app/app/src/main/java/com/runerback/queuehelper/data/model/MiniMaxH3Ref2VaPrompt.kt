@@ -4,6 +4,7 @@ private const val SECTION_SUBJECT_DEFINITIONS = "subject_definitions:"
 private const val SECTION_SUMMARY = "summary:"
 private const val SECTION_RETENTION_ANALYSIS = "retention_analysis:"
 private const val SECTION_DETAILED_DESCRIPTION = "detailed_description:"
+private const val SECTION_OVERALL_SOUNDSCAPE = "overall_soundscape:"
 private const val SECTION_NON_DIEGETIC_MUSIC = "non_diegetic_music:"
 
 /**
@@ -16,6 +17,7 @@ data class MiniMaxH3Ref2VaPrompt(
     val summary: String = "",
     val retentionAnalysis: String = "",
     val detailedDescription: String = "",
+    val overallSoundscape: String = "",
     val nonDiegeticMusic: String = ""
 ) {
     fun toPromptString(): String = buildString {
@@ -27,9 +29,11 @@ data class MiniMaxH3Ref2VaPrompt(
         appendLine(retentionAnalysis.trim())
         appendLine(SECTION_DETAILED_DESCRIPTION)
         appendLine(detailedDescription.trim())
+        appendLine(SECTION_OVERALL_SOUNDSCAPE)
+        appendLine(overallSoundscape.trim().ifBlank { "N/A" })
         append(SECTION_NON_DIEGETIC_MUSIC)
         appendLine()
-        append(nonDiegeticMusic.trim())
+        append(nonDiegeticMusic.trim().ifBlank { "N/A" })
     }
 
     companion object {
@@ -42,6 +46,7 @@ data class MiniMaxH3Ref2VaPrompt(
                 SECTION_SUMMARY to "",
                 SECTION_RETENTION_ANALYSIS to "",
                 SECTION_DETAILED_DESCRIPTION to "",
+                SECTION_OVERALL_SOUNDSCAPE to "",
                 SECTION_NON_DIEGETIC_MUSIC to ""
             )
 
@@ -77,6 +82,7 @@ data class MiniMaxH3Ref2VaPrompt(
                 summary = sections[SECTION_SUMMARY].orEmpty(),
                 retentionAnalysis = sections[SECTION_RETENTION_ANALYSIS].orEmpty(),
                 detailedDescription = sections[SECTION_DETAILED_DESCRIPTION].orEmpty(),
+                overallSoundscape = sections[SECTION_OVERALL_SOUNDSCAPE].orEmpty(),
                 nonDiegeticMusic = sections[SECTION_NON_DIEGETIC_MUSIC].orEmpty()
             )
         }

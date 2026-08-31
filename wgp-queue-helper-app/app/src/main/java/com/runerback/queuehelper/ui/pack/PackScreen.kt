@@ -640,6 +640,31 @@ fun TaskEditor(
 
                 item {
                     CollapsibleSection(
+                        title = "overall_soundscape",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        InlineTokenEditor(
+                            value = viewModel.prompt.overallSoundscape,
+                            onValueChange = {
+                                viewModel.updatePrompt(viewModel.prompt.copy(overallSoundscape = it))
+                            },
+                            subjects = viewModel.subjects,
+                            imageUris = viewModel.imageUris,
+                            label = {},
+                            fieldId = "overall_soundscape",
+                            onFocusChanged = { focused, availability ->
+                                activeField = if (focused) "overall_soundscape" to availability else null
+                            },
+                            pendingInsertToken = if (activeField?.first == "overall_soundscape") pendingInsertToken else null,
+                            onTokenInserted = { pendingInsertToken = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 4
+                        )
+                    }
+                }
+
+                item {
+                    CollapsibleSection(
                         title = "non_diegetic_music",
                         modifier = Modifier.fillMaxWidth()
                     ) {
