@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -221,6 +222,7 @@ fun PresetListScreen(
                             selected = preset.id in viewModel.selectedPresetIds,
                             onToggleSelected = { viewModel.setSelected(preset.id, preset.id !in viewModel.selectedPresetIds) },
                             onEdit = { onEditPreset(preset.id) },
+                            onDuplicate = { viewModel.duplicatePreset(preset) },
                             onPack = { onPackPreset(preset.id) },
                             onDelete = { viewModel.deletePreset(preset) }
                         )
@@ -255,6 +257,7 @@ private fun PresetListItem(
     selected: Boolean,
     onToggleSelected: () -> Unit,
     onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
     onPack: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -294,6 +297,13 @@ private fun PresetListItem(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Edit preset"
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(onClick = onDuplicate, enabled = !selectionMode) {
+                Icon(
+                    imageVector = Icons.Default.ContentCopy,
+                    contentDescription = "Duplicate preset"
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))

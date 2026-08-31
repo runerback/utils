@@ -9,6 +9,9 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -73,6 +76,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -415,12 +420,16 @@ fun TaskEditor(
                 .padding(padding)
                 .imePadding()
         ) {
+            val focusManager = LocalFocusManager.current
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { focusManager.clearFocus() })
+                    }
             ) {
                 item {
                     Text(
@@ -499,18 +508,21 @@ fun TaskEditor(
                 }
 
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "video_length",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                            Text(
-                                text = viewModel.computedVideoLength().toString(),
-                                style = MaterialTheme.typography.headlineMedium
-                            )
-                        }
-                    }
+                    OutlinedTextField(
+                        value = viewModel.videoLengthInputText,
+                        onValueChange = { text ->
+                            viewModel.updateVideoLengthInputText(text)
+                        },
+                        label = { Text("video_length") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        supportingText = {
+                            val parsed = viewModel.videoLengthInputText.toIntOrNull()
+                            if (parsed == null || parsed <= 0) {
+                                Text("Using calculated value: ${viewModel.effectiveVideoLength()}")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 item {

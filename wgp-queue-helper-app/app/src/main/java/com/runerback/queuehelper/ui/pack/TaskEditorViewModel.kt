@@ -125,6 +125,9 @@ class TaskEditorViewModel(
     var previewProgress by mutableFloatStateOf(0f)
         private set
 
+    var videoLengthInputText by mutableStateOf("")
+        private set
+
     private var player: ExoPlayer? = null
     private var playerListener: Player.Listener? = null
 
@@ -186,6 +189,9 @@ class TaskEditorViewModel(
 
                 val packSettings = it.payload["pack_settings"]?.jsonObject
                 var shouldSavePackSettings = false
+                videoLengthInputText = packSettings?.get("video_length_input")?.jsonPrimitive?.contentOrNull
+                    ?: params["video_length"]?.jsonPrimitive?.contentOrNull?.toString()
+                    ?: ""
                 packSettings?.let { settings ->
                     val mediaIds = settings["image_media_ids"]?.jsonArray?.mapNotNull { element ->
                         element.jsonPrimitive.contentOrNull
@@ -229,6 +235,9 @@ class TaskEditorViewModel(
                     trimEnd = settings["trim_end"]?.jsonPrimitive?.contentOrNull?.toFloatOrNull() ?: 0f
                     audioUri?.let { uri ->
                         readAudioDuration(uri)
+                        if (videoLengthInputText.isEmpty()) {
+                            videoLengthInputText = computedVideoLength().toString()
+                        }
                         if (audioDefinitionLine == null) {
                             audioDefinitionLine = audioDefault
                             shouldSavePackSettings = true
@@ -248,6 +257,11 @@ class TaskEditorViewModel(
 
     fun updateResolution(value: String) {
         resolution = value
+        viewModelScope.launch { savePackSettings() }
+    }
+
+    fun updateVideoLengthInputText(value: String) {
+        videoLengthInputText = value
         viewModelScope.launch { savePackSettings() }
     }
 
@@ -348,6 +362,7 @@ class TaskEditorViewModel(
                     audioUri = ref.uri
                     audioDefinitionLine = audioDefault
                     readAudioDuration(ref.uri)
+                    videoLengthInputText = computedVideoLength().toString()
                     rebuildSubjectDefinitions()
                     savePackSettings()
                 }
@@ -521,6 +536,11 @@ class TaskEditorViewModel(
         trimEnd = audioDurationSeconds.coerceAtMost(maxAudioDurationSeconds)
     }
 
+    fun effectiveVideoLength(): Int {
+        val parsed = videoLengthInputText.toIntOrNull()
+        return if (parsed != null && parsed > 0) parsed else computedVideoLength()
+    }
+
     fun computedVideoLength(): Int {
         val modelType = task?.payload?.get("params")?.jsonObject?.get("model_type")?.jsonPrimitive?.contentOrNull
         val rule = modelType?.let { templateLoader.config(it).videoLengthRule }
@@ -581,7 +601,7 @@ class TaskEditorViewModel(
         val params = currentTask.payload["params"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
         params["prompt"] = JsonPrimitive(prompt.toPromptString())
         params["resolution"] = JsonPrimitive(resolution)
-        params["video_length"] = JsonPrimitive(computedVideoLength())
+        params["video_length"] = JsonPrimitive(effectiveVideoLength())
         params["image_refs"] = buildJsonArray {
             refs.forEach { add(JsonPrimitive(it.fileName)) }
         }
@@ -598,6 +618,7 @@ class TaskEditorViewModel(
             put("audio_media_id", audioMediaId?.let { JsonPrimitive(it) } ?: JsonNull)
             put("trim_start", JsonPrimitive(trimStart))
             put("trim_end", JsonPrimitive(trimEnd))
+            put("video_length_input", JsonPrimitive(videoLengthInputText))
         }
 
         val updatedPayload = JsonObject(
@@ -648,7 +669,7 @@ class TaskEditorViewModel(
 
         baseParams["prompt"] = JsonPrimitive(prompt.toPromptString())
         baseParams["resolution"] = JsonPrimitive(resolution)
-        baseParams["video_length"] = JsonPrimitive(computedVideoLength())
+        baseParams["video_length"] = JsonPrimitive(effectiveVideoLength())
         baseParams["image_refs"] = buildJsonArray {
             refs.forEach { add(JsonPrimitive(it.fileName)) }
         }

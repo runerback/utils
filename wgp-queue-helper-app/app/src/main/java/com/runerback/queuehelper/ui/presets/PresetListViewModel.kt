@@ -121,6 +121,28 @@ class PresetListViewModel(
         }
     }
 
+    fun duplicatePreset(preset: Preset) {
+        viewModelScope.launch {
+            runCatching {
+                val existing = repository.loadPresets()
+                val newId = repository.nextId()
+                val newName = uniqueName(preset.name, existing)
+                val newPreset = Preset(
+                    id = newId,
+                    name = newName,
+                    modelType = preset.modelType,
+                    createdAt = System.currentTimeMillis(),
+                    payload = updatePayloadId(preset.payload, newId)
+                )
+                repository.savePreset(newPreset)
+                presets = repository.loadPresets()
+                _events.emit(PresetListEvent.NavigateToEdit(newPreset.id))
+            }.onFailure {
+                LogBuffer.add("PresetListViewModel.duplicatePreset(${preset.id}): ${it.stackTraceToString()}")
+            }
+        }
+    }
+
     fun exportPresets(): String {
         val selected = presets.filter { it.id in selectedPresetIds }
         val exported = selected.map { preset ->
@@ -203,15 +225,18 @@ class PresetListViewModel(
         data class ShowMessage(val message: String) : PresetListEvent()
     }
 
-    private fun uniqueName(name: String, modelType: String, existing: List<Preset>): String {
-        val sameType = existing.filter { it.modelType == modelType }
-        if (sameType.none { it.name == name }) return name
+    private fun uniqueName(name: String, existing: List<Preset>): String {
+        if (existing.none { it.name == name }) return name
         var counter = 2
         while (true) {
             val candidate = "$name ($counter)"
-            if (sameType.none { it.name == candidate }) return candidate
+            if (existing.none { it.name == candidate }) return candidate
             counter++
         }
+    }
+
+    private fun uniqueName(name: String, modelType: String, existing: List<Preset>): String {
+        return uniqueName(name, existing.filter { it.modelType == modelType })
     }
 
     private fun updatePayloadId(payload: JsonObject, newId: Int): JsonObject {
