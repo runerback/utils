@@ -1,0 +1,5 @@
+# Python dependencies for the MSU Mini USB Screen driver
+# Compatible with Armbian / Linux ARM64 hosts
+
+pyserial>=3.5
+Pillow>=10.0.0
