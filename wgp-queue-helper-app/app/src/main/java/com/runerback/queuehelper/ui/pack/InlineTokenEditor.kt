@@ -386,17 +386,7 @@ private fun sanitizeEdit(
         return formatted to snapped
     }
 
-    val rawText = buildString {
-        oldTokens.take(firstAffected).forEach { append(it.toTokenString()) }
-        append(newChanged)
-        oldTokens.drop(lastAffected + 1).forEach { append(it.toTokenString()) }
-    }
-
-    val formatted = rawText.parseTokens().mergeAdjacentPlainText().export()
-    val newTokens = formatted.parseTokens().mergeAdjacentPlainText()
-    val prefixLength = oldTokens.take(firstAffected).sumOf { it.textLength() }
-    val cursor = (prefixLength + newChanged.length).coerceIn(0, formatted.length)
-    val snapped = snapSelectionToTokenBoundaries(newTokens, TextRange(cursor))
-
+    val formatted = newText.parseTokens().mergeAdjacentPlainText().export()
+    val snapped = snapSelectionToTokenBoundaries(formatted.parseTokens().mergeAdjacentPlainText(), newSelection)
     return formatted to snapped
 }
