@@ -1,0 +1,44 @@
+# Reverse proxy for oss_signer.py
+# Place in /etc/nginx/sites-available/ and symlink to /etc/nginx/sites-enabled/
+
+limit_req_zone $binary_remote_addr zone=oss_sign:10m rate=10r/m;
+
+upstream oss_signer_api {
+    server 127.0.0.1:OSS_SINER_PORT;
+}
+
+server {
+    listen 80;
+
+    gzip on;
+    gzip_vary on;
+    gzip_types application/json text/plain text/css application/javascript;
+    gzip_min_length 256;
+    gzip_proxied any;
+
+    root /opt/oss-signer;
+
+    location / {
+        return 404;
+    }
+
+    location /health {
+        proxy_pass http://oss_signer_api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /sign {
+        limit_req zone=oss_sign burst=5 nodelay;
+
+        proxy_pass http://oss_signer_api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

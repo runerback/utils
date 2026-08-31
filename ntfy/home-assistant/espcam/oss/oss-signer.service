@@ -1,0 +1,24 @@
+[Unit]
+Description=OSS presigning service for ESP32-CAM uploads
+After=network.target
+
+[Service]
+Type=simple
+User=oss-sign
+Group=oss-sign
+WorkingDirectory=/opt/oss-signer
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/etc/oss-signer.env
+ExecStart=/opt/oss-signer/venv/bin/python3 oss_sign_server.py --host 127.0.0.1 --port 8090
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/oss-signer
+
+[Install]
+WantedBy=multi-user.target
