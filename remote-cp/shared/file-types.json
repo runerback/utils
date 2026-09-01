@@ -23,7 +23,8 @@
     ".zip",
     ".tar",
 	".patch",
-	".gz"
+	".gz",
+	".log"
   ],
   "imageMimeMap": {
     "image/bmp": "bmp",
