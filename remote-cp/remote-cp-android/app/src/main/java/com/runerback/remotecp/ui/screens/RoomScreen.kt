@@ -37,12 +37,14 @@ import com.runerback.remotecp.ui.components.Composer
 import com.runerback.remotecp.ui.components.Feed
 import com.runerback.remotecp.ui.components.ImagePreviewDialog
 import com.runerback.remotecp.ui.components.LogViewerDialog
+import com.runerback.remotecp.ui.components.FileDownloadUiState
 import com.runerback.remotecp.ui.components.SettingsDialog
 import com.runerback.remotecp.ui.components.VideoPreviewDialog
 import com.runerback.remotecp.ui.viewmodel.RoomViewModel
 import com.runerback.remotecp.util.AppLog
 import com.runerback.remotecp.util.openDownload
 import com.runerback.remotecp.util.saveToDownloads
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -56,6 +58,8 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
     var previewingImage by remember { mutableStateOf<ImageAttachment?>(null) }
     var previewingVideo by remember { mutableStateOf<VideoAttachment?>(null) }
     var pendingDownloads by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
+    var fileDownloadStates by remember { mutableStateOf<Map<String, FileDownloadUiState>>(emptyMap()) }
+    var downloadIdToUrl by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
 
     LaunchedEffect(uiState.statusMessage, uiState.error) {
         uiState.statusMessage?.let {
@@ -65,6 +69,52 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearStatus()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        while (true) {
+            delay(200)
+            val downloading = fileDownloadStates.mapNotNull { (url, state) ->
+                (state as? FileDownloadUiState.Downloading)?.let { url to it.downloadId }
+            }
+            if (downloading.isEmpty()) continue
+
+            val ids = downloading.map { it.second }.toLongArray()
+            val query = DownloadManager.Query().setFilterById(*ids)
+            val updates = mutableMapOf<String, FileDownloadUiState>()
+            var completedIds = setOf<Long>()
+            dm.query(query)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID))
+                    val url = downloadIdToUrl[id] ?: continue
+                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    when (status) {
+                        DownloadManager.STATUS_SUCCESSFUL -> {
+                            updates[url] = FileDownloadUiState.Downloaded(id)
+                            completedIds = completedIds + id
+                        }
+                        DownloadManager.STATUS_FAILED -> {
+                            val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+                            updates[url] = FileDownloadUiState.Failed("Download failed: $reason")
+                            completedIds = completedIds + id
+                        }
+                        else -> {
+                            val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                            val totalBytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                            val progress = if (totalBytes > 0) bytesDownloaded.toFloat() / totalBytes else 0f
+                            updates[url] = FileDownloadUiState.Downloading(id, progress)
+                        }
+                    }
+                }
+            }
+            if (updates.isNotEmpty()) {
+                fileDownloadStates = fileDownloadStates + updates
+            }
+            if (completedIds.isNotEmpty()) {
+                downloadIdToUrl = downloadIdToUrl - completedIds
+            }
         }
     }
 
@@ -108,6 +158,12 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                 duration = SnackbarDuration.Short
             )
         }
+    }
+
+    fun startFileDownload(fileName: String, url: String) {
+        val downloadId = context.saveToDownloads(url, fileName)
+        fileDownloadStates = fileDownloadStates + (url to FileDownloadUiState.Downloading(downloadId, 0f))
+        downloadIdToUrl = downloadIdToUrl + (downloadId to url)
     }
 
     Scaffold(
@@ -165,6 +221,7 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     backendUrl = uiState.backendUrl,
                     error = uiState.error,
                     markdownMode = uiState.markdownMode,
+                    fileDownloadStates = fileDownloadStates,
                     onToggleMarkdown = { viewModel.toggleMarkdownMode(it) },
                     onStatus = { msg ->
                         scope.launch { snackbarHostState.showSnackbar(msg) }
@@ -174,7 +231,21 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     onImageClick = { previewingImage = it },
                     onVideoClick = { previewingVideo = it },
                     onFileClick = { file ->
-                        startDownload(file.name, "${uiState.backendUrl}${file.downloadUrl}")
+                        val url = "${uiState.backendUrl}${file.downloadUrl}"
+                        when (val state = fileDownloadStates[url]) {
+                            is FileDownloadUiState.Downloaded -> {
+                                val opened = context.openDownload(state.downloadId)
+                                if (!opened) {
+                                    scope.launch { snackbarHostState.showSnackbar("Download not ready yet.") }
+                                }
+                            }
+                            is FileDownloadUiState.Downloading -> {
+                                // Ignore clicks while downloading
+                            }
+                            else -> {
+                                startFileDownload(file.name, url)
+                            }
+                        }
                     }
                 )
             }

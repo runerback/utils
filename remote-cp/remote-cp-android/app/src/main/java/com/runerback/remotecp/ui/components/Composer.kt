@@ -24,8 +24,8 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
@@ -62,7 +62,7 @@ fun Composer(
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetMultipleContents()
     ) { uris ->
-        if (uris != null && uris.isNotEmpty()) {
+        if (uris.isNotEmpty()) {
             onSendMedia(uris, null, null)
         }
     }
@@ -70,7 +70,7 @@ fun Composer(
     val videoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetMultipleContents()
     ) { uris ->
-        if (uris != null && uris.isNotEmpty()) {
+        if (uris.isNotEmpty()) {
             onSendMedia(null, uris, null)
         }
     }
@@ -112,7 +112,7 @@ fun Composer(
                 )
             }
             IconButton(onClick = onOpenLogs) {
-                Icon(Icons.Default.List, contentDescription = "Logs")
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Logs")
             }
             IconButton(onClick = onOpenSettings) {
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -143,7 +143,7 @@ fun Composer(
                 enabled = !isLoading && text.isNotBlank(),
                 modifier = Modifier.weight(1f)
             ) {
-                Icon(Icons.Default.Send, contentDescription = null)
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Send")
             }
@@ -204,7 +204,7 @@ fun Composer(
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Send, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Send files")
                 }

@@ -217,7 +217,7 @@ private fun parseList(list: ListBlock): MarkdownBlock.MarkdownList {
         item = item.next
     }
     val ordered = list is OrderedList
-    val startNumber = (list as? OrderedList)?.startNumber ?: 1
+    val startNumber = (list as? OrderedList)?.getMarkerStartNumber() ?: 1
     return MarkdownBlock.MarkdownList(items, ordered, startNumber)
 }
 

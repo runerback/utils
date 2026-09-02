@@ -60,6 +60,7 @@ fun MessageCard(
     message: Message,
     backendUrl: String,
     isMarkdown: Boolean = false,
+    fileDownloadStates: Map<String, FileDownloadUiState> = emptyMap(),
     onToggleMarkdown: () -> Unit,
     onStatus: (String) -> Unit,
     onImageClick: (ImageAttachment) -> Unit = {},
@@ -212,15 +213,13 @@ fun MessageCard(
 
             message.files.forEach { file ->
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
+                val fileUrl = backendUrl + file.downloadUrl
+                FileAttachmentItem(
+                    file = file,
+                    state = fileDownloadStates[fileUrl] ?: FileDownloadUiState.Idle,
                     onClick = { onFileClick(file) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFe5e7eb)
-                    )
-                ) {
-                    Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
