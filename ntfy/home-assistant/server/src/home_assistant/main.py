@@ -10,7 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, config, db, events
-from .api import messages, settings, system, topics
+from .api import claim, devices as devices_api, messages, settings, system, topics
+from .devices import ble_scanner, mdns_advertiser, mqtt_listener
+from .devices import db as devices_db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,12 +24,32 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+
+    app.state.ble_scanner = ble_scanner.BleScanner()
+    app.state.mdns = mdns_advertiser.MdnsAdvertiser(port=config.PORT)
+    app.state.mqtt_listener = mqtt_listener.MqttListener()
+
+    def _on_status(device_id: str, payload: str) -> None:
+        if payload != "ok":
+            return
+        row = devices_db.get_device_by_id(device_id)
+        if row and row["status"] == "pending_status":
+            devices_db.mark_claimed(device_id)
+            events.broadcast({"type": "device_claimed", "device_id": device_id})
+
+    app.state.mqtt_listener.on_status(_on_status)
+    await app.state.mqtt_listener.start()
+    app.state.mdns.start()
+
     events.subscribe_all_topics()
     events.start_consumer()
     yield
     events.subscriber.unsubscribe_all()
     with events._sse_lock:
         events._sse_clients.clear()
+    app.state.mdns.stop()
+    await app.state.mqtt_listener.stop()
+    await app.state.ble_scanner.stop()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -44,6 +66,8 @@ app.include_router(topics.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+app.include_router(devices_api.router, prefix="/api")
+app.include_router(claim.router)
 
 
 @app.post("/api/login")

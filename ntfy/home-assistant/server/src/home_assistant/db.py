@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from . import config
+from .devices import db as devices_db
 
 
 def _db_path() -> Path:
@@ -51,6 +52,8 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_messages_sent_at ON messages(sent_at);
             """
         )
+    devices_db.set_db_path(config.DATABASE_PATH)
+    devices_db.init_db()
 
 
 # Settings
