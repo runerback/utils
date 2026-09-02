@@ -169,8 +169,6 @@ fun EditPresetScreen(
                         onValueChange = { viewModel.updateAudioDefault(it) },
                         subjects = emptyList(),
                         imageUris = emptyList(),
-                        label = { Text("Default audio definition") },
-                        fieldId = "audio_default",
                         onFocusChanged = { focused, availability ->
                             activeField = if (focused) "audio_default" to availability else null
                         },
@@ -205,8 +203,6 @@ fun EditPresetScreen(
                         },
                         subjects = subjects,
                         imageUris = emptyList(),
-                        label = { Text("summary") },
-                        fieldId = "summary",
                         onFocusChanged = { focused, availability ->
                             activeField = if (focused) "summary" to availability else null
                         },
@@ -230,8 +226,6 @@ fun EditPresetScreen(
                         },
                         subjects = subjects,
                         imageUris = emptyList(),
-                        label = { Text("retention_analysis") },
-                        fieldId = "retention_analysis",
                         onFocusChanged = { focused, availability ->
                             activeField = if (focused) "retention_analysis" to availability else null
                         },
@@ -255,8 +249,6 @@ fun EditPresetScreen(
                         },
                         subjects = subjects,
                         imageUris = emptyList(),
-                        label = { Text("detailed_description") },
-                        fieldId = "detailed_description",
                         onFocusChanged = { focused, availability ->
                             activeField = if (focused) "detailed_description" to availability else null
                         },
@@ -281,8 +273,6 @@ fun EditPresetScreen(
                         },
                         subjects = subjects,
                         imageUris = emptyList(),
-                        label = { Text("overall_soundscape") },
-                        fieldId = "overall_soundscape",
                         onFocusChanged = { focused, availability ->
                             activeField = if (focused) "overall_soundscape" to availability else null
                         },
@@ -306,8 +296,6 @@ fun EditPresetScreen(
                         },
                         subjects = subjects,
                         imageUris = emptyList(),
-                        label = { Text("non_diegetic_music") },
-                        fieldId = "non_diegetic_music",
                         onFocusChanged = { focused, availability ->
                             activeField = if (focused) "non_diegetic_music" to availability else null
                         },

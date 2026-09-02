@@ -62,8 +62,6 @@ fun SubjectCard(
                 onValueChange = onUpdateDescription,
                 subjects = emptyList(),
                 imageUris = imageUris,
-                label = {},
-                fieldId = fieldId,
                 onFocusChanged = onFocusChanged,
                 pendingInsertToken = pendingInsertToken,
                 onTokenInserted = onTokenInserted,

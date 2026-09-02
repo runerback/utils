@@ -48,9 +48,7 @@ fun InlineTokenEditor(
     onValueChange: (String) -> Unit,
     subjects: List<SubjectDefinition>,
     imageUris: List<Uri>,
-    label: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    fieldId: String = "",
     availableSubjects: Boolean = true,
     availablePictures: Boolean = true,
     availableAudio: Boolean = false,
@@ -153,8 +151,6 @@ fun InlineTokenEditor(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        label()
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()

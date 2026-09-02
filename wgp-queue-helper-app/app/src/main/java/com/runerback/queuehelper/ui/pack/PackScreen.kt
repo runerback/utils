@@ -574,8 +574,6 @@ fun TaskEditor(
                             },
                             subjects = viewModel.subjects,
                             imageUris = viewModel.imageUris,
-                            label = {},
-                            fieldId = "summary",
                             onFocusChanged = { focused, availability ->
                                 activeField = if (focused) "summary" to availability else null
                             },
@@ -599,8 +597,6 @@ fun TaskEditor(
                             },
                             subjects = viewModel.subjects,
                             imageUris = viewModel.imageUris,
-                            label = {},
-                            fieldId = "retention_analysis",
                             onFocusChanged = { focused, availability ->
                                 activeField = if (focused) "retention_analysis" to availability else null
                             },
@@ -624,8 +620,6 @@ fun TaskEditor(
                             },
                             subjects = viewModel.subjects,
                             imageUris = viewModel.imageUris,
-                            label = {},
-                            fieldId = "detailed_description",
                             onFocusChanged = { focused, availability ->
                                 activeField = if (focused) "detailed_description" to availability else null
                             },
@@ -650,8 +644,6 @@ fun TaskEditor(
                             },
                             subjects = viewModel.subjects,
                             imageUris = viewModel.imageUris,
-                            label = {},
-                            fieldId = "overall_soundscape",
                             onFocusChanged = { focused, availability ->
                                 activeField = if (focused) "overall_soundscape" to availability else null
                             },
@@ -675,8 +667,6 @@ fun TaskEditor(
                             },
                             subjects = viewModel.subjects,
                             imageUris = viewModel.imageUris,
-                            label = {},
-                            fieldId = "non_diegetic_music",
                             onFocusChanged = { focused, availability ->
                                 activeField = if (focused) "non_diegetic_music" to availability else null
                             },
