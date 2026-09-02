@@ -54,6 +54,14 @@ object ApiClient {
         }
     }
 
+    suspend inline fun <reified T> postFormAndParse(
+        baseUrl: String,
+        path: String,
+        params: Map<String, String>,
+    ): Result<T> = postForm(baseUrl, path, params).mapCatching { body ->
+        json.decodeFromString<T>(body)
+    }
+
     suspend fun postMultipart(
         baseUrl: String,
         path: String,
