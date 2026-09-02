@@ -37,6 +37,8 @@ import com.runerback.queuehelper.data.model.firstPictureNumber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+internal const val MAX_PICTURE_SLOTS = 6
+
 @Composable
 internal fun TokenInsertButton(
     label: String,
@@ -169,7 +171,7 @@ internal fun TokenPicturePickerDialog(
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
                 ) {
-                    repeat(6) { index ->
+                    repeat(MAX_PICTURE_SLOTS) { index ->
                         val number = index + 1
                         val uri = imageUris.getOrNull(index)
                         val selected = number == currentNumber

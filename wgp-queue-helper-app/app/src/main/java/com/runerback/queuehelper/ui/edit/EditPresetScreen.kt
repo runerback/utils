@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -36,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.queuehelper.QueueHelperApplication
@@ -48,6 +46,7 @@ import com.runerback.queuehelper.ui.common.ResolutionDropdown
 import com.runerback.queuehelper.ui.common.SubjectCard
 import com.runerback.queuehelper.ui.common.TokenFieldAvailability
 import com.runerback.queuehelper.ui.common.TokenInputToolbar
+import com.runerback.queuehelper.ui.pack.MAX_PICTURE_SLOTS
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,8 +65,6 @@ fun EditPresetScreen(
 
     var activeField by remember { mutableStateOf<Pair<String, TokenFieldAvailability>?>(null) }
     var pendingInsertToken by remember { mutableStateOf<Token?>(null) }
-    val density = LocalDensity.current
-    val imeVisible = WindowInsets.ime.getBottom(density) > 0
 
     Scaffold(
         topBar = {
@@ -93,13 +90,27 @@ fun EditPresetScreen(
                 }
             )
         },
+        bottomBar = {
+            if (activeField != null) {
+                TokenInputToolbar(
+                    onInsert = { pendingInsertToken = it },
+                    availability = TokenFieldAvailability(true, true, true),
+                    subjectCount = subjects.size,
+                    pictureCount = MAX_PICTURE_SLOTS,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .imePadding()
+                        .navigationBarsPadding()
+                )
+            }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         modifier = modifier
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding()
         ) {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
@@ -312,14 +323,6 @@ fun EditPresetScreen(
             }
         }
 
-        if (activeField != null && imeVisible) {
-            Spacer(modifier = Modifier.height(8.dp))
-            TokenInputToolbar(
-                onInsert = { pendingInsertToken = it },
-                availability = TokenFieldAvailability(true, true, true),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
     }
 }
 }

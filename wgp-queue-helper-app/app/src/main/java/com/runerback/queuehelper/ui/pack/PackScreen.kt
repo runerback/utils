@@ -26,8 +26,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -74,7 +74,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -103,8 +102,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-
-private const val MAX_PICTURE_SLOTS = 6
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("DEPRECATION")
@@ -363,8 +360,6 @@ fun TaskEditor(
     val scope = rememberCoroutineScope()
     var activeField by remember { mutableStateOf<Pair<String, TokenFieldAvailability>?>(null) }
     var pendingInsertToken by remember { mutableStateOf<Token?>(null) }
-    val density = LocalDensity.current
-    val imeVisible = WindowInsets.ime.getBottom(density) > 0
 
     LaunchedEffect(viewModel.packResult) {
         viewModel.packResult?.let { result ->
@@ -412,13 +407,27 @@ fun TaskEditor(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            if (activeField != null) {
+                TokenInputToolbar(
+                    onInsert = { pendingInsertToken = it },
+                    availability = TokenFieldAvailability(true, true, true),
+                    subjectCount = viewModel.subjects.size,
+                    pictureCount = MAX_PICTURE_SLOTS,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .imePadding()
+                        .navigationBarsPadding()
+                )
+            }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         modifier = modifier
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding()
         ) {
             val focusManager = LocalFocusManager.current
             LazyColumn(
@@ -683,14 +692,6 @@ fun TaskEditor(
                 }
             }
 
-            if (activeField != null && imeVisible) {
-                Spacer(modifier = Modifier.height(8.dp))
-                TokenInputToolbar(
-                    onInsert = { pendingInsertToken = it },
-                    availability = TokenFieldAvailability(true, true, true),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
         }
     }
 }
