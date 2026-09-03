@@ -130,7 +130,7 @@ class RoomViewModel @Inject constructor(
                 images = null, videos = null, files = null,
                 context = context
             ).onSuccess {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "Text sent.") }
+                _uiState.update { it.copy(isLoading = false) }
             }.onFailure { e ->
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
