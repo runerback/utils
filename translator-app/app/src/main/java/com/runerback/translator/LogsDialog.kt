@@ -10,8 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.Dp
 import androidx.compose.material.icons.Icons
 import android.widget.Toast
 import androidx.compose.material.icons.outlined.Delete
@@ -33,6 +39,29 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.runerback.translator.util.LogManager
+
+private fun Modifier.scrollbar(
+    state: ScrollState,
+    thickness: Dp = 6.dp,
+    color: Color = Color.Black.copy(alpha = 0.35f),
+    cornerRadius: Dp = 3.dp,
+): Modifier = this.drawWithContent {
+    drawContent()
+    if (state.maxValue > 0) {
+        val thumbThickness = thickness.toPx()
+        val thumbHeight =
+            (size.height * size.height / (size.height + state.maxValue))
+                .coerceIn(thumbThickness, size.height)
+        val thumbOffset =
+            state.value.toFloat() * (size.height - thumbHeight) / state.maxValue
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(size.width - thumbThickness, thumbOffset),
+            size = Size(thumbThickness, thumbHeight),
+            cornerRadius = CornerRadius(cornerRadius.toPx()),
+        )
+    }
+}
 
 @Composable
 fun LogsDialog(
@@ -73,6 +102,7 @@ fun LogsDialog(
                         .fillMaxWidth()
                         .fillMaxSize(0.7f)
                         .verticalScroll(scrollState)
+                        .scrollbar(scrollState)
                         .padding(4.dp),
                 )
             }
