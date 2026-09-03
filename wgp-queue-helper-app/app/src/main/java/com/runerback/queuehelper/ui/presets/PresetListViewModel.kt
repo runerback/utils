@@ -61,7 +61,7 @@ class PresetListViewModel(
 
     fun loadPresets() {
         viewModelScope.launch {
-            isLoading = true
+            if (presets.isEmpty()) isLoading = true
             presets = runCatching { repository.loadPresets() }.getOrElse {
                 LogBuffer.add("PresetListViewModel.loadPresets: ${it.stackTraceToString()}")
                 emptyList()
