@@ -61,6 +61,38 @@ class EditPresetViewModel(
     var isLoading by mutableStateOf(false)
         private set
 
+    private data class SavedSnapshot(
+        val name: String,
+        val resolution: String,
+        val prompt: MiniMaxH3Ref2VaPrompt,
+        val subjectDefaults: List<SubjectDefault>,
+        val audioDefault: String
+    )
+
+    // Snapshot state (not a plain var) so save() reliably triggers recomposition of hasChanges.
+    private var savedSnapshot by mutableStateOf<SavedSnapshot?>(null)
+
+    // Reads snapshot state, so composition observing this re-evaluates on edits.
+    val hasChanges: Boolean
+        get() {
+            val s = savedSnapshot ?: return false
+            return name != s.name ||
+                resolution != s.resolution ||
+                prompt != s.prompt ||
+                subjectDefaults.toList() != s.subjectDefaults ||
+                audioDefault != s.audioDefault
+        }
+
+    private fun captureSnapshot() {
+        savedSnapshot = SavedSnapshot(
+            name,
+            resolution,
+            prompt,
+            subjectDefaults.toList(),
+            audioDefault
+        )
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
@@ -96,6 +128,7 @@ class EditPresetViewModel(
                     } else {
                         loadDefaultsFromPrompt()
                     }
+                    captureSnapshot()
                 }
             }.onFailure {
                 LogBuffer.add("EditPresetViewModel.loadPreset($presetId): ${it.stackTraceToString()}")
@@ -193,6 +226,7 @@ class EditPresetViewModel(
                     repository.savePreset(updated)
                     preset = updated
                     prompt = updatedPrompt
+                    captureSnapshot()
                 }
             }.onFailure {
                 LogBuffer.add("EditPresetViewModel.save($presetId): ${it.stackTraceToString()}")

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,6 +80,15 @@ fun EditPresetScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { viewModel.save() },
+                        enabled = viewModel.hasChanges
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Save"
+                        )
+                    }
                     IconButton(onClick = {
                         viewModel.save { onBack() }
                     }) {
