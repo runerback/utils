@@ -54,6 +54,7 @@ issues/
 ppocr-models/
 books/
 examples/
+logs/
 
 # Misc
 *.swp

@@ -78,6 +78,8 @@ android {
             pickFirsts += "lib/x86_64/libc++_shared.so"
         }
         jniLibs {
+            // Extract native libs at install time: some e-ink ROMs can't mmap .so directly from the APK.
+            useLegacyPackaging = true
             pickFirsts += "lib/arm64-v8a/libc++_shared.so"
             pickFirsts += "lib/armeabi-v7a/libc++_shared.so"
             pickFirsts += "lib/x86/libc++_shared.so"

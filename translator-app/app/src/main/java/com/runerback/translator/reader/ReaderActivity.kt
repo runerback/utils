@@ -21,6 +21,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -30,7 +32,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,12 +71,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import com.runerback.translator.bookshelf.Book
 import com.runerback.translator.bookshelf.BookType
 import com.runerback.translator.data.SettingsManager
 import com.runerback.translator.data.SettingsRepository
-import com.runerback.translator.ocr.PaddleOcrEngine
+import com.runerback.translator.ocr.OcrEngineProvider
 import com.runerback.translator.reader.epub.EpubParser
 import com.runerback.translator.reader.image.ImageRangeSelector
 import com.runerback.translator.reader.image.ImageReaderScreen
@@ -116,12 +119,9 @@ class ReaderActivity : ComponentActivity() {
         TranslationPanelViewModelFactory(settingsRepository)
     }
 
-    private var ocrEngine: PaddleOcrEngine? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         window.setWindowAnimations(0)
         super.onCreate(savedInstanceState)
-        initOcr()
 
         val book = intent.getStringExtra(EXTRA_BOOK)?.let {
             Json.decodeFromString<Book>(it)
@@ -138,24 +138,8 @@ class ReaderActivity : ComponentActivity() {
                         book = book,
                         settingsRepository = settingsRepository,
                         viewModel = viewModel,
-                        ocrEngine = ocrEngine,
                     )
                 }
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        lifecycleScope.launch {
-            ocrEngine?.release()
-        }
-    }
-
-    private fun initOcr() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            PaddleOcrEngine.create(this@ReaderActivity).onSuccess {
-                ocrEngine = it
             }
         }
     }
@@ -176,9 +160,9 @@ private fun ReaderScreen(
     book: Book,
     settingsRepository: SettingsRepository,
     viewModel: TranslationPanelViewModel,
-    ocrEngine: PaddleOcrEngine?,
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current.applicationContext
 
     val readerDebugMode by SettingsManager.readerDebugMode.collectAsStateWithLifecycle(initialValue = false)
     val showSimplifyButton by settingsRepository.showSimplifyButton.collectAsStateWithLifecycle(initialValue = true)
@@ -189,6 +173,7 @@ private fun ReaderScreen(
     var showTopMenu by remember { mutableStateOf(false) }
     var showBottomMenu by remember { mutableStateOf(false) }
     var isCropMode by remember { mutableStateOf(false) }
+    var ocrBusy by remember { mutableStateOf(false) }
     var currentImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var currentImageContentScale by remember { mutableStateOf(ContentScale.Fit) }
     var currentPageHasBitmap by remember(book) { mutableStateOf(false) }
@@ -259,7 +244,6 @@ private fun ReaderScreen(
                     totalPages = it
                 },
                 viewModel = viewModel,
-                ocrEngine = ocrEngine,
                 menusVisible = menusVisible,
                 readerDebugMode = readerDebugMode,
                 onBitmapLoaded = { bitmap, scale ->
@@ -520,18 +504,54 @@ private fun ReaderScreen(
                 cropRequest = cropRequest,
                 onCropModeChanged = { isCropMode = it },
                 onCrop = { cropped, _ ->
+                    ocrBusy = true
                     scope.launch(Dispatchers.IO) {
-                        val engine = ocrEngine ?: return@launch
-                        engine.run(cropped).onSuccess { lines ->
-                            withContext(Dispatchers.Main) {
-                                val text = lines.joinToString("\n")
-                                val anchor = Rect(0, 0, 0, 0)
-                                viewModel.show(text, anchor)
+                        try {
+                            LogManager.d("ReaderActivity", "OCR crop received ${cropped.width}x${cropped.height}")
+                            val engine = OcrEngineProvider.get(context)
+                            if (engine == null) {
+                                LogManager.e("ReaderActivity", "OCR unavailable: engine init failed")
+                                return@launch
                             }
+                            engine.run(cropped).onSuccess { lines ->
+                                LogManager.d("ReaderActivity", "OCR done lines=${lines.size}")
+                                withContext(Dispatchers.Main) {
+                                    val text = lines.joinToString("\n")
+                                    val anchor = Rect(0, 0, 0, 0)
+                                    viewModel.show(text, anchor)
+                                }
+                            }.onFailure {
+                                LogManager.e("ReaderActivity", "OCR failed", it)
+                            }
+                        } finally {
+                            withContext(Dispatchers.Main) { ocrBusy = false }
                         }
                     }
                 },
             )
+        }
+
+        // OCR busy indicator: first engine init can take a few seconds.
+        if (ocrBusy) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .background(Color.White)
+                        .border(2.dp, Color.Black)
+                        .padding(16.dp),
+                ) {
+                    CircularProgressIndicator(
+                        color = Color.Black,
+                        modifier = Modifier.size(32.dp),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Recognizing...", color = Color.Black)
+                }
+            }
         }
 
         // Translation panel
@@ -564,7 +584,6 @@ private fun ReaderContent(
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
     viewModel: TranslationPanelViewModel,
-    ocrEngine: PaddleOcrEngine?,
     menusVisible: Boolean,
     readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
@@ -577,7 +596,6 @@ private fun ReaderContent(
             pageIndex = pageIndex,
             onPageChange = onPageChange,
             onTotalPages = onTotalPages,
-            ocrEngine = ocrEngine,
             viewModel = viewModel,
             menusVisible = menusVisible,
             readerDebugMode = readerDebugMode,
@@ -606,7 +624,6 @@ private fun MangaReader(
     pageIndex: Int,
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
-    ocrEngine: PaddleOcrEngine?,
     viewModel: TranslationPanelViewModel,
     menusVisible: Boolean,
     readerDebugMode: Boolean,
