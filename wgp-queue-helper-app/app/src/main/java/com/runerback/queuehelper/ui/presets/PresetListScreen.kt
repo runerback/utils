@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -98,6 +100,7 @@ fun PresetListScreen(
     }
 
     var showLogView by remember { mutableStateOf(false) }
+    var presetToDelete by remember { mutableStateOf<Preset?>(null) }
 
     val listState = rememberLazyListState()
 
@@ -228,7 +231,7 @@ fun PresetListScreen(
                             onEdit = { onEditPreset(preset.id) },
                             onDuplicate = { viewModel.duplicatePreset(preset) },
                             onPack = { onPackPreset(preset.id) },
-                            onDelete = { viewModel.deletePreset(preset) }
+                            onDelete = { presetToDelete = preset }
                         )
                     }
                 }
@@ -249,6 +252,29 @@ fun PresetListScreen(
 
             if (showLogView) {
                 LogViewDialog(onDismiss = { showLogView = false })
+            }
+
+            presetToDelete?.let { preset ->
+                AlertDialog(
+                    onDismissRequest = { presetToDelete = null },
+                    title = { Text("Delete preset?") },
+                    text = { Text("Delete \"${preset.name}\"? This cannot be undone.") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.deletePreset(preset)
+                                presetToDelete = null
+                            }
+                        ) {
+                            Text("Delete")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { presetToDelete = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
             }
         }
     }
