@@ -1,6 +1,8 @@
 package com.runerback.translator.reader.pdf
 
 import android.graphics.Rect
+import android.os.Build
+import android.text.Layout
 import android.widget.TextView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -148,6 +150,13 @@ private fun TextPageContent(
                         textSize = fontSizeSp
                         setLineSpacing(0f, lineHeight)
                         setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            breakStrategy = Layout.BREAK_STRATEGY_HIGH_QUALITY
+                            hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NORMAL
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            justificationMode = Layout.JUSTIFICATION_MODE_INTER_WORD
+                        }
                         setTextIsSelectable(true)
                         onSelectionChanged = { start, end ->
                             post {

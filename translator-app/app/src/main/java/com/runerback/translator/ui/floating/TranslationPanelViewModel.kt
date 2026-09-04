@@ -19,6 +19,8 @@ class TranslationPanelViewModel(
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
+    enum class Source { TEXT_SELECTION, OCR }
+
     var isVisible by mutableStateOf(false)
         private set
 
@@ -29,9 +31,11 @@ class TranslationPanelViewModel(
         private set
 
     private var currentSourceText: String = ""
+    private var currentSource: Source = Source.TEXT_SELECTION
 
-    fun show(text: String, anchorRect: Rect) {
+    fun show(text: String, anchorRect: Rect, source: Source = Source.TEXT_SELECTION) {
         currentSourceText = text
+        currentSource = source
         anchor = anchorRect
         isVisible = true
         state = TranslationState.Loading
@@ -73,7 +77,8 @@ class TranslationPanelViewModel(
             try {
                 val translator = createTranslator()
                 val result = block(translator)
-                state = TranslationState.Success(result.text)
+                val sourceText = if (currentSource == Source.OCR) currentSourceText else null
+                state = TranslationState.Success(result.text, sourceText)
             } catch (e: Exception) {
                 state = TranslationState.Error(e.message ?: "Translation failed")
             }

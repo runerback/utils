@@ -503,7 +503,7 @@ private fun ReaderScreen(
                 isCropMode = isCropMode,
                 cropRequest = cropRequest,
                 onCropModeChanged = { isCropMode = it },
-                onCrop = { cropped, _ ->
+                onCrop = { cropped, anchorRect ->
                     ocrBusy = true
                     scope.launch(Dispatchers.IO) {
                         try {
@@ -517,8 +517,7 @@ private fun ReaderScreen(
                                 LogManager.d("ReaderActivity", "OCR done lines=${lines.size}")
                                 withContext(Dispatchers.Main) {
                                     val text = lines.joinToString("\n")
-                                    val anchor = Rect(0, 0, 0, 0)
-                                    viewModel.show(text, anchor)
+                                    viewModel.show(text, anchorRect, TranslationPanelViewModel.Source.OCR)
                                 }
                             }.onFailure {
                                 LogManager.e("ReaderActivity", "OCR failed", it)

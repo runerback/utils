@@ -14,27 +14,29 @@ object HtmlCleaner {
         walk(body, builder)
         return builder.toString()
             .replace(Regex("\n{3,}"), "\n\n")
+            .lines()
+            .joinToString("\n") { it.trim() }
             .trim()
     }
 
     private fun walk(node: Node, builder: StringBuilder) {
         when (node) {
             is TextNode -> {
-                val text = node.text()
+                val text = node.text().replace(Regex("\\s+"), " ")
                 if (text.isNotBlank()) {
+                    if (builder.isNotEmpty() && builder.last() != ' ' && builder.last() != '\n' && !text.startsWith(" ")) {
+                        builder.append(" ")
+                    }
                     builder.append(text)
                 }
             }
             is Element -> {
                 val tag = node.tagName().lowercase()
                 when (tag) {
-                    "br" -> builder.append("\n")
+                    "br" -> builder.append("\n\n")
                     "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li" -> {
-                        if (builder.isNotEmpty() && !builder.endsWith("\n")) {
-                            builder.append("\n")
-                        }
                         node.childNodes().forEach { walk(it, builder) }
-                        builder.append("\n")
+                        builder.append("\n\n")
                     }
                     else -> node.childNodes().forEach { walk(it, builder) }
                 }

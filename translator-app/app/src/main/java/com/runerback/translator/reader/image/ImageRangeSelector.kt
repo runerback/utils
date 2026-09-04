@@ -139,7 +139,15 @@ fun ImageRangeSelector(
         val bottom = ((rect.bottom - layout.offset.y) / layout.scale).toInt().coerceIn(0, bitmap.height)
         if (right > left && bottom > top) {
             val cropped = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
-            onCrop(cropped, Rect(left, top, right, bottom))
+            // Window-space rect (content coords + top inset) so the translation panel
+            // can anchor next to the selected range.
+            val windowRect = Rect(
+                rect.left,
+                (rect.top + topPaddingPx).toInt(),
+                rect.right,
+                (rect.bottom + topPaddingPx).toInt(),
+            )
+            onCrop(cropped, windowRect)
         }
     }
 

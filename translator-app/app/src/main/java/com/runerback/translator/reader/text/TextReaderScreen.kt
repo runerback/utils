@@ -136,6 +136,13 @@ fun TextReaderScreen(
                     textSize = fontSizeSp
                     setLineSpacing(0f, lineSpacingMultiplier)
                     setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        breakStrategy = Layout.BREAK_STRATEGY_HIGH_QUALITY
+                        hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NORMAL
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        justificationMode = Layout.JUSTIFICATION_MODE_INTER_WORD
+                    }
                     setTextIsSelectable(true)
                 }
                 view.onSelectionChanged = { start, end ->
@@ -183,6 +190,15 @@ private data class Selection(
     val anchor: Rect,
 )
 
+internal fun normalizeForReflow(text: String): String {
+    val unix = text.replace("\r\n", "\n").replace('\r', '\n')
+    return unix.split(Regex("\n{2,}"))
+        .joinToString("\n\n") { paragraph ->
+            paragraph.replace(Regex("\\s+"), " ").trim()
+        }
+        .trim()
+}
+
 internal fun computePages(
     text: String,
     width: Int,
@@ -195,6 +211,8 @@ internal fun computePages(
         LogManager.d("TextReaderScreen", "computePages invalid size width=$width height=$height")
         return listOf(text)
     }
+
+    val normalizedText = normalizeForReflow(text)
 
     val paint = TextPaint().apply {
         isAntiAlias = true
@@ -210,13 +228,18 @@ internal fun computePages(
     val availableHeight = height - paddingPx * 2
 
     val layout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        StaticLayout.Builder.obtain(text, 0, text.length, paint, availableWidth)
+        val builder = StaticLayout.Builder.obtain(normalizedText, 0, normalizedText.length, paint, availableWidth)
             .setLineSpacing(0f, lineSpacingMultiplier)
             .setIncludePad(false)
-            .build()
+            .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
+            .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NORMAL)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder.setJustificationMode(Layout.JUSTIFICATION_MODE_INTER_WORD)
+        }
+        builder.build()
     } else {
         @Suppress("DEPRECATION")
-        StaticLayout(text, paint, availableWidth, Layout.Alignment.ALIGN_NORMAL, lineSpacingMultiplier, 0f, false)
+        StaticLayout(normalizedText, paint, availableWidth, Layout.Alignment.ALIGN_NORMAL, lineSpacingMultiplier, 0f, false)
     }
 
     val pages = mutableListOf<String>()
@@ -229,7 +252,7 @@ internal fun computePages(
         if (currentHeight + lineHeight > availableHeight && startLine < line) {
             val startOffset = layout.getLineStart(startLine)
             val endOffset = layout.getLineEnd(line - 1)
-            pages.add(text.substring(startOffset, endOffset))
+            pages.add(normalizedText.substring(startOffset, endOffset))
             startLine = line
             currentHeight = 0f
         }
@@ -239,7 +262,7 @@ internal fun computePages(
     if (startLine < lineCount) {
         val startOffset = layout.getLineStart(startLine)
         val endOffset = layout.getLineEnd(lineCount - 1)
-        pages.add(text.substring(startOffset, endOffset))
+        pages.add(normalizedText.substring(startOffset, endOffset))
     }
 
     return pages.ifEmpty {

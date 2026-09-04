@@ -41,7 +41,7 @@ import kotlin.math.roundToInt
 sealed interface TranslationState {
     data object Idle : TranslationState
     data object Loading : TranslationState
-    data class Success(val text: String) : TranslationState
+    data class Success(val text: String, val sourceText: String? = null) : TranslationState
     data class Error(val message: String) : TranslationState
 }
 
@@ -120,14 +120,24 @@ fun FloatingTranslationPanel(
                     )
                 }
                 is TranslationState.Success -> {
-                    Text(
-                        text = state.text,
-                        fontSize = 16.sp,
-                        color = Color.Black,
+                    Column(
                         modifier = Modifier
                             .padding(vertical = 8.dp)
                             .verticalScroll(rememberScrollState()),
-                    )
+                    ) {
+                        state.sourceText?.let { source ->
+                            Text(
+                                text = source,
+                                fontSize = 14.sp,
+                                color = Color.DarkGray,
+                            )
+                        }
+                        Text(
+                            text = state.text,
+                            fontSize = 16.sp,
+                            color = Color.Black,
+                        )
+                    }
                 }
                 is TranslationState.Error -> {
                     Text(
