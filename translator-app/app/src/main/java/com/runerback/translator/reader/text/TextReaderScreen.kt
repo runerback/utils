@@ -190,13 +190,39 @@ private data class Selection(
     val anchor: Rect,
 )
 
+private val OPENING_PUNCT = "\"'“‘([«"
+
+// A line that continues a sentence: optionally opens with a quote/bracket,
+// then a lowercase letter. Lines starting uppercase/digits/CJK look like
+// verse, headings, or list items and keep their break.
+private fun isContinuation(line: String): Boolean {
+    var i = 0
+    if (i < line.length && line[i] in OPENING_PUNCT) i++
+    return i < line.length && line[i].isLowerCase()
+}
+
 internal fun normalizeForReflow(text: String): String {
-    val unix = text.replace("\r\n", "\n").replace('\r', '\n')
-    return unix.split(Regex("\n{2,}"))
-        .joinToString("\n\n") { paragraph ->
-            paragraph.replace(Regex("\\s+"), " ").trim()
+    val lines = text.replace("\r\n", "\n").replace('\r', '\n')
+        .lines()
+        .map { it.replace(Regex("[ \t]+"), " ").trim() }
+    val out = StringBuilder()
+    var prev: String? = null
+    for (line in lines) {
+        if (line.isEmpty()) {
+            if (out.isNotEmpty() && !out.endsWith("\n\n")) out.append("\n\n")
+            prev = null
+            continue
         }
-        .trim()
+        when {
+            prev == null -> Unit
+            prev.endsWith("-") -> out.deleteCharAt(out.length - 1)
+            isContinuation(line) -> out.append(" ")
+            else -> out.append("\n")
+        }
+        out.append(line)
+        prev = line
+    }
+    return out.toString().trim()
 }
 
 internal fun computePages(
