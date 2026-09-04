@@ -85,6 +85,7 @@ import com.runerback.translator.reader.pdf.PdfPageCache
 import com.runerback.translator.reader.pdf.PdfPaginator
 import com.runerback.translator.reader.pdf.PdfTextReaderScreen
 import com.runerback.translator.reader.text.TextReaderScreen
+import com.runerback.translator.reader.text.textMarginPx
 import com.runerback.translator.translate.TranslationProvider
 import com.runerback.translator.ui.floating.FloatingTranslationPanel
 import com.runerback.translator.ui.floating.TranslationPanelViewModel
@@ -305,7 +306,7 @@ private fun ReaderScreen(
                             textView.getLocationInWindow(location)
                             val localX = touchWindowX - location[0]
                             val localY = touchWindowY - location[1]
-                            val charOffset = textView.getOffsetForPosition(localX, localY)
+                            val charOffset = offsetForTouch(textView, localX, localY)
                             if (charOffset < 0) return@detectTapGestures
                             val text = textView.text?.toString() ?: return@detectTapGestures
                             val (start, end) = findWordBounds(text, charOffset)
@@ -344,7 +345,7 @@ private fun ReaderScreen(
                             textView.getLocationInWindow(location)
                             val localX = touchWindowX - location[0]
                             val localY = touchWindowY - location[1]
-                            val charOffset = textView.getOffsetForPosition(localX, localY)
+                            val charOffset = offsetForTouch(textView, localX, localY)
                             if (charOffset < 0) return@detectTapGestures
                             val text = textView.text?.toString() ?: return@detectTapGestures
                             val (start, end) = findWordBounds(text, charOffset)
@@ -383,7 +384,7 @@ private fun ReaderScreen(
                             textView.getLocationInWindow(location)
                             val localX = touchWindowX - location[0]
                             val localY = touchWindowY - location[1]
-                            val charOffset = textView.getOffsetForPosition(localX, localY)
+                            val charOffset = offsetForTouch(textView, localX, localY)
                             if (charOffset < 0) return@detectTapGestures
                             val text = textView.text?.toString() ?: return@detectTapGestures
                             val (start, end) = findWordBounds(text, charOffset)
@@ -422,7 +423,7 @@ private fun ReaderScreen(
                             textView.getLocationInWindow(location)
                             val localX = touchWindowX - location[0]
                             val localY = touchWindowY - location[1]
-                            val charOffset = textView.getOffsetForPosition(localX, localY)
+                            val charOffset = offsetForTouch(textView, localX, localY)
                             if (charOffset < 0) return@detectTapGestures
                             val text = textView.text?.toString() ?: return@detectTapGestures
                             val (start, end) = findWordBounds(text, charOffset)
@@ -834,13 +835,12 @@ private fun PdfReader(
 
     val params = remember(density, containerSize) {
         if (containerSize.width <= 0 || containerSize.height <= 0) return@remember null
-        val paddingPx = with(density) { 12.dp.toPx() }.toInt()
         PdfPageCache.RenderParams(
             fontSizeSp = 18f,
             lineHeight = 1.3f,
             width = containerSize.width.toInt(),
             height = containerSize.height.toInt(),
-            paddingPx = paddingPx,
+            paddingPx = textMarginPx(context, 18f),
         )
     }
 
@@ -1035,12 +1035,23 @@ private fun TranslateToolbar(
     }
 }
 
+private fun offsetForTouch(textView: TextView, viewX: Float, viewY: Float): Int {
+    val layout = textView.layout ?: return -1
+    // Same conversion TextView.getOffsetForPosition performs internally; done
+    // explicitly because some firmwares skip the padding step in that API.
+    val layoutX = viewX - textView.totalPaddingLeft + textView.scrollX
+    val layoutY = viewY - textView.totalPaddingTop + textView.scrollY
+    if (layoutY < 0 || layoutY >= layout.height) return -1
+    val line = layout.getLineForVertical(layoutY.toInt())
+    return layout.getOffsetForHorizontal(line, layoutX)
+}
+
 private fun clearTextSelection(textView: TextView?) {
     val spannable = textView?.text as? android.text.Spannable ?: return
     Selection.removeSelection(spannable)
 }
 
-private fun findWordBounds(text: String, offset: Int): Pair<Int, Int> {
+internal fun findWordBounds(text: String, offset: Int): Pair<Int, Int> {
     if (text.isEmpty()) return 0 to 0
     val iterator = BreakIterator.getWordInstance()
     iterator.setText(text)

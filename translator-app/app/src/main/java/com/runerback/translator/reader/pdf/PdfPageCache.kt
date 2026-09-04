@@ -56,6 +56,7 @@ class PdfPageCache(context: Context) {
             emptyList()
         } else {
             computePages(
+                context = appContext,
                 text = text,
                 width = params.width,
                 height = params.height,

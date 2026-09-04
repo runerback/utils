@@ -31,10 +31,12 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.runerback.translator.reader.text.SelectableTextView
+import com.runerback.translator.reader.text.textMarginPx
 import com.runerback.translator.util.LogManager
 
 private data class Selection(
@@ -111,7 +113,11 @@ private fun TextPageContent(
     var selection by remember { mutableStateOf<Selection?>(null) }
     var textViewWindowOffset by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
-    val paddingPx = remember(density) { with(density) { 12.dp.toPx() }.toInt() }
+    val context = LocalContext.current
+    // Same margin as the paginator uses; applied around the TextView (which
+    // keeps zero padding) so layout coordinates equal view coordinates.
+    val marginPx = remember(density, fontSizeSp) { textMarginPx(context, fontSizeSp) }
+    val marginDp = with(density) { marginPx.toDp() }
 
     DisposableEffect(Unit) {
         onDispose { onTextViewReady(null) }
@@ -149,7 +155,6 @@ private fun TextPageContent(
                         setBackgroundColor(android.graphics.Color.WHITE)
                         textSize = fontSizeSp
                         setLineSpacing(0f, lineHeight)
-                        setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                             breakStrategy = Layout.BREAK_STRATEGY_HIGH_QUALITY
                             hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NORMAL
@@ -213,6 +218,7 @@ private fun TextPageContent(
                 },
                 modifier = Modifier
                     .wrapContentHeight()
+                    .padding(marginDp)
                     .onGloballyPositioned { textViewWindowOffset = it.positionInWindow() },
             )
 
@@ -252,5 +258,13 @@ private fun getSelectionAnchor(textView: TextView, start: Int, end: Int): Rect {
         bottom = maxOf(bottom, layout.getLineBottom(line))
     }
 
-    return Rect(left, top, right, bottom)
+    val padLeft = textView.totalPaddingLeft
+    val padTop = textView.totalPaddingTop
+
+    return Rect(
+        left + padLeft,
+        top + padTop,
+        right + padLeft,
+        bottom + padTop,
+    )
 }
