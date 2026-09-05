@@ -58,7 +58,10 @@ fun FileAttachmentItem(
             .then(if (!isDownloading) Modifier.clickable(onClick = onClick) else Modifier)
             .border(
                 width = 1.dp,
-                color = Color(0xFFe5e7eb).copy(alpha = 0.3f),
+                color = when {
+                    isDownloading || isDownloaded -> MaterialTheme.colorScheme.primary
+                    else -> Color(0xFFe5e7eb).copy(alpha = 0.3f)
+                },
                 shape = RoundedCornerShape(12.dp)
             )
     ) {
