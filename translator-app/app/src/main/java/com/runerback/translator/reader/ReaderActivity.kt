@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.runerback.translator.reader
 
 import android.content.Context
@@ -8,8 +6,6 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
-import android.text.Selection
-import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -18,14 +14,12 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,10 +28,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -51,15 +44,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.platform.LocalContext
@@ -86,7 +75,6 @@ import com.runerback.translator.reader.pdf.PdfPaginator
 import com.runerback.translator.reader.pdf.PdfTextReaderScreen
 import com.runerback.translator.reader.text.TextReaderScreen
 import com.runerback.translator.reader.text.textMarginPx
-import com.runerback.translator.translate.TranslationProvider
 import com.runerback.translator.ui.floating.FloatingTranslationPanel
 import com.runerback.translator.ui.floating.TranslationPanelViewModel
 import com.runerback.translator.ui.floating.TranslationPanelViewModelFactory
@@ -98,7 +86,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.text.BreakIterator
 
 private object NoIndication : IndicationNodeFactory {
     override fun create(interactionSource: InteractionSource): DelegatableNode {
@@ -119,6 +106,7 @@ class ReaderActivity : ComponentActivity() {
     private val viewModel: TranslationPanelViewModel by viewModels {
         TranslationPanelViewModelFactory(settingsRepository)
     }
+    private val readerViewModel: ReaderViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         window.setWindowAnimations(0)
@@ -139,6 +127,7 @@ class ReaderActivity : ComponentActivity() {
                         book = book,
                         settingsRepository = settingsRepository,
                         viewModel = viewModel,
+                        readerViewModel = readerViewModel,
                     )
                 }
             }
@@ -161,6 +150,7 @@ private fun ReaderScreen(
     book: Book,
     settingsRepository: SettingsRepository,
     viewModel: TranslationPanelViewModel,
+    readerViewModel: ReaderViewModel,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current.applicationContext
@@ -171,22 +161,11 @@ private fun ReaderScreen(
     var pageIndex by remember(book) { mutableIntStateOf(book.lastPage.coerceAtLeast(0)) }
     var targetPageIndex by remember(book) { mutableIntStateOf(pageIndex) }
     var totalPages by remember(book) { mutableIntStateOf(1) }
-    var showTopMenu by remember { mutableStateOf(false) }
-    var showBottomMenu by remember { mutableStateOf(false) }
-    var isCropMode by remember { mutableStateOf(false) }
+    var clearingPage by remember(book) { mutableStateOf(false) }
     var ocrBusy by remember { mutableStateOf(false) }
     var currentImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var currentImageContentScale by remember { mutableStateOf(ContentScale.Fit) }
     var currentPageHasBitmap by remember(book) { mutableStateOf(false) }
-    var cropRequest by remember { mutableStateOf<Pair<Int, Offset>?>(null) }
-    var cropRequestId by remember { mutableIntStateOf(0) }
-    var clearingPage by remember(book) { mutableStateOf(false) }
-    var activeTextView by remember { mutableStateOf<TextView?>(null) }
-    var currentSelection by remember { mutableStateOf<Pair<String, Rect>?>(null) }
-    var leftZoneWindowOffset by remember { mutableStateOf(Offset.Zero) }
-    var rightZoneWindowOffset by remember { mutableStateOf(Offset.Zero) }
-    var topZoneWindowOffset by remember { mutableStateOf(Offset.Zero) }
-    var bottomZoneWindowOffset by remember { mutableStateOf(Offset.Zero) }
 
     fun saveProgress(page: Int) {
         scope.launch {
@@ -194,12 +173,7 @@ private fun ReaderScreen(
         }
     }
 
-    val menusVisible = showTopMenu || showBottomMenu
-    val isImageBook = book.type != BookType.EPUB && book.type != BookType.TXT
-
-    LaunchedEffect(menusVisible) {
-        if (menusVisible) isCropMode = false
-    }
+    val menusVisible = readerViewModel.menusVisible
 
     LaunchedEffect(targetPageIndex) {
         if (targetPageIndex == pageIndex) return@LaunchedEffect
@@ -209,8 +183,7 @@ private fun ReaderScreen(
         withFrameNanos { }
         // Frame 2: switch to the next page and remove the flash.
         pageIndex = targetPageIndex
-        isCropMode = false
-        cropRequest = null
+        readerViewModel.onCropSelectorClosed()
         currentImageBitmap = null
         currentImageContentScale = ContentScale.Fit
         currentPageHasBitmap = false
@@ -223,6 +196,24 @@ private fun ReaderScreen(
             pageIndex = maxPage
             targetPageIndex = maxPage
             saveProgress(pageIndex)
+        }
+    }
+
+    LaunchedEffect(pageIndex, totalPages) {
+        readerViewModel.onPageInfo(pageIndex, totalPages)
+    }
+
+    LaunchedEffect(currentPageHasBitmap) {
+        readerViewModel.hasBitmap = currentPageHasBitmap
+    }
+
+    val navEvent = readerViewModel.navEvent
+    LaunchedEffect(navEvent) {
+        val event = navEvent ?: return@LaunchedEffect
+        readerViewModel.consumeNavEvent()
+        if (event.page != pageIndex) {
+            targetPageIndex = event.page
+            saveProgress(event.page)
         }
     }
 
@@ -244,39 +235,27 @@ private fun ReaderScreen(
                     LogManager.d("ReaderActivity", "onTotalPages total=$it")
                     totalPages = it
                 },
-                viewModel = viewModel,
-                menusVisible = menusVisible,
                 readerDebugMode = readerDebugMode,
                 onBitmapLoaded = { bitmap, scale ->
                     currentImageBitmap = bitmap
                     currentImageContentScale = scale
                     currentPageHasBitmap = bitmap != null
                 },
-                onTextViewReady = { activeTextView = it },
-                onSelectionChanged = { text, anchor ->
-                    currentSelection = text?.let { it to (anchor ?: Rect(0, 0, 0, 0)) }
-                },
+                selectWordRequest = readerViewModel.selectWordRequest,
+                clearSelectionSignal = readerViewModel.clearSelectionSignal,
+                onSelectWordHandled = readerViewModel::onSelectWordHandled,
+                onSelectionChanged = readerViewModel::onTextSelected,
             )
-
-            // Long-press on image pages activates the OCR selector.
-            if (isImageBook && currentPageHasBitmap) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(menusVisible) {
-                            detectTapGestures(
-                                onLongPress = { point ->
-                                    if (!menusVisible) {
-                                        cropRequestId += 1
-                                        cropRequest = cropRequestId to point
-                                        isCropMode = true
-                                    }
-                                },
-                            )
-                        },
-                )
-            }
         }
+
+        // Single low-level input collector above the content: it only detects
+        // taps and long-presses and forwards them to the ReaderViewModel,
+        // which owns every interaction rule. Interactive overlays (toolbar,
+        // settings panels, OCR selector, translation panel) sit above it.
+        ReaderInputLayer(
+            onClick = readerViewModel::onClick,
+            onLongPress = readerViewModel::onLongPress,
+        )
 
         // Pagination indicator
         Text(
@@ -288,176 +267,8 @@ private fun ReaderScreen(
                 .padding(8.dp),
         )
 
-        // Top zone
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .align(Alignment.TopCenter)
-                .onGloballyPositioned { topZoneWindowOffset = it.positionInWindow() }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = { offset ->
-                            val textView = activeTextView ?: return@detectTapGestures
-                            if (currentPageHasBitmap) return@detectTapGestures
-                            val touchWindowX = topZoneWindowOffset.x + offset.x
-                            val touchWindowY = topZoneWindowOffset.y + offset.y
-                            val location = IntArray(2)
-                            textView.getLocationInWindow(location)
-                            val localX = touchWindowX - location[0]
-                            val localY = touchWindowY - location[1]
-                            val charOffset = offsetForTouch(textView, localX, localY)
-                            if (charOffset < 0) return@detectTapGestures
-                            val text = textView.text?.toString() ?: return@detectTapGestures
-                            val (start, end) = findWordBounds(text, charOffset)
-                            if (start < end) {
-                                val spannable = textView.text as? android.text.Spannable ?: return@detectTapGestures
-                                Selection.setSelection(spannable, start, end)
-                            }
-                        },
-                        onTap = {
-                            if (activeTextView?.hasSelection() == true) {
-                                clearTextSelection(activeTextView)
-                            } else {
-                                showTopMenu = !showTopMenu
-                                showBottomMenu = false
-                            }
-                        },
-                    )
-                },
-        )
-
-        // Bottom zone
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .align(Alignment.BottomCenter)
-                .onGloballyPositioned { bottomZoneWindowOffset = it.positionInWindow() }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = { offset ->
-                            val textView = activeTextView ?: return@detectTapGestures
-                            if (currentPageHasBitmap) return@detectTapGestures
-                            val touchWindowX = bottomZoneWindowOffset.x + offset.x
-                            val touchWindowY = bottomZoneWindowOffset.y + offset.y
-                            val location = IntArray(2)
-                            textView.getLocationInWindow(location)
-                            val localX = touchWindowX - location[0]
-                            val localY = touchWindowY - location[1]
-                            val charOffset = offsetForTouch(textView, localX, localY)
-                            if (charOffset < 0) return@detectTapGestures
-                            val text = textView.text?.toString() ?: return@detectTapGestures
-                            val (start, end) = findWordBounds(text, charOffset)
-                            if (start < end) {
-                                val spannable = textView.text as? android.text.Spannable ?: return@detectTapGestures
-                                Selection.setSelection(spannable, start, end)
-                            }
-                        },
-                        onTap = {
-                            if (activeTextView?.hasSelection() == true) {
-                                clearTextSelection(activeTextView)
-                            } else {
-                                showBottomMenu = !showBottomMenu
-                                showTopMenu = false
-                            }
-                        },
-                    )
-                },
-        )
-
-        // Left zone
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(0.25f)
-                .align(Alignment.CenterStart)
-                .onGloballyPositioned { leftZoneWindowOffset = it.positionInWindow() }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = { offset ->
-                            val textView = activeTextView ?: return@detectTapGestures
-                            if (currentPageHasBitmap) return@detectTapGestures
-                            val touchWindowX = leftZoneWindowOffset.x + offset.x
-                            val touchWindowY = leftZoneWindowOffset.y + offset.y
-                            val location = IntArray(2)
-                            textView.getLocationInWindow(location)
-                            val localX = touchWindowX - location[0]
-                            val localY = touchWindowY - location[1]
-                            val charOffset = offsetForTouch(textView, localX, localY)
-                            if (charOffset < 0) return@detectTapGestures
-                            val text = textView.text?.toString() ?: return@detectTapGestures
-                            val (start, end) = findWordBounds(text, charOffset)
-                            if (start < end) {
-                                val spannable = textView.text as? android.text.Spannable ?: return@detectTapGestures
-                                Selection.setSelection(spannable, start, end)
-                            }
-                        },
-                        onTap = {
-                            if (activeTextView?.hasSelection() == true) {
-                                clearTextSelection(activeTextView)
-                            } else if (!showTopMenu && !showBottomMenu) {
-                                targetPageIndex = (targetPageIndex - 1).coerceAtLeast(0)
-                                saveProgress(targetPageIndex)
-                            }
-                        },
-                    )
-                },
-        )
-
-        // Right zone
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(0.25f)
-                .align(Alignment.CenterEnd)
-                .onGloballyPositioned { rightZoneWindowOffset = it.positionInWindow() }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = { offset ->
-                            val textView = activeTextView ?: return@detectTapGestures
-                            if (currentPageHasBitmap) return@detectTapGestures
-                            val touchWindowX = rightZoneWindowOffset.x + offset.x
-                            val touchWindowY = rightZoneWindowOffset.y + offset.y
-                            val location = IntArray(2)
-                            textView.getLocationInWindow(location)
-                            val localX = touchWindowX - location[0]
-                            val localY = touchWindowY - location[1]
-                            val charOffset = offsetForTouch(textView, localX, localY)
-                            if (charOffset < 0) return@detectTapGestures
-                            val text = textView.text?.toString() ?: return@detectTapGestures
-                            val (start, end) = findWordBounds(text, charOffset)
-                            if (start < end) {
-                                val spannable = textView.text as? android.text.Spannable ?: return@detectTapGestures
-                                Selection.setSelection(spannable, start, end)
-                            }
-                        },
-                        onTap = {
-                            if (activeTextView?.hasSelection() == true) {
-                                clearTextSelection(activeTextView)
-                            } else if (!showTopMenu && !showBottomMenu) {
-                                val maxPage = (totalPages - 1).coerceAtLeast(0)
-                                targetPageIndex = (targetPageIndex + 1).coerceAtMost(maxPage)
-                                saveProgress(targetPageIndex)
-                            }
-                        },
-                    )
-                },
-        )
-
-        // Translate toolbar for text selection
-        currentSelection?.let { (selected, anchor) ->
-            TranslateToolbar(
-                windowAnchor = anchor,
-                onTranslate = {
-                    if (!menusVisible) viewModel.show(selected, anchor)
-                    clearTextSelection(activeTextView)
-                },
-            )
-        }
-
-        // Top menu placeholder
-        if (showTopMenu) {
+        // Top settings panel
+        if (readerViewModel.settings == SettingsPanel.TOP) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -476,8 +287,8 @@ private fun ReaderScreen(
             }
         }
 
-        // Bottom menu placeholder
-        if (showBottomMenu) {
+        // Bottom settings panel
+        if (readerViewModel.settings == SettingsPanel.BOTTOM) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -495,15 +306,33 @@ private fun ReaderScreen(
             }
         }
 
+        // Translate toolbar for text selection
+        readerViewModel.selection?.let { selected ->
+            TranslateToolbar(
+                windowAnchor = selected.toolbarAnchor,
+                onTranslate = {
+                    // The dialog anchors at the long-press point that started
+                    // the selection, not at the selection rect.
+                    val p = selected.longPressStart
+                    viewModel.show(
+                        selected.text,
+                        Rect(p.x.toInt(), p.y.toInt(), p.x.toInt(), p.y.toInt()),
+                    )
+                    readerViewModel.clearSelection()
+                },
+            )
+        }
+
         // Full-screen selector overlay on top of everything while crop mode is active.
-        if (isCropMode && currentImageBitmap != null) {
+        val crop = readerViewModel.cropRequest
+        if (crop != null && currentImageBitmap != null) {
             ImageRangeSelector(
                 bitmap = currentImageBitmap!!,
                 contentScale = currentImageContentScale,
                 menusVisible = menusVisible,
-                isCropMode = isCropMode,
-                cropRequest = cropRequest,
-                onCropModeChanged = { isCropMode = it },
+                isCropMode = true,
+                cropRequest = crop.id to crop.offset,
+                onCropModeChanged = { active -> if (!active) readerViewModel.onCropSelectorClosed() },
                 onCrop = { cropped, anchorRect ->
                     ocrBusy = true
                     scope.launch(Dispatchers.IO) {
@@ -583,12 +412,12 @@ private fun ReaderContent(
     pageIndex: Int,
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
-    viewModel: TranslationPanelViewModel,
-    menusVisible: Boolean,
     readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
-    onTextViewReady: (TextView?) -> Unit = {},
-    onSelectionChanged: (String?, anchor: Rect?) -> Unit = { _, _ -> },
+    selectWordRequest: IndexedOffset?,
+    clearSelectionSignal: Int,
+    onSelectWordHandled: (Int) -> Unit,
+    onSelectionChanged: (String?, Rect?) -> Unit,
 ) {
     if (book.type == BookType.MANGA) {
         MangaReader(
@@ -596,8 +425,6 @@ private fun ReaderContent(
             pageIndex = pageIndex,
             onPageChange = onPageChange,
             onTotalPages = onTotalPages,
-            viewModel = viewModel,
-            menusVisible = menusVisible,
             readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
         )
@@ -608,11 +435,11 @@ private fun ReaderContent(
             pageIndex = pageIndex,
             onPageChange = onPageChange,
             onTotalPages = onTotalPages,
-            viewModel = viewModel,
-            menusVisible = menusVisible,
             readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
-            onTextViewReady = onTextViewReady,
+            selectWordRequest = selectWordRequest,
+            clearSelectionSignal = clearSelectionSignal,
+            onSelectWordHandled = onSelectWordHandled,
             onSelectionChanged = onSelectionChanged,
         )
     }
@@ -624,8 +451,6 @@ private fun MangaReader(
     pageIndex: Int,
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
-    viewModel: TranslationPanelViewModel,
-    menusVisible: Boolean,
     readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
 ) {
@@ -712,12 +537,12 @@ private fun SingleEntryReader(
     pageIndex: Int,
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
-    viewModel: TranslationPanelViewModel,
-    menusVisible: Boolean,
     readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
-    onTextViewReady: (TextView?) -> Unit = {},
-    onSelectionChanged: (String?, anchor: Rect?) -> Unit = { _, _ -> },
+    selectWordRequest: IndexedOffset?,
+    clearSelectionSignal: Int,
+    onSelectWordHandled: (Int) -> Unit,
+    onSelectionChanged: (String?, Rect?) -> Unit,
 ) {
     when (type) {
         BookType.EPUB, BookType.TXT -> TextReader(
@@ -726,9 +551,9 @@ private fun SingleEntryReader(
             pageIndex = pageIndex,
             onPageChange = onPageChange,
             onTotalPages = onTotalPages,
-            viewModel = viewModel,
-            menusVisible = menusVisible,
-            onTextViewReady = onTextViewReady,
+            selectWordRequest = selectWordRequest,
+            clearSelectionSignal = clearSelectionSignal,
+            onSelectWordHandled = onSelectWordHandled,
             onSelectionChanged = onSelectionChanged,
         )
         BookType.PDF -> PdfReader(
@@ -736,11 +561,11 @@ private fun SingleEntryReader(
             pageIndex = pageIndex,
             onPageChange = onPageChange,
             onTotalPages = onTotalPages,
-            viewModel = viewModel,
-            menusVisible = menusVisible,
             readerDebugMode = readerDebugMode,
             onBitmapLoaded = onBitmapLoaded,
-            onTextViewReady = onTextViewReady,
+            selectWordRequest = selectWordRequest,
+            clearSelectionSignal = clearSelectionSignal,
+            onSelectWordHandled = onSelectWordHandled,
             onSelectionChanged = onSelectionChanged,
         )
         else -> {}
@@ -754,10 +579,10 @@ private fun TextReader(
     pageIndex: Int,
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
-    viewModel: TranslationPanelViewModel,
-    menusVisible: Boolean,
-    onTextViewReady: (TextView?) -> Unit = {},
-    onSelectionChanged: (String?, anchor: Rect?) -> Unit = { _, _ -> },
+    selectWordRequest: IndexedOffset?,
+    clearSelectionSignal: Int,
+    onSelectWordHandled: (Int) -> Unit,
+    onSelectionChanged: (String?, Rect?) -> Unit,
 ) {
     var content by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -787,13 +612,11 @@ private fun TextReader(
         TextReaderScreen(
             content = content,
             initialPage = pageIndex,
-            menusVisible = menusVisible,
+            selectWordRequest = selectWordRequest,
+            clearSelectionSignal = clearSelectionSignal,
+            onSelectWordHandled = onSelectWordHandled,
             onPageChange = onPageChange,
             onTotalPages = onTotalPages,
-            onTranslate = { selected, anchor ->
-                if (!menusVisible) viewModel.show(selected, anchor)
-            },
-            onTextViewReady = onTextViewReady,
             onSelectionChanged = onSelectionChanged,
         )
     } else {
@@ -820,12 +643,12 @@ private fun PdfReader(
     pageIndex: Int,
     onPageChange: (Int, Int) -> Unit,
     onTotalPages: (Int) -> Unit,
-    viewModel: TranslationPanelViewModel,
-    menusVisible: Boolean,
     readerDebugMode: Boolean,
     onBitmapLoaded: (Bitmap?, ContentScale) -> Unit,
-    onTextViewReady: (TextView?) -> Unit = {},
-    onSelectionChanged: (String?, anchor: Rect?) -> Unit = { _, _ -> },
+    selectWordRequest: IndexedOffset?,
+    clearSelectionSignal: Int,
+    onSelectWordHandled: (Int) -> Unit,
+    onSelectionChanged: (String?, Rect?) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -913,13 +736,11 @@ private fun PdfReader(
                 images = emptyList(),
                 pageIndex = pageIndex,
                 totalPages = totalChunks,
-                menusVisible = menusVisible,
+                selectWordRequest = selectWordRequest,
+                clearSelectionSignal = clearSelectionSignal,
+                onSelectWordHandled = onSelectWordHandled,
                 onPageChange = onPageChange,
                 onTotalPages = onTotalPages,
-                onTranslate = { selected, anchor ->
-                    if (!menusVisible) viewModel.show(selected, anchor)
-                },
-                onTextViewReady = onTextViewReady,
                 onSelectionChanged = onSelectionChanged,
                 debug = readerDebugMode,
             )
@@ -1033,38 +854,4 @@ private fun TranslateToolbar(
             fontSize = 14.sp,
         )
     }
-}
-
-private fun offsetForTouch(textView: TextView, viewX: Float, viewY: Float): Int {
-    val layout = textView.layout ?: return -1
-    // Same conversion TextView.getOffsetForPosition performs internally; done
-    // explicitly because some firmwares skip the padding step in that API.
-    val layoutX = viewX - textView.totalPaddingLeft + textView.scrollX
-    val layoutY = viewY - textView.totalPaddingTop + textView.scrollY
-    if (layoutY < 0 || layoutY >= layout.height) return -1
-    val line = layout.getLineForVertical(layoutY.toInt())
-    return layout.getOffsetForHorizontal(line, layoutX)
-}
-
-private fun clearTextSelection(textView: TextView?) {
-    val spannable = textView?.text as? android.text.Spannable ?: return
-    Selection.removeSelection(spannable)
-}
-
-internal fun findWordBounds(text: String, offset: Int): Pair<Int, Int> {
-    if (text.isEmpty()) return 0 to 0
-    val iterator = BreakIterator.getWordInstance()
-    iterator.setText(text)
-    val boundedOffset = offset.coerceIn(0, text.length)
-    var start = iterator.preceding(boundedOffset)
-    if (start == BreakIterator.DONE) start = 0
-    var end = iterator.following(boundedOffset)
-    if (end == BreakIterator.DONE) end = text.length
-    while (end > start && text[end - 1].isWhitespace()) {
-        end--
-    }
-    while (start < end && text[start].isWhitespace()) {
-        start++
-    }
-    return start to end
 }

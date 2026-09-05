@@ -4,15 +4,16 @@ import android.content.Context
 import android.graphics.Rect
 import android.os.Build
 import android.text.Layout
+import android.text.Selection
+import android.text.Spannable
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.util.TypedValue
 import android.widget.TextView
+import com.runerback.translator.reader.IndexedOffset
 import com.runerback.translator.util.LogManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -24,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
@@ -39,11 +39,11 @@ fun TextReaderScreen(
     initialPage: Int = 0,
     fontSizeSp: Float = 18f,
     lineSpacingMultiplier: Float = 1.3f,
-    menusVisible: Boolean = false,
+    selectWordRequest: IndexedOffset? = null,
+    clearSelectionSignal: Int = 0,
+    onSelectWordHandled: (Int) -> Unit = {},
     onPageChange: (Int, Int) -> Unit = { _, _ -> },
     onTotalPages: (Int) -> Unit = {},
-    onTranslate: (String, anchor: Rect) -> Unit,
-    onTextViewReady: (TextView?) -> Unit = {},
     onSelectionChanged: (String?, anchor: Rect?) -> Unit = { _, _ -> },
 ) {
     val density = LocalDensity.current
@@ -51,16 +51,28 @@ fun TextReaderScreen(
     var containerSize by remember { mutableStateOf(Size.Zero) }
     var pages by remember { mutableStateOf(listOf("")) }
     var currentPage by remember(initialPage) { mutableIntStateOf(initialPage.coerceAtLeast(0)) }
-    // Margin around the text. Applied as Compose padding around the TextView
-    // (which itself keeps zero padding) so layout coordinates stay equal to
-    // view coordinates and no touch/anchor math has to compensate.
+    // Margin around the text. The TextView carries it as internal padding, so
+    // every coordinate conversion below happens inside this screen.
     val marginPx = remember(density, fontSizeSp) { textMarginPx(context, fontSizeSp) }
-    val marginDp = with(density) { marginPx.toDp() }
-    var selection by remember { mutableStateOf<Selection?>(null) }
-    var boxWindowOffset by remember { mutableStateOf(Offset.Zero) }
+    var selection by remember { mutableStateOf<TextSelection?>(null) }
+    var textView by remember { mutableStateOf<TextView?>(null) }
+    var textViewWindowOffset by remember { mutableStateOf(Offset.Zero) }
 
     DisposableEffect(Unit) {
-        onDispose { onTextViewReady(null) }
+        onDispose { textView = null }
+    }
+
+    LaunchedEffect(selectWordRequest) {
+        val request = selectWordRequest ?: return@LaunchedEffect
+        textView?.let { selectWordAt(it, request.offset.x, request.offset.y) }
+        onSelectWordHandled(request.id)
+    }
+
+    LaunchedEffect(clearSelectionSignal) {
+        if (clearSelectionSignal > 0) {
+            val spannable = textView?.text as? Spannable ?: return@LaunchedEffect
+            Selection.removeSelection(spannable)
+        }
     }
 
     LaunchedEffect(content, containerSize, marginPx) {
@@ -102,11 +114,7 @@ fun TextReaderScreen(
         }
     }
 
-    LaunchedEffect(currentPage, menusVisible) {
-        selection = null
-    }
-
-    LaunchedEffect(selection, boxWindowOffset) {
+    LaunchedEffect(selection, textViewWindowOffset) {
         val selected = selection
         if (selected == null) {
             onSelectionChanged(null, null)
@@ -114,10 +122,10 @@ fun TextReaderScreen(
             onSelectionChanged(
                 selected.text,
                 Rect(
-                    (boxWindowOffset.x + selected.anchor.left).toInt(),
-                    (boxWindowOffset.y + selected.anchor.top).toInt(),
-                    (boxWindowOffset.x + selected.anchor.right).toInt(),
-                    (boxWindowOffset.y + selected.anchor.bottom).toInt(),
+                    (textViewWindowOffset.x + selected.anchor.left).toInt(),
+                    (textViewWindowOffset.y + selected.anchor.top).toInt(),
+                    (textViewWindowOffset.x + selected.anchor.right).toInt(),
+                    (textViewWindowOffset.y + selected.anchor.bottom).toInt(),
                 ),
             )
         }
@@ -128,12 +136,12 @@ fun TextReaderScreen(
             .fillMaxSize()
             .onSizeChanged { size ->
                 containerSize = size.toSize()
-            }
-            .onGloballyPositioned { boxWindowOffset = it.positionInWindow() },
+            },
     ) {
         AndroidView(
             factory = { ctx ->
-                val view = SelectableTextView(ctx).apply {
+                SelectableTextView(ctx).apply {
+                    setPadding(marginPx, marginPx, marginPx, marginPx)
                     setTextColor(android.graphics.Color.BLACK)
                     setBackgroundColor(android.graphics.Color.WHITE)
                     textSize = fontSizeSp
@@ -146,50 +154,39 @@ fun TextReaderScreen(
                         justificationMode = Layout.JUSTIFICATION_MODE_INTER_WORD
                     }
                     setTextIsSelectable(true)
-                }
-                view.onSelectionChanged = { start, end ->
-                    view.post {
-                        val menusVisibleNow = view.tag as? Boolean ?: false
-                        if (menusVisibleNow || start < 0 || end <= start) {
-                            selection = null
-                            return@post
+                    this.onSelectionChanged = { start, end ->
+                        post {
+                            if (start < 0 || end <= start) {
+                                selection = null
+                                return@post
+                            }
+                            val selected = text.toString().substring(start, end)
+                            if (selected.isBlank()) {
+                                selection = null
+                                return@post
+                            }
+                            selection = TextSelection(
+                                text = selected,
+                                anchor = selectionAnchor(this, start, end),
+                            )
                         }
-                        val text = view.text.toString()
-                        val selected = text.substring(start, end)
-                        if (selected.isBlank()) {
-                            selection = null
-                            return@post
-                        }
-                        selection = Selection(
-                            text = selected,
-                            anchor = getSelectionAnchor(view, start, end),
-                        )
                     }
-                }
-                onTextViewReady(view)
-                view
+                }.also { textView = it }
             },
-            update = { textView ->
-                textView.tag = menusVisible
-                if (menusVisible) {
-                    textView.setTextIsSelectable(false)
-                    selection = null
-                } else {
-                    textView.setTextIsSelectable(true)
-                }
+            update = { view ->
                 val pageText = pages.getOrNull(currentPage) ?: ""
-                if (textView.text.toString() != pageText) {
-                    textView.text = pageText
+                if (view.text.toString() != pageText) {
+                    view.text = pageText
                 }
             },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(marginDp),
+                .onGloballyPositioned { textViewWindowOffset = it.positionInWindow() },
         )
     }
 }
 
-private data class Selection(
+private data class TextSelection(
     val text: String,
     val anchor: Rect,
 )
@@ -339,34 +336,4 @@ internal fun slicePages(
         slices.add(startLine until lineCount)
     }
     return slices
-}
-
-private fun getSelectionAnchor(textView: TextView, start: Int, end: Int): Rect {
-    val layout = textView.layout ?: return Rect()
-    val lineStart = layout.getLineForOffset(start)
-    val lineEnd = layout.getLineForOffset(end)
-
-    var left = Int.MAX_VALUE
-    var top = Int.MAX_VALUE
-    var right = Int.MIN_VALUE
-    var bottom = Int.MIN_VALUE
-
-    for (line in lineStart..lineEnd) {
-        val lineLeft = layout.getPrimaryHorizontal(start.coerceAtLeast(layout.getLineStart(line))).toInt()
-        val lineRight = layout.getPrimaryHorizontal(end.coerceAtMost(layout.getLineEnd(line))).toInt()
-        left = minOf(left, lineLeft)
-        right = maxOf(right, lineRight)
-        top = minOf(top, layout.getLineTop(line))
-        bottom = maxOf(bottom, layout.getLineBottom(line))
-    }
-
-    val padLeft = textView.totalPaddingLeft
-    val padTop = textView.totalPaddingTop
-
-    return Rect(
-        left + padLeft,
-        top + padTop,
-        right + padLeft,
-        bottom + padTop,
-    )
 }

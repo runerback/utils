@@ -151,9 +151,12 @@ fun ImageRangeSelector(
         }
     }
 
+    // cropRequest carries a raw window coordinate; the inset conversion into
+    // content coordinates is owned by this selector.
     LaunchedEffect(cropRequest, contentSize) {
         if (contentSize.width <= 0f || contentSize.height <= 0f) return@LaunchedEffect
-        val point = cropRequest?.second ?: Offset(contentSize.width / 2f, contentSize.height / 2f)
+        val point = cropRequest?.second?.let { toContentPoint(it) }
+            ?: Offset(contentSize.width / 2f, contentSize.height / 2f)
         cropRect = createInitialCropRect(point.x, point.y)
         selectedHandle = null
         suppressTapsUntil = System.currentTimeMillis() + 300

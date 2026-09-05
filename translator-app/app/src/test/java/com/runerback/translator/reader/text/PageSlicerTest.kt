@@ -1,6 +1,5 @@
 package com.runerback.translator.reader.text
 
-import com.runerback.translator.reader.findWordBounds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
