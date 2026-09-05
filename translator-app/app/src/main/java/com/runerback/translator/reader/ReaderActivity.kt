@@ -391,7 +391,10 @@ private fun ReaderScreen(
                 showSimplify = showSimplifyButton,
                 onSimplify = { viewModel.onSimplify() },
                 onChinese = { viewModel.onChinese() },
-                onDismiss = { viewModel.dismiss() },
+                onDismiss = {
+                    viewModel.dismiss()
+                    readerViewModel.onCropSelectorClosed()
+                },
             )
         }
 
