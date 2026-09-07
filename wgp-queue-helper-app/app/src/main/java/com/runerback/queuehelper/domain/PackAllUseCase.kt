@@ -45,7 +45,7 @@ class PackAllUseCase(
             val tasks = if (presetId != null) {
                 taskRepository.loadTasks(presetId)
             } else {
-                taskRepository.loadAllTasks()
+                taskRepository.loadGlobalTasks()
             }.sortedBy { it.createdAt }
             if (tasks.isEmpty()) throw IllegalStateException("No tasks to pack")
 

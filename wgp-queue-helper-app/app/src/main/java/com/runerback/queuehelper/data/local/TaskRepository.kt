@@ -22,6 +22,11 @@ import java.io.File
 
 private val Context.taskDataStore: DataStore<Preferences> by preferencesDataStore(name = "tasks")
 
+data class TaskCountSnapshot(
+    val byPreset: Map<Int, Int>,
+    val global: Int
+)
+
 class TaskRepository(private val context: Context) {
 
     companion object {
@@ -45,7 +50,7 @@ class TaskRepository(private val context: Context) {
             val listJson = prefs[tasksKey] ?: "[]"
             val summaries = json.decodeFromString<List<TaskSummary>>(listJson)
             summaries
-                .filter { it.presetId == presetId }
+                .filter { it.presetId == presetId && !it.createdInGlobal }
                 .mapNotNull { summary ->
                     val payloadFile = payloadFile(summary.id)
                     if (!payloadFile.exists()) return@mapNotNull null
@@ -54,12 +59,39 @@ class TaskRepository(private val context: Context) {
                         id = summary.id,
                         presetId = summary.presetId,
                         createdAt = summary.createdAt,
-                        payload = payload
+                        payload = payload,
+                        createdInGlobal = summary.createdInGlobal
                     )
                 }
                 .sortedBy { it.createdAt }
         }.getOrElse {
             LogBuffer.add("TaskRepository.loadTasks($presetId): ${it.stackTraceToString()}")
+            emptyList()
+        }
+    }
+
+    suspend fun loadGlobalTasks(): List<Task> = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = dataStore.data.first()
+            val listJson = prefs[tasksKey] ?: "[]"
+            val summaries = json.decodeFromString<List<TaskSummary>>(listJson)
+            summaries
+                .filter { it.createdInGlobal }
+                .mapNotNull { summary ->
+                    val payloadFile = payloadFile(summary.id)
+                    if (!payloadFile.exists()) return@mapNotNull null
+                    val payload = json.decodeFromString<JsonObject>(payloadFile.readText())
+                    Task(
+                        id = summary.id,
+                        presetId = summary.presetId,
+                        createdAt = summary.createdAt,
+                        payload = payload,
+                        createdInGlobal = summary.createdInGlobal
+                    )
+                }
+                .sortedBy { it.createdAt }
+        }.getOrElse {
+            LogBuffer.add("TaskRepository.loadGlobalTasks: ${it.stackTraceToString()}")
             emptyList()
         }
     }
@@ -76,12 +108,30 @@ class TaskRepository(private val context: Context) {
                     id = summary.id,
                     presetId = summary.presetId,
                     createdAt = summary.createdAt,
-                    payload = payload
+                    payload = payload,
+                    createdInGlobal = summary.createdInGlobal
                 )
             }
         }.getOrElse {
             LogBuffer.add("TaskRepository.loadTask($id): ${it.stackTraceToString()}")
             null
+        }
+    }
+
+    suspend fun countTasksByPreset(): TaskCountSnapshot = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = dataStore.data.first()
+            val summaries = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
+            TaskCountSnapshot(
+                byPreset = summaries
+                    .filter { !it.createdInGlobal }
+                    .groupingBy { it.presetId }
+                    .eachCount(),
+                global = summaries.count { it.createdInGlobal }
+            )
+        }.getOrElse {
+            LogBuffer.add("TaskRepository.countTasksByPreset: ${it.stackTraceToString()}")
+            TaskCountSnapshot(emptyMap(), 0)
         }
     }
 
@@ -98,7 +148,8 @@ class TaskRepository(private val context: Context) {
                     id = summary.id,
                     presetId = summary.presetId,
                     createdAt = summary.createdAt,
-                    payload = payload
+                    payload = payload,
+                    createdInGlobal = summary.createdInGlobal
                 )
             }.sortedBy { it.createdAt }
         }.getOrElse {
@@ -120,7 +171,8 @@ class TaskRepository(private val context: Context) {
                 val updated = existing.filter { it.id != task.id } + TaskSummary(
                     id = task.id,
                     presetId = task.presetId,
-                    createdAt = task.createdAt
+                    createdAt = task.createdAt,
+                    createdInGlobal = task.createdInGlobal
                 )
                 prefs[tasksKey] = json.encodeToString(updated)
             }
@@ -287,6 +339,7 @@ class TaskRepository(private val context: Context) {
     private data class TaskSummary(
         val id: Int,
         val presetId: Int = 0,
-        val createdAt: Long
+        val createdAt: Long,
+        val createdInGlobal: Boolean = false
     )
 }

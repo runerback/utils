@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -179,20 +181,33 @@ fun PresetListScreen(
                         }
                     }
                     Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .combinedClickable(
-                                role = Role.Button,
-                                onClick = onOpenGlobalPack,
-                                onLongClick = { showBatchCreate = true }
-                            ),
+                        modifier = Modifier.size(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = FluentuiSystemIconsFolderZip,
-                            contentDescription = "Open global pack tasks"
-                        )
+                        BadgedBox(
+                            badge = {
+                                if (viewModel.globalTaskCount > 0) {
+                                    Badge { Text(viewModel.globalTaskCount.toString()) }
+                                }
+                            }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .combinedClickable(
+                                        role = Role.Button,
+                                        onClick = onOpenGlobalPack,
+                                        onLongClick = { showBatchCreate = true }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = FluentuiSystemIconsFolderZip,
+                                    contentDescription = "Open global pack tasks"
+                                )
+                            }
+                        }
                     }
                     IconButton(onClick = { showLogView = true }) {
                         Icon(
@@ -249,6 +264,7 @@ fun PresetListScreen(
                             onEdit = { onEditPreset(preset.id) },
                             onDuplicate = { viewModel.duplicatePreset(preset) },
                             onPack = { onPackPreset(preset.id) },
+                            taskCount = viewModel.taskCountsByPreset[preset.id] ?: 0,
                             onDelete = { presetToDelete = preset }
                         )
                     }
@@ -318,6 +334,7 @@ private fun PresetListItem(
     onEdit: () -> Unit,
     onDuplicate: () -> Unit,
     onPack: () -> Unit,
+    taskCount: Int,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -366,11 +383,19 @@ private fun PresetListItem(
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
-            IconButton(onClick = onPack, enabled = !selectionMode) {
-                Icon(
-                    imageVector = FluentuiSystemIconsFolderZip,
-                    contentDescription = "Pack preset"
-                )
+            BadgedBox(
+                badge = {
+                    if (taskCount > 0) {
+                        Badge { Text(taskCount.toString()) }
+                    }
+                }
+            ) {
+                IconButton(onClick = onPack, enabled = !selectionMode) {
+                    Icon(
+                        imageVector = FluentuiSystemIconsFolderZip,
+                        contentDescription = "Pack preset"
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(4.dp))
             IconButton(onClick = onDelete, enabled = !selectionMode) {

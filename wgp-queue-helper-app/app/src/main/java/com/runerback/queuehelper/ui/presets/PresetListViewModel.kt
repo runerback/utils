@@ -55,6 +55,12 @@ class PresetListViewModel(
     var selectedPresetIds by mutableStateOf<Set<Int>>(emptySet())
         private set
 
+    var taskCountsByPreset by mutableStateOf<Map<Int, Int>>(emptyMap())
+        private set
+
+    var globalTaskCount by mutableStateOf(0)
+        private set
+
     private val _events = MutableSharedFlow<PresetListEvent>()
     val events: SharedFlow<PresetListEvent> = _events.asSharedFlow()
 
@@ -69,6 +75,7 @@ class PresetListViewModel(
                 LogBuffer.add("PresetListViewModel.loadPresets: ${it.stackTraceToString()}")
                 emptyList()
             }
+            refreshTaskCounts()
             isLoading = false
         }
     }
@@ -205,6 +212,7 @@ class PresetListViewModel(
                     }
                 }
                 taskRepository.setLastGlobalPresetId(presetIds.lastOrNull())
+                refreshTaskCounts()
                 _events.emit(PresetListEvent.NavigateToGlobalPack)
             }.onFailure {
                 LogBuffer.add("PresetListViewModel.createTasksBatch: ${it.stackTraceToString()}")
@@ -239,8 +247,22 @@ class PresetListViewModel(
             id = id,
             presetId = taskPresetId,
             createdAt = System.currentTimeMillis(),
-            payload = payload
+            payload = payload,
+            createdInGlobal = true
         )
+    }
+
+    private suspend fun refreshTaskCounts() {
+        runCatching {
+            taskRepository.countTasksByPreset()
+        }.onSuccess { snapshot ->
+            taskCountsByPreset = snapshot.byPreset
+            globalTaskCount = snapshot.global
+        }.onFailure {
+            LogBuffer.add("PresetListViewModel.refreshTaskCounts: ${it.stackTraceToString()}")
+            taskCountsByPreset = emptyMap()
+            globalTaskCount = 0
+        }
     }
 
     private fun buildPreset(id: Int, name: String, modelType: String): Preset {

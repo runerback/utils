@@ -13,5 +13,6 @@ data class Task(
     val id: Int,
     val presetId: Int,
     val createdAt: Long,
-    val payload: JsonObject
+    val payload: JsonObject,
+    val createdInGlobal: Boolean = false
 )

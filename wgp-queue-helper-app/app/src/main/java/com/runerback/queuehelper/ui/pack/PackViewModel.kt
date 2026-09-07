@@ -75,7 +75,7 @@ class PackViewModel(
                 if (presetId != null) {
                     taskRepository.loadTasks(presetId)
                 } else {
-                    taskRepository.loadAllTasks()
+                    taskRepository.loadGlobalTasks()
                 }
             }.getOrElse {
                 Log.e(TAG, "loadTasks($presetId) failed", it)
@@ -178,7 +178,7 @@ class PackViewModel(
                 tasks = if (presetId != null) {
                     taskRepository.loadTasks(presetId)
                 } else {
-                    taskRepository.loadAllTasks()
+                    taskRepository.loadGlobalTasks()
                 }
                 Log.d(TAG, "createTaskFromPreset($selectedPresetId): reloaded ${tasks.size} tasks")
                 LogBuffer.add("PackViewModel.createTaskFromPreset($selectedPresetId): reloaded ${tasks.size} tasks")
@@ -212,7 +212,7 @@ class PackViewModel(
                 tasks = if (presetId != null) {
                     taskRepository.loadTasks(presetId)
                 } else {
-                    taskRepository.loadAllTasks()
+                    taskRepository.loadGlobalTasks()
                 }
             }.onFailure {
                 LogBuffer.add("PackViewModel.deleteTaskAndRenumber($taskId): ${it.stackTraceToString()}")
@@ -234,7 +234,7 @@ class PackViewModel(
                 tasks = if (presetId != null) {
                     taskRepository.loadTasks(presetId)
                 } else {
-                    taskRepository.loadAllTasks()
+                    taskRepository.loadGlobalTasks()
                 }
             }.onFailure {
                 LogBuffer.add("PackViewModel.syncTasksFromPreset($presetId): ${it.stackTraceToString()}")
@@ -319,7 +319,8 @@ class PackViewModel(
             id = id,
             presetId = taskPresetId,
             createdAt = System.currentTimeMillis(),
-            payload = payload
+            payload = payload,
+            createdInGlobal = presetId == null
         )
     }
 
