@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.runerback.queuehelper.data.local.PresetRepository
 import com.runerback.queuehelper.data.local.TaskRepository
+import com.runerback.queuehelper.data.model.MiniMaxH3Ref2VaPrompt
 import com.runerback.queuehelper.data.model.Preset
 import com.runerback.queuehelper.data.model.SubjectDefault
 import com.runerback.queuehelper.data.model.SubjectDefaults
@@ -219,6 +220,28 @@ class PackViewModel(
         }
     }
 
+    fun syncTasksFromPreset() {
+        viewModelScope.launch {
+            runCatching {
+                val presetPayloadCache = mutableMapOf<Int, JsonObject?>()
+                val updatedTasks = tasks.map { task ->
+                    val presetPayload = presetPayloadCache.getOrPut(task.presetId) {
+                        presetRepository.loadPreset(task.presetId)?.payload
+                    } ?: return@map task
+                    task.copy(payload = buildSyncedPayload(task, presetPayload))
+                }
+                updatedTasks.forEach { taskRepository.saveTask(it) }
+                tasks = if (presetId != null) {
+                    taskRepository.loadTasks(presetId)
+                } else {
+                    taskRepository.loadAllTasks()
+                }
+            }.onFailure {
+                LogBuffer.add("PackViewModel.syncTasksFromPreset($presetId): ${it.stackTraceToString()}")
+            }
+        }
+    }
+
     fun clearAllTasks() {
         viewModelScope.launch {
             runCatching {
@@ -231,6 +254,35 @@ class PackViewModel(
             }.onFailure {
                 LogBuffer.add("PackViewModel.clearAllTasks($presetId): ${it.stackTraceToString()}")
             }
+        }
+    }
+
+    private fun buildSyncedPayload(task: Task, presetPayload: JsonObject): JsonObject {
+        val taskParams = task.payload["params"]?.jsonObject
+        val baseParams = presetPayload["params"]?.jsonObject ?: JsonObject(emptyMap())
+        val updatedParams = JsonObject(
+            baseParams.toMutableMap().apply {
+                put("id", JsonPrimitive(task.id))
+                listOf("image_refs", "audio_guide", "video_length").forEach { key ->
+                    taskParams?.get(key)?.let { put(key, it) }
+                }
+            }
+        )
+
+        val promptString = baseParams["prompt"]?.jsonPrimitive?.contentOrNull ?: ""
+        val parsed = parseSubjectDefinitions(
+            MiniMaxH3Ref2VaPrompt.parse(promptString).subjectDefinitions
+        )
+        val defaults = SubjectDefaults(
+            subjects = parsed.first.map { SubjectDefault(it.number, it.description) },
+            audio = parsed.second ?: SubjectDefinition.defaultAudioDefinition()
+        )
+
+        return buildJsonObject {
+            put("id", JsonPrimitive(task.id))
+            put("params", updatedParams)
+            put("subject_defaults", Json.encodeToJsonElement(SubjectDefaults.serializer(), defaults))
+            task.payload["pack_settings"]?.let { put("pack_settings", it) }
         }
     }
 

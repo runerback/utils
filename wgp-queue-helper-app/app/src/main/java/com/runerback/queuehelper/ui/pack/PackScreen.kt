@@ -44,6 +44,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +61,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -139,6 +142,7 @@ fun PackScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var isPacking by remember { mutableStateOf(false) }
+    var showSyncConfirm by remember { mutableStateOf(false) }
     val packAllUseCase = remember {
         PackAllUseCase(context, app.taskRepository, app.mediaRepository, presetId)
     }
@@ -188,19 +192,28 @@ fun PackScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.requestCreateTask() }) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Create task"
-                        )
-                    }
                     if (viewModel.tasks.isNotEmpty()) {
+                        IconButton(
+                            onClick = { showSyncConfirm = true },
+                            enabled = !isPacking
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = "Sync from preset"
+                            )
+                        }
                         IconButton(onClick = { viewModel.clearAllTasks() }) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = "Clear all tasks"
                             )
                         }
+                    }
+                    IconButton(onClick = { viewModel.requestCreateTask() }) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Create task"
+                        )
                     }
                     IconButton(
                         onClick = doPackAll,
@@ -257,6 +270,35 @@ fun PackScreen(
             initialPresetId = viewModel.lastSelectedPresetId,
             onPresetSelected = { viewModel.createTaskFromPreset(it) },
             onDismiss = { viewModel.dismissPresetPicker() }
+        )
+    }
+
+    if (showSyncConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSyncConfirm = false },
+            title = { Text("Sync from preset?") },
+            text = {
+                Text(
+                    "All tasks will be reset to their own preset's current prompt and settings. " +
+                        "Media selections (images, audio, trim) are kept. " +
+                        "Per-task prompt and resolution edits will be overwritten."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSyncConfirm = false
+                        viewModel.syncTasksFromPreset()
+                    }
+                ) {
+                    Text("Sync")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSyncConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }
