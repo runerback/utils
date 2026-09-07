@@ -3,6 +3,8 @@ package com.runerback.queuehelper.ui.presets
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,10 +14,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -60,7 +66,7 @@ import com.runerback.queuehelper.ui.icons.FluentuiSystemIconsFolderZip
 import com.runerback.queuehelper.ui.icons.FluentuiSystemIconsSelectAllOff
 import com.runerback.queuehelper.ui.icons.TablerLogs
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PresetListScreen(
     onEditPreset: (Int) -> Unit,
@@ -71,7 +77,7 @@ fun PresetListScreen(
     val context = LocalContext.current
     val app = context.applicationContext as QueueHelperApplication
     val viewModel: PresetListViewModel = viewModel(
-        factory = PresetListViewModel.Factory(app.presetRepository, app.templateLoader)
+        factory = PresetListViewModel.Factory(app.presetRepository, app.taskRepository, app.templateLoader)
     )
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -92,6 +98,7 @@ fun PresetListScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is PresetListViewModel.PresetListEvent.NavigateToEdit -> onEditPreset(event.presetId)
+                PresetListViewModel.PresetListEvent.NavigateToGlobalPack -> onOpenGlobalPack()
                 is PresetListViewModel.PresetListEvent.ShowMessage -> {
                     snackbarHostState.showSnackbar(event.message)
                 }
@@ -100,6 +107,7 @@ fun PresetListScreen(
     }
 
     var showLogView by remember { mutableStateOf(false) }
+    var showBatchCreate by remember { mutableStateOf(false) }
     var presetToDelete by remember { mutableStateOf<Preset?>(null) }
 
     val listState = rememberLazyListState()
@@ -170,7 +178,17 @@ fun PresetListScreen(
                             )
                         }
                     }
-                    IconButton(onClick = onOpenGlobalPack) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .combinedClickable(
+                                role = Role.Button,
+                                onClick = onOpenGlobalPack,
+                                onLongClick = { showBatchCreate = true }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
                             imageVector = FluentuiSystemIconsFolderZip,
                             contentDescription = "Open global pack tasks"
@@ -252,6 +270,17 @@ fun PresetListScreen(
 
             if (showLogView) {
                 LogViewDialog(onDismiss = { showLogView = false })
+            }
+
+            if (showBatchCreate) {
+                BatchCreateDialog(
+                    presets = viewModel.presets,
+                    onCreate = { presetIds, count ->
+                        showBatchCreate = false
+                        viewModel.createTasksBatch(presetIds, count)
+                    },
+                    onDismiss = { showBatchCreate = false }
+                )
             }
 
             presetToDelete?.let { preset ->
