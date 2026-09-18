@@ -248,7 +248,7 @@ class PackViewModel(
                 if (presetId != null) {
                     taskRepository.deleteTasksForPreset(presetId)
                 } else {
-                    taskRepository.deleteAllTasks()
+                    taskRepository.deleteAllGlobalTasks()
                 }
                 tasks = emptyList()
             }.onFailure {

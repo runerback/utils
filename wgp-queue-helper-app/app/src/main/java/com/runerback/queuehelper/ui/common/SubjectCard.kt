@@ -34,29 +34,7 @@ fun SubjectCard(
     imageUris: List<Uri> = emptyList()
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Subject $number",
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onRemove) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Remove subject"
-                    )
-                }
-            }
-
+        val editorContent: @Composable () -> Unit = {
             InlineTokenEditor(
                 value = description,
                 onValueChange = onUpdateDescription,
@@ -72,6 +50,53 @@ fun SubjectCard(
                 minLines = 2,
                 maxLines = 6
             )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (number > 1) {
+                CollapsibleSection(
+                    title = "Subject $number",
+                    modifier = Modifier.fillMaxWidth(),
+                    titleContent = {
+                        Text(
+                            text = "Subject $number",
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = onRemove) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Remove subject"
+                            )
+                        }
+                    }
+                ) {
+                    editorContent()
+                }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Subject $number",
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onRemove) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Remove subject"
+                        )
+                    }
+                }
+                editorContent()
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.runerback.queuehelper.ui.presets
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -30,11 +31,11 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +62,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.queuehelper.QueueHelperApplication
 import com.runerback.queuehelper.data.model.Preset
+import com.runerback.queuehelper.ui.components.LogBuffer
 import com.runerback.queuehelper.ui.components.LogViewDialog
 import com.runerback.queuehelper.ui.icons.BootstrapBoxArrowInDown
 import com.runerback.queuehelper.ui.icons.BootstrapBoxArrowInUp
@@ -114,6 +116,10 @@ fun PresetListScreen(
 
     val listState = rememberLazyListState()
 
+    BackHandler(enabled = viewModel.selectionMode) {
+        viewModel.toggleSelectionMode()
+    }
+
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -124,7 +130,7 @@ fun PresetListScreen(
                 }
                 viewModel.toggleSelectionMode()
             }.onFailure { e ->
-                com.runerback.queuehelper.ui.components.LogBuffer.add(
+                LogBuffer.add(
                     "PresetListScreen.export: ${e.stackTraceToString()}"
                 )
             }
@@ -141,7 +147,7 @@ fun PresetListScreen(
                 }.orEmpty()
                 viewModel.importPresets(json)
             }.onFailure { e ->
-                com.runerback.queuehelper.ui.components.LogBuffer.add(
+                LogBuffer.add(
                     "PresetListScreen.import: ${e.stackTraceToString()}"
                 )
             }
@@ -218,18 +224,49 @@ fun PresetListScreen(
                 }
             )
         },
-        floatingActionButton = {
-            if (viewModel.selectionMode && viewModel.selectedPresetIds.isNotEmpty()) {
-                ExtendedFloatingActionButton(
-                    onClick = { exportLauncher.launch("presets.json") },
-                    icon = {
-                        Icon(
-                            imageVector = BootstrapBoxArrowInUp,
-                            contentDescription = "Export"
-                        )
-                    },
-                    text = { Text("Export") }
-                )
+        bottomBar = {
+            if (viewModel.selectionMode) {
+                val allSelected = viewModel.presets.isNotEmpty() &&
+                    viewModel.selectedPresetIds.size == viewModel.presets.size
+                BottomAppBar(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Checkbox(
+                                checked = allSelected,
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        viewModel.selectAll()
+                                    } else {
+                                        viewModel.clearSelection()
+                                    }
+                                }
+                            )
+                            Text("Select all")
+                        }
+
+                        TextButton(
+                            onClick = { exportLauncher.launch("presets.json") },
+                            enabled = viewModel.selectedPresetIds.isNotEmpty()
+                        ) {
+                            Icon(
+                                imageVector = BootstrapBoxArrowInUp,
+                                contentDescription = "Export"
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Export")
+                        }
+                    }
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },

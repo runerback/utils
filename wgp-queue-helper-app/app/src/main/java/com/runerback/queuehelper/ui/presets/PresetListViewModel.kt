@@ -105,6 +105,10 @@ class PresetListViewModel(
         selectedPresetIds = presets.map { it.id }.toSet()
     }
 
+    fun clearSelection() {
+        selectedPresetIds = emptySet()
+    }
+
     fun createPreset(name: String, modelType: String) {
         viewModelScope.launch {
             runCatching {

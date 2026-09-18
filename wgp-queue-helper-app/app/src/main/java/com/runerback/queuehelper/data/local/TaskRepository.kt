@@ -202,11 +202,11 @@ class TaskRepository(private val context: Context) {
         runCatching {
             val prefs = dataStore.data.first()
             val summaries = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
-            summaries.filter { it.presetId == presetId }.forEach {
+            summaries.filter { it.presetId == presetId && !it.createdInGlobal }.forEach {
                 payloadFile(it.id).delete()
             }
             dataStore.edit { prefs ->
-                prefs[tasksKey] = json.encodeToString(summaries.filter { it.presetId != presetId })
+                prefs[tasksKey] = json.encodeToString(summaries.filter { it.presetId != presetId || it.createdInGlobal })
             }
         }.getOrElse {
             LogBuffer.add("TaskRepository.deleteTasksForPreset($presetId): ${it.stackTraceToString()}")
@@ -257,6 +257,36 @@ class TaskRepository(private val context: Context) {
             }
         }.onFailure {
             LogBuffer.add("TaskRepository.deleteAllTasks: ${it.stackTraceToString()}")
+        }
+    }
+
+    suspend fun deleteAllGlobalTasks() = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = dataStore.data.first()
+            val summaries = json.decodeFromString<List<TaskSummary>>(prefs[tasksKey] ?: "[]")
+            summaries.filter { it.createdInGlobal }.forEach { payloadFile(it.id).delete() }
+            val remainingSummaries = summaries.filter { !it.createdInGlobal }
+            val newSummaries = remainingSummaries.mapIndexed { index, summary ->
+                val newId = index + 1
+                val oldId = summary.id
+                if (oldId != newId) {
+                    val oldFile = payloadFile(oldId)
+                    if (oldFile.exists()) {
+                        val payload = json.decodeFromString<JsonObject>(oldFile.readText())
+                        val updatedPayload = updatePayloadId(payload, newId)
+                        payloadFile(newId).writeText(json.encodeToString(updatedPayload))
+                        oldFile.delete()
+                    }
+                }
+                summary.copy(id = newId)
+            }
+
+            dataStore.edit { prefs ->
+                prefs[tasksKey] = json.encodeToString(newSummaries)
+                prefs[nextIdKey] = newSummaries.size + 1
+            }
+        }.onFailure {
+            LogBuffer.add("TaskRepository.deleteAllGlobalTasks: ${it.stackTraceToString()}")
         }
     }
 
