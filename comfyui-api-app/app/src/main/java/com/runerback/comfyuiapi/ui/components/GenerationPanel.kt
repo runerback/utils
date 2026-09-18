@@ -206,6 +206,10 @@ private fun BatchCountStepper(
         OutlinedTextField(
             value = count.toString(),
             onValueChange = { text ->
+                if (text.isBlank()) {
+                    onCountChange(min)
+                    return@OutlinedTextField
+                }
                 text.toIntOrNull()?.let { onCountChange(it.coerceIn(min, max)) }
             },
             enabled = enabled,
@@ -213,7 +217,7 @@ private fun BatchCountStepper(
             textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
             modifier = Modifier
                 .height(48.dp)
-                .widthIn(min = 48.dp, max = 56.dp)
+                .widthIn(min = 64.dp, max = 80.dp)
         )
         Column(
             modifier = Modifier.height(48.dp),
