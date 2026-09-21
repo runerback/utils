@@ -438,3 +438,47 @@ button:hover {
   background: #1f5cd2;
 }
 
+
+.audio-split-clips {
+  margin: 8px 0;
+  border: 1px solid #2f3944;
+  background: #111920;
+  padding: 8px;
+}
+
+.audio-split-clips h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.audio-split-clips ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.audio-split-clip {
+  margin: 0 0 10px;
+}
+
+.audio-split-clip-header {
+  font-size: 13px;
+  color: #cfe3ff;
+  margin-bottom: 4px;
+}
+
+.audio-split-clip audio {
+  width: 100%;
+  max-width: 420px;
+  height: 32px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.audio-split-clip a {
+  color: #8ab4ff;
+  font-size: 13px;
+}
+
+#audioSplitProgress {
+  width: 220px;
+}

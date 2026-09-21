@@ -154,6 +154,8 @@ const state = {
   cropIndicatorVisible: true,
   previewParts: [],
   selectedPreviewPartIndex: 0,
+  audioJobId: null,
+  audioJobTimer: null,
   edit: {
     trim: { start: 0, end: 0 },
     crop: { x: 0, y: 0, width: 0, height: 0, preset: null },
@@ -268,6 +270,17 @@ const el = {
   cropHandles: document.querySelectorAll(".crop-handle"),
   presetButtons: document.querySelectorAll(".preset"),
   resizePresetButtons: document.querySelectorAll(".resize-preset"),
+  audioSplitBackend: document.getElementById("audioSplitBackend"),
+  audioSplitBeatSnap: document.getElementById("audioSplitBeatSnap"),
+  audioSplitMaxClip: document.getElementById("audioSplitMaxClip"),
+  audioSplitMinClip: document.getElementById("audioSplitMinClip"),
+  audioSplitMergeGap: document.getElementById("audioSplitMergeGap"),
+  audioSplitStartBtn: document.getElementById("audioSplitStartBtn"),
+  audioSplitCancelBtn: document.getElementById("audioSplitCancelBtn"),
+  audioSplitProgress: document.getElementById("audioSplitProgress"),
+  audioSplitStatus: document.getElementById("audioSplitStatus"),
+  audioSplitClipsWrap: document.getElementById("audioSplitClipsWrap"),
+  audioSplitClipsList: document.getElementById("audioSplitClipsList"),
   editorTabButtons: document.querySelectorAll(".editor-tab"),
   editorPanels: document.querySelectorAll(".editor-panel")
 };
@@ -579,6 +592,178 @@ function setProjectFromPayload(payload, options = {}) {
   updateTrimUI();
   updateCropUI();
   updateDimensionLabels();
+  loadAudioSplitResult();
+}
+
+const AUDIO_STAGE_LABELS = {
+  extract: "Extracting audio",
+  separate: "Separating vocals",
+  vad: "Detecting vocal clips",
+  split: "Splitting long clips",
+  beats: "Aligning to beats",
+  export: "Exporting clips"
+};
+
+function setAudioSplitStatus(message) {
+  el.audioSplitStatus.textContent = message;
+}
+
+function setAudioSplitRunning(running) {
+  el.audioSplitStartBtn.disabled = running;
+  el.audioSplitCancelBtn.classList.toggle("hidden", !running);
+  el.audioSplitProgress.classList.toggle("hidden", !running);
+}
+
+function formatClipTime(seconds) {
+  const total = Math.max(0, Number(seconds) || 0);
+  const minutes = Math.floor(total / 60);
+  const secs = total - minutes * 60;
+  return `${String(minutes).padStart(2, "0")}:${secs.toFixed(2).padStart(5, "0")}`;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value)) return "";
+  if (value >= 1048576) return `${(value / 1048576).toFixed(1)} MB`;
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${value} B`;
+}
+
+function renderAudioSplitClips(clips) {
+  el.audioSplitClipsList.innerHTML = "";
+  if (!Array.isArray(clips) || !clips.length) {
+    el.audioSplitClipsWrap.classList.add("hidden");
+    return;
+  }
+  clips.forEach((clip) => {
+    const item = document.createElement("li");
+    item.className = "audio-split-clip";
+    const header = document.createElement("div");
+    header.className = "audio-split-clip-header";
+    const duration = clip.end - clip.start;
+    header.textContent = `#${clip.index}  ${formatClipTime(clip.start)} - ${formatClipTime(clip.end)}  (${duration.toFixed(2)}s${clip.output_size_bytes ? `, ${formatBytes(clip.output_size_bytes)}` : ""})`;
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.preload = "none";
+    audio.src = clip.output_url;
+    const download = document.createElement("a");
+    download.href = clip.output_url;
+    download.setAttribute("download", "");
+    download.textContent = "Download WAV";
+    item.appendChild(header);
+    item.appendChild(audio);
+    item.appendChild(download);
+    el.audioSplitClipsList.appendChild(item);
+  });
+  el.audioSplitClipsWrap.classList.remove("hidden");
+}
+
+function stopAudioJobPolling() {
+  if (state.audioJobTimer) {
+    clearInterval(state.audioJobTimer);
+    state.audioJobTimer = null;
+  }
+}
+
+async function pollAudioJob() {
+  if (!state.projectId || !state.audioJobId) return;
+  try {
+    const response = await fetch(`/api/projects/${state.projectId}/audio-split/jobs/${state.audioJobId}`);
+    if (!response.ok) {
+      throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+    }
+    const payload = await response.json();
+    const stageLabel = AUDIO_STAGE_LABELS[payload.stage] || payload.stage || "Working";
+    el.audioSplitProgress.value = payload.progress || 0;
+    setAudioSplitStatus(
+      payload.status === "running"
+        ? `${stageLabel}... ${Math.round(payload.progress || 0)}%`
+        : payload.message || payload.status
+    );
+    if (payload.status === "done") {
+      stopAudioJobPolling();
+      setAudioSplitRunning(false);
+      state.audioJobId = null;
+      renderAudioSplitClips(payload.clips);
+      setAudioSplitStatus(payload.message || `Done: ${payload.clips.length} clips exported.`);
+    } else if (payload.status === "error" || payload.status === "cancelled") {
+      stopAudioJobPolling();
+      setAudioSplitRunning(false);
+      state.audioJobId = null;
+      setAudioSplitStatus(payload.status === "error" ? `Failed: ${payload.error}` : "Cancelled.");
+    }
+  } catch (error) {
+    stopAudioJobPolling();
+    setAudioSplitRunning(false);
+    state.audioJobId = null;
+    setAudioSplitStatus(`Polling failed: ${error.message}`);
+  }
+}
+
+async function startAudioSplit() {
+  if (!state.projectId) {
+    setAudioSplitStatus("Load a project first.");
+    return;
+  }
+  const settings = {
+    backend: el.audioSplitBackend.value,
+    max_clip_length: toFiniteNumber(el.audioSplitMaxClip.value, 15),
+    min_clip_length: toFiniteNumber(el.audioSplitMinClip.value, 8),
+    vad_merge_gap: toFiniteNumber(el.audioSplitMergeGap.value, 0.5),
+    beat_snap_enabled: el.audioSplitBeatSnap.checked
+  };
+  try {
+    const response = await fetch(`/api/projects/${state.projectId}/audio-split/jobs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings)
+    });
+    if (!response.ok) {
+      throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+    }
+    const payload = await response.json();
+    state.audioJobId = payload.job_id;
+    setAudioSplitRunning(true);
+    el.audioSplitProgress.value = 0;
+    setAudioSplitStatus("Starting...");
+    stopAudioJobPolling();
+    state.audioJobTimer = setInterval(pollAudioJob, 1000);
+    pollAudioJob();
+  } catch (error) {
+    setAudioSplitRunning(false);
+    setAudioSplitStatus(`Start failed: ${error.message}`);
+  }
+}
+
+async function cancelAudioSplit() {
+  if (!state.projectId || !state.audioJobId) return;
+  try {
+    await fetch(`/api/projects/${state.projectId}/audio-split/jobs/${state.audioJobId}/cancel`, { method: "POST" });
+    setAudioSplitStatus("Cancelling...");
+  } catch (error) {
+    setAudioSplitStatus(`Cancel failed: ${error.message}`);
+  }
+}
+
+async function loadAudioSplitResult() {
+  stopAudioJobPolling();
+  state.audioJobId = null;
+  setAudioSplitRunning(false);
+  el.audioSplitProgress.classList.add("hidden");
+  renderAudioSplitClips([]);
+  setAudioSplitStatus("Idle");
+  if (!state.projectId) return;
+  try {
+    const response = await fetch(`/api/projects/${state.projectId}/audio-split/result`);
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (payload.clips && payload.clips.length) {
+      renderAudioSplitClips(payload.clips);
+      setAudioSplitStatus(`Previous result: ${payload.clips.length} clips.`);
+    }
+  } catch (error) {
+    /* no previous result available */
+  }
 }
 
 function setActiveEditorPanel(panelName) {
@@ -1796,6 +1981,9 @@ el.freezeFramePresetButtons.forEach((button) => {
 el.editorTabButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveEditorPanel(button.dataset.panel));
 });
+
+el.audioSplitStartBtn.addEventListener("click", startAudioSplit);
+el.audioSplitCancelBtn.addEventListener("click", cancelAudioSplit);
 
 el.startRange.addEventListener("input", () => {
   state.edit.trim.start = Number(el.startRange.value);

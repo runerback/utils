@@ -89,6 +89,7 @@
       <button class="editor-tab" type="button" data-panel="resize">Resize</button>
       <button class="editor-tab" type="button" data-panel="scene-split">Scene Split</button>
       <button class="editor-tab" type="button" data-panel="freeze-frame">Freeze Frame</button>
+      <button class="editor-tab" type="button" data-panel="audio-split">Audio Split</button>
     </section>
 
     <section class="timeline editor-panel" data-panel="trim">
@@ -338,6 +339,37 @@
         </div>
       </div>
       <p class="scene-split-hint">The freeze frame is inserted after trim and before crop/rotation/resize/speed. It cannot be used with Scene Split.</p>
+    </section>
+
+    <section class="audio-split editor-panel hidden" data-panel="audio-split">
+      <h2>Audio Split</h2>
+      <div class="timeline-row">
+        <label>
+          Separation backend
+          <select id="audioSplitBackend">
+            <option value="demucs">Demucs (htdemucs)</option>
+            <option value="roformer">BS-RoFormer (audio-separator)</option>
+          </select>
+        </label>
+        <label><input id="audioSplitBeatSnap" type="checkbox" checked> Snap split points to beats</label>
+      </div>
+      <div class="timeline-row">
+        <label>Max clip (s) <input id="audioSplitMaxClip" type="number" min="1" step="0.5" value="15"></label>
+        <label>Min clip (s) <input id="audioSplitMinClip" type="number" min="1" step="0.5" value="8"></label>
+        <label>VAD merge gap (s) <input id="audioSplitMergeGap" type="number" min="0" step="0.1" value="0.5"></label>
+      </div>
+      <div class="timeline-row">
+        <button id="audioSplitStartBtn" type="button">Start Audio Split</button>
+        <button id="audioSplitCancelBtn" type="button" class="hidden">Cancel</button>
+        <progress id="audioSplitProgress" class="hidden" max="100" value="0"></progress>
+        <span id="audioSplitStatus" class="export-status">Idle</span>
+      </div>
+      <div id="audioSplitClipsWrap" class="audio-split-clips hidden">
+        <h3>Audio Clips</h3>
+        <ol id="audioSplitClipsList"></ol>
+      </div>
+      <p class="scene-split-hint">Extracts the audio, separates vocals, detects vocal clips, splits clips longer than the max length at quiet (low-RMS) points, aligns split points to beats, and exports the original audio as WAV clips.</p>
+      <p class="scene-split-hint">The first run downloads the separation model and can take several minutes on CPU.</p>
     </section>
   </main>
   <script src="/static/app.js"></script>

@@ -14,8 +14,14 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .ffmpeg import FFmpegService
+from .audio_jobs import AudioJobManager
+from .audio_split import AudioSplitService
 from .scene_detection import SceneDetectionService
 from .schemas import (
+    AudioSplitJobStartResponse,
+    AudioSplitJobStatus,
+    AudioSplitResult,
+    AudioSplitSettings,
     EditState,
     ExportEstimatePart,
     ExportEstimateResponse,
@@ -184,6 +190,8 @@ storage = Storage(
 )
 ffmpeg = FFmpegService()
 scene_detection = SceneDetectionService(ffmpeg)
+audio_split_service = AudioSplitService(ffmpeg, storage.work, storage.exports)
+audio_jobs = AudioJobManager(audio_split_service, storage)
 
 app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
 app.mount("/uploads", StaticFiles(directory=str(storage.uploads)), name="uploads")
@@ -632,6 +640,43 @@ def render_export_gif(project_id: str) -> RenderResponse:
         raise _logged_http_exception(404, exc, "GIF export failed: project not found", project_id=project_id, export_format="gif") from exc
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
         raise _logged_http_exception(400, exc, "GIF export failed", project_id=project_id, export_format="gif") from exc
+
+
+@app.post("/api/projects/{project_id}/audio-split/jobs", response_model=AudioSplitJobStartResponse)
+def start_audio_split_job(project_id: str, payload: AudioSplitSettings) -> AudioSplitJobStartResponse:
+    try:
+        job = audio_jobs.start(project_id, payload)
+        return AudioSplitJobStartResponse(project_id=project_id, job_id=job.job_id, status="queued")
+    except FileNotFoundError as exc:
+        raise _logged_http_exception(404, exc, "Audio split start failed: project not found", project_id=project_id) from exc
+    except (ValueError, OSError) as exc:
+        raise _logged_http_exception(400, exc, "Audio split start failed", project_id=project_id) from exc
+
+
+@app.get("/api/projects/{project_id}/audio-split/jobs/{job_id}", response_model=AudioSplitJobStatus)
+def get_audio_split_job(project_id: str, job_id: str) -> AudioSplitJobStatus:
+    try:
+        return audio_jobs.status(project_id, job_id)
+    except FileNotFoundError as exc:
+        raise _logged_http_exception(404, exc, "Audio split job lookup failed", project_id=project_id, job_id=job_id) from exc
+
+
+@app.post("/api/projects/{project_id}/audio-split/jobs/{job_id}/cancel", response_model=AudioSplitJobStatus)
+def cancel_audio_split_job(project_id: str, job_id: str) -> AudioSplitJobStatus:
+    try:
+        return audio_jobs.cancel(project_id, job_id)
+    except FileNotFoundError as exc:
+        raise _logged_http_exception(404, exc, "Audio split cancel failed: job not found", project_id=project_id, job_id=job_id) from exc
+
+
+@app.get("/api/projects/{project_id}/audio-split/result", response_model=AudioSplitResult)
+def get_audio_split_result(project_id: str) -> AudioSplitResult:
+    try:
+        storage.load_project(project_id)
+    except FileNotFoundError as exc:
+        raise _logged_http_exception(404, exc, "Audio split result lookup failed: project not found", project_id=project_id) from exc
+    result = audio_jobs.latest_result(project_id)
+    return result or AudioSplitResult(project_id=project_id)
 
 
 @app.get("/api/projects/{project_id}/export/download")

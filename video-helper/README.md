@@ -38,6 +38,7 @@ Users can:
   - Choose only some rendered clips for export, or leave the selection empty to export all clips
 - Preview render and final export render via FFmpeg
 - Browser-compatible playback proxy for HEVC/libx265 source videos
+- Audio split: vocal extraction (Demucs or BS-RoFormer), vocal clip detection (silero-vad), low-RMS long-clip splitting, beat snapping, and per-clip WAV export
 
 ## Tech Stack
 
@@ -56,6 +57,29 @@ work/       Preview/proxy outputs
 exports/    Final exported videos
 projects/   Project state JSON files
 ```
+
+## Audio Split
+
+The **Audio Split** tab extracts a project's audio, separates vocals, detects vocal clips with silero-vad,
+splits clips longer than the max length at low-RMS points (each piece at least the min length), optionally
+snaps split points to detected beats, and exports the original mix audio as per-clip `.wav` files.
+
+- Vocal separation backends selectable in the UI: **Demucs** (`htdemucs`) or **BS-RoFormer** via the
+  `audio-separator` package. Models are auto-downloaded on first run (several hundred MB each).
+- These features require extra heavy dependencies (~3 GB): `torch`, `torchaudio`, `demucs`,
+  `audio-separator`, `silero-vad`, `librosa`, `soundfile` (all in `requirements.txt`).
+- The default `pip install torch` gives a CPU build; vocal separation of a full song can take several
+  minutes on CPU. On a machine with an NVIDIA GPU, install the CUDA-enabled torch wheel first, e.g.:
+
+  ```powershell
+  .\.venv\Scripts\python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+  .\.venv\Scripts\python -m pip install -r requirements.txt
+  ```
+
+  Pick the `cuXXX` index matching the installed CUDA toolkit (see https://pytorch.org/get-started/locally/).
+- torch requires a **64-bit** Python; it is not available for 32-bit Windows builds.
+- Audio split jobs run in the background; the UI polls progress. Results are kept per project and the
+  exported wav clips are served from `exports\`.
 
 ## Requirements
 
@@ -141,6 +165,10 @@ If a local-path source is missing later, the app will auto-fallback to project-d
 - `POST /api/projects/{project_id}/export` - render final export (single clip or multipart scene-split clips)
 - `POST /api/projects/{project_id}/export/gif-estimate` - estimate GIF output size for the current edit state
 - `POST /api/projects/{project_id}/export/gif` - render GIF export (single clip or multipart scene-split clips)
+- `POST /api/projects/{project_id}/audio-split/jobs` - start an audio split job
+- `GET /api/projects/{project_id}/audio-split/jobs/{job_id}` - poll audio split job status/progress
+- `POST /api/projects/{project_id}/audio-split/jobs/{job_id}/cancel` - cancel a running audio split job
+- `GET /api/projects/{project_id}/audio-split/result` - latest audio split clip results for the project
 
 ## Tests
 

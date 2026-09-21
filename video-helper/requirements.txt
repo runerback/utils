@@ -3,4 +3,11 @@ uvicorn==0.35.0
 python-multipart==0.0.31
 numpy==2.2.5
 onnxruntime==1.20.1
+torch>=2.2
+torchaudio>=2.2
+demucs>=4.0.1
+audio-separator>=0.30
+silero-vad>=5.1
+librosa>=0.10
+soundfile>=0.12
 

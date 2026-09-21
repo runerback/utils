@@ -157,6 +157,58 @@ class ExportEstimateResponse(BaseModel):
     parts: list[ExportEstimatePart] = Field(default_factory=list)
 
 
+AudioSplitBackend = Literal["demucs", "roformer"]
+AudioSplitStage = Literal["extract", "separate", "vad", "split", "beats", "export"]
+AudioJobStatusValue = Literal["queued", "running", "done", "error", "cancelled"]
+
+
+class AudioSplitSettings(BaseModel):
+    backend: AudioSplitBackend = "demucs"
+    max_clip_length: float = Field(default=15.0, gt=0)
+    min_clip_length: float = Field(default=8.0, gt=0)
+    vad_merge_gap: float = Field(default=0.5, ge=0)
+    vad_threshold: float = Field(default=0.5, gt=0, lt=1)
+    beat_snap_enabled: bool = True
+    beat_snap_tolerance: float = Field(default=0.4, ge=0)
+
+    @model_validator(mode="after")
+    def validate_lengths(self) -> "AudioSplitSettings":
+        if self.min_clip_length > self.max_clip_length:
+            raise ValueError("min_clip_length must be less than or equal to max_clip_length")
+        return self
+
+
+class AudioClipResult(BaseModel):
+    index: int = Field(ge=1)
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    output_url: str
+    output_path: Optional[str] = None
+    output_size_bytes: Optional[int] = Field(default=None, ge=0)
+
+
+class AudioSplitResult(BaseModel):
+    project_id: str
+    clips: list[AudioClipResult] = Field(default_factory=list)
+
+
+class AudioSplitJobStartResponse(BaseModel):
+    project_id: str
+    job_id: str
+    status: AudioJobStatusValue = "queued"
+
+
+class AudioSplitJobStatus(BaseModel):
+    project_id: str
+    job_id: str
+    status: AudioJobStatusValue = "queued"
+    stage: Optional[AudioSplitStage] = None
+    progress: float = Field(default=0, ge=0, le=100)
+    message: str = ""
+    error: Optional[str] = None
+    clips: list[AudioClipResult] = Field(default_factory=list)
+
+
 class ProjectListItem(BaseModel):
     project_id: str
     original_url: str
