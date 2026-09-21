@@ -221,8 +221,10 @@ fun RoomScreen(viewModel: RoomViewModel = hiltViewModel()) {
                     backendUrl = uiState.backendUrl,
                     error = uiState.error,
                     markdownMode = uiState.markdownMode,
+                    expandedMessages = uiState.expandedMessages,
                     fileDownloadStates = fileDownloadStates,
                     onToggleMarkdown = { viewModel.toggleMarkdownMode(it) },
+                    onToggleExpanded = { viewModel.toggleTextExpanded(it) },
                     onStatus = { msg ->
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     },

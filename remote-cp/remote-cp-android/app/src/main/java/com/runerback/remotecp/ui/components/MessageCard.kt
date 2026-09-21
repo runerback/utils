@@ -21,6 +21,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.ButtonDefaults
@@ -32,13 +34,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.runerback.remotecp.R
@@ -55,19 +66,43 @@ private fun deviceIcon(deviceType: String): Int {
     }
 }
 
+private const val COLLAPSED_MAX_LINES = 8
+
+private fun Modifier.cappedHeight(heightPx: Int, capped: Boolean): Modifier =
+    this.layout { measurable, constraints ->
+        if (capped) {
+            val placeable = measurable.measure(constraints.copy(maxHeight = Constraints.Infinity))
+            layout(placeable.width, placeable.height.coerceAtMost(heightPx)) {
+                placeable.place(0, 0)
+            }
+        } else {
+            val placeable = measurable.measure(constraints)
+            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+        }
+    }
+
 @Composable
 fun MessageCard(
     message: Message,
     backendUrl: String,
     isMarkdown: Boolean = false,
+    isExpanded: Boolean = false,
     fileDownloadStates: Map<String, FileDownloadUiState> = emptyMap(),
     onToggleMarkdown: () -> Unit,
+    onToggleExpanded: () -> Unit = {},
     onStatus: (String) -> Unit,
     onImageClick: (ImageAttachment) -> Unit = {},
     onVideoClick: (VideoAttachment) -> Unit = {},
     onFileClick: (FileAttachment) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val textStyle = MaterialTheme.typography.bodyLarge
+    val textMeasurer = rememberTextMeasurer()
+    val collapsedHeightPx = remember(textStyle) {
+        textMeasurer.measure("A", style = textStyle).size.height * COLLAPSED_MAX_LINES
+    }
+    var textHeightPx by remember(message.id) { mutableIntStateOf(0) }
+    val isCollapsible = message.text.isNotBlank() && textHeightPx > collapsedHeightPx
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -102,11 +137,32 @@ fun MessageCard(
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
-                Text(
-                    text = message.clientTimestamp,
-                    color = Color(0xFF94a3b8),
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = message.clientTimestamp,
+                        color = Color(0xFF94a3b8),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (isCollapsible) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { onToggleExpanded() }
+                        ) {
+                            Text(
+                                text = if (isExpanded) "Show less" else "Show more",
+                                color = Color(0xFF38bdf8),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (isExpanded) "Show less" else "Show more",
+                                tint = Color(0xFF38bdf8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             if (message.text.isNotBlank()) {
@@ -144,19 +200,28 @@ fun MessageCard(
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                SelectionContainer {
-                    if (isMarkdown) {
-                        MarkdownText(
-                            markdown = message.text,
-                            color = Color(0xFFe5e7eb),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    } else {
-                        Text(
-                            text = message.text,
-                            color = Color(0xFFe5e7eb),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clipToBounds()
+                        .cappedHeight(collapsedHeightPx, isCollapsible && !isExpanded)
+                ) {
+                    Box(modifier = Modifier.onSizeChanged { textHeightPx = it.height }) {
+                        SelectionContainer {
+                            if (isMarkdown) {
+                                MarkdownText(
+                                    markdown = message.text,
+                                    color = Color(0xFFe5e7eb),
+                                    style = textStyle
+                                )
+                            } else {
+                                Text(
+                                    text = message.text,
+                                    color = Color(0xFFe5e7eb),
+                                    style = textStyle
+                                )
+                            }
+                        }
                     }
                 }
             }

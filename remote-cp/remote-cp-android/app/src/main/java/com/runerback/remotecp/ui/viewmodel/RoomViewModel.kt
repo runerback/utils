@@ -29,7 +29,8 @@ data class UiState(
     val statusMessage: String? = null,
     val backendUrl: String = "",
     val recentBackendUrls: List<String> = emptyList(),
-    val markdownMode: Map<String, Boolean> = emptyMap()
+    val markdownMode: Map<String, Boolean> = emptyMap(),
+    val expandedMessages: Map<String, Boolean> = emptyMap()
 )
 
 @HiltViewModel
@@ -213,6 +214,13 @@ class RoomViewModel @Inject constructor(
         _uiState.update { state ->
             val current = state.markdownMode[messageId] ?: false
             state.copy(markdownMode = state.markdownMode + (messageId to !current))
+        }
+    }
+
+    fun toggleTextExpanded(messageId: String) {
+        _uiState.update { state ->
+            val current = state.expandedMessages[messageId] ?: false
+            state.copy(expandedMessages = state.expandedMessages + (messageId to !current))
         }
     }
 
