@@ -14,6 +14,11 @@ const DEFAULT_FREEZE_FRAME = {
   timestamp: 0,
   duration: 1.0
 };
+const MAX_AUDIO_SYNC_OFFSET = 60;
+const AUDIO_SYNC_SLIDER_RANGE = 5;
+const DEFAULT_AUDIO_SYNC = {
+  offset: 0
+};
 const DEFAULT_SCENE_SPLIT = {
   enabled: false,
   detector: "ffmpeg",
@@ -82,6 +87,14 @@ function normalizeRotationConfig(rotation) {
   const quarterTurns = Math.round(toFiniteNumber(next.quarter_turns, DEFAULT_ROTATION.quarter_turns));
   return {
     quarter_turns: ((quarterTurns % 4) + 4) % 4
+  };
+}
+
+function normalizeAudioSyncConfig(audioSync) {
+  const next = audioSync && typeof audioSync === "object" ? audioSync : {};
+  const offset = toFiniteNumber(next.offset, DEFAULT_AUDIO_SYNC.offset);
+  return {
+    offset: Math.max(-MAX_AUDIO_SYNC_OFFSET, Math.min(MAX_AUDIO_SYNC_OFFSET, offset))
   };
 }
 
@@ -164,7 +177,8 @@ const state = {
     resize_max: null,
     speed: DEFAULT_SPEED,
     scene_split: loadSceneSplitPreferences(),
-    freeze_frame: { ...DEFAULT_FREEZE_FRAME }
+    freeze_frame: { ...DEFAULT_FREEZE_FRAME },
+    audio_sync: { ...DEFAULT_AUDIO_SYNC }
   }
 };
 
@@ -254,6 +268,11 @@ const el = {
   freezeFramePresetButtons: document.querySelectorAll(".freeze-frame-preset"),
   freezeFrameShiftButtons: document.querySelectorAll(".freeze-frame-shift-btn"),
   freezeFrameImage: document.getElementById("freezeFrameImage"),
+  audioSyncOffset: document.getElementById("audioSyncOffset"),
+  audioSyncOffsetRange: document.getElementById("audioSyncOffsetRange"),
+  audioSyncOffsetValue: document.getElementById("audioSyncOffsetValue"),
+  audioSyncResetBtn: document.getElementById("audioSyncResetBtn"),
+  audioSyncShiftButtons: document.querySelectorAll(".audio-sync-shift-btn"),
   originalDims: document.getElementById("originalDims"),
   previewDims: document.getElementById("previewDims"),
   saveStateBtn: document.getElementById("saveStateBtn"),
@@ -316,6 +335,7 @@ function normalizeEditState(edit, metadata = null) {
   next.resize_max = Number.isInteger(resizeMax) && resizeMax >= 2 ? resizeMax : null;
   next.scene_split = normalizeSceneSplitConfig(sceneSplit);
   next.freeze_frame = normalizeFreezeFrameConfig(freezeFrame);
+  next.audio_sync = normalizeAudioSyncConfig(next.audio_sync);
   return next;
 }
 
@@ -585,6 +605,7 @@ function setProjectFromPayload(payload, options = {}) {
   updateRotationUI();
   updateSceneSplitUI();
   updateFreezeFrameUI();
+  updateAudioSyncUI();
   updatePreviewPartsVisibility();
   state.cropIndicatorVisible = forceCropOff
     ? false
@@ -1286,6 +1307,27 @@ function syncFreezeFrameFromInputs() {
   scheduleFreezeFrameImageRefresh();
 }
 
+function updateAudioSyncUI() {
+  const audioSync = normalizeAudioSyncConfig(state.edit.audio_sync);
+  state.edit.audio_sync = audioSync;
+  el.audioSyncOffset.value = audioSync.offset.toFixed(2);
+  el.audioSyncOffsetRange.value = String(
+    Math.max(-AUDIO_SYNC_SLIDER_RANGE, Math.min(AUDIO_SYNC_SLIDER_RANGE, audioSync.offset))
+  );
+  el.audioSyncOffsetValue.textContent = `${audioSync.offset.toFixed(2)}s`;
+}
+
+function setAudioSyncOffset(rawValue) {
+  state.edit.audio_sync = normalizeAudioSyncConfig({ offset: rawValue });
+  updateAudioSyncUI();
+}
+
+function syncAudioSyncFromInputs() {
+  state.edit.audio_sync = normalizeAudioSyncConfig({
+    offset: toFiniteNumber(el.audioSyncOffset.value, state.edit.audio_sync?.offset ?? DEFAULT_AUDIO_SYNC.offset)
+  });
+}
+
 function syncFreezeFrameDuration(rawValue) {
   const value = toFiniteNumber(rawValue, DEFAULT_FREEZE_FRAME.duration);
   state.edit.freeze_frame = normalizeFreezeFrameConfig({
@@ -1636,6 +1678,7 @@ async function saveState(options = {}) {
   }
   syncSceneSplitFromInputs();
   syncFreezeFrameFromInputs();
+  syncAudioSyncFromInputs();
   const response = await fetch(`/api/projects/${state.projectId}/state`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -1651,6 +1694,7 @@ async function saveState(options = {}) {
   state.edit = normalizeEditState(payload.state, state.metadata);
   updateSceneSplitUI();
   updateFreezeFrameUI();
+  updateAudioSyncUI();
   if (!silent) setStatus("State saved.");
   return payload;
 }
@@ -1942,6 +1986,15 @@ el.sceneSplitResetBtn.addEventListener("click", () => {
   updateSceneSplitUI();
 });
 el.freezeFrameEnabled.addEventListener("change", () => syncFreezeFrameFromInputs());
+el.audioSyncOffset.addEventListener("change", () => setAudioSyncOffset(el.audioSyncOffset.value));
+el.audioSyncOffsetRange.addEventListener("input", () => setAudioSyncOffset(el.audioSyncOffsetRange.value));
+el.audioSyncResetBtn.addEventListener("click", () => setAudioSyncOffset(DEFAULT_AUDIO_SYNC.offset));
+el.audioSyncShiftButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const deltaSeconds = toFiniteNumber(button.dataset.seconds, 0);
+    setAudioSyncOffset((state.edit.audio_sync?.offset ?? 0) + deltaSeconds);
+  });
+});
 el.freezeFrameTimestamp.addEventListener("change", () => syncFreezeFrameFromInputs());
 el.freezeFrameTimestampRange.addEventListener("input", () => {
   state.edit.freeze_frame = normalizeFreezeFrameConfig({

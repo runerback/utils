@@ -27,6 +27,7 @@ Users can:
   - Right 90
 - Resize control for the maximum longer edge
 - Whole-video playback speed control with presets, a 0.25x-2x slider/manual range, and preset-only 5x/10x options
+- Audio sync: manually shift the audio track by an offset in seconds (positive delays audio, negative moves it earlier); applies to preview and export, including scene-split clips
 - Export as MP4 or GIF
 - GIF export confirmation with an estimated file size before rendering
 - Scene split controls:
@@ -142,7 +143,7 @@ Open:
    - Select a file and click **Upload**.
    - The app automatically prefers local-path project creation when an absolute path is available from the runtime, otherwise it uploads a copy to `uploads\`.
    - The status line after Upload reports which mode was used and whether a compatibility playback proxy was created.
-2. Adjust trim/crop/rotate/speed/resize/scene split in the UI.
+2. Adjust trim/crop/rotate/speed/resize/scene split/audio sync in the UI.
 3. Click **Save State**.
 4. Click **Apply Changes** to render the modified preview.
     - If **Scene Split** is off, the preview player shows one modified clip.

@@ -198,6 +198,17 @@ class FFmpegService:
             return ["transpose=2"]
         return []
 
+    def _audio_sync_filters(self, state: EditState, window_duration: float) -> list[str]:
+        offset = state.audio_sync.offset
+        if abs(offset) <= self._SEGMENT_EPSILON:
+            return []
+        if offset > 0:
+            delay_ms = self._format_filter_number(offset * 1000)
+            duration = self._format_filter_number(max(window_duration, 0.0))
+            return [f"adelay={delay_ms}:all=1", f"atrim=0:{duration}"]
+        start = self._format_filter_number(abs(offset))
+        return [f"atrim=start={start}", "asetpts=PTS-STARTPTS"]
+
     def _audio_segment_options(
         self,
         metadata: VideoMetadata,
@@ -211,6 +222,7 @@ class FFmpegService:
             f"atrim=start={segment_start}:end={segment_end}",
             "asetpts=PTS-STARTPTS",
             *self._tempo_filters(state.speed),
+            *self._audio_sync_filters(state, (segment_end - segment_start) / state.speed),
         ]
         return [
             "-map",
@@ -334,8 +346,13 @@ class FFmpegService:
             f"[a1]{','.join(audio_filters_before)}[abefore];"
             f"anullsrc=r=48000:cl=stereo:d={silence_duration:.6f}[asilence];"
             f"[a3]{','.join(audio_filters_after)}[aafter];"
-            f"[abefore][asilence][aafter]concat=n=3:v=0:a=1[audio]"
+            f"[abefore][asilence][aafter]concat=n=3:v=0:a=1[concat_audio]"
         )
+        sync_filters = self._audio_sync_filters(state, (trim_end - trim_start) / state.speed + silence_duration)
+        if sync_filters:
+            audio_complex += f";[concat_audio]{','.join(sync_filters)}[audio]"
+        else:
+            audio_complex = audio_complex.replace("[concat_audio]", "[audio]")
         return f"{video_complex};{audio_complex}"
 
     def _freeze_frame_map_args(self, metadata: VideoMetadata, state: EditState) -> list[str]:
