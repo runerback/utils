@@ -6,6 +6,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -41,13 +42,16 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -93,8 +97,10 @@ import com.runerback.queuehelper.data.local.MediaRepository
 import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.Token
+import com.runerback.queuehelper.domain.BatchTaskMediaUseCase
 import com.runerback.queuehelper.domain.PackAllUseCase
 import com.runerback.queuehelper.ui.components.LoadingIndicator
+import com.runerback.queuehelper.ui.icons.FluentuiSystemIconsSelectAllOff
 import com.runerback.queuehelper.ui.icons.PhosphorPackage
 import com.runerback.queuehelper.ui.common.CollapsibleSection
 import com.runerback.queuehelper.ui.common.ResolutionDropdown
@@ -117,12 +123,21 @@ fun PackScreen(
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as QueueHelperApplication
+    val batchTaskMediaUseCase = remember {
+        BatchTaskMediaUseCase(
+            context.applicationContext,
+            app.taskRepository,
+            app.mediaRepository,
+            app.templateLoader
+        )
+    }
     val viewModel: PackViewModel = viewModel(
         factory = PackViewModel.Factory(
             presetId,
             app.presetRepository,
             app.taskRepository,
-            app.templateLoader
+            app.templateLoader,
+            batchTaskMediaUseCase
         )
     )
 
@@ -139,12 +154,35 @@ fun PackScreen(
         }
     }
 
+    BackHandler(enabled = viewModel.selectionMode) {
+        viewModel.toggleSelectionMode()
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var isPacking by remember { mutableStateOf(false) }
     var showSyncConfirm by remember { mutableStateOf(false) }
     val packAllUseCase = remember {
         PackAllUseCase(context, app.taskRepository, app.mediaRepository, presetId)
+    }
+
+    val batchImagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.appendImagesToSelected(uris)
+    }
+
+    val batchAudioPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.replaceAudioForSelected(it) }
+    }
+
+    LaunchedEffect(viewModel.batchMediaMessage) {
+        viewModel.batchMediaMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearBatchMediaMessage()
+        }
     }
 
     val storagePermissionLauncher = rememberLauncherForActivityResult(
@@ -194,6 +232,20 @@ fun PackScreen(
                 actions = {
                     if (viewModel.tasks.isNotEmpty()) {
                         IconButton(
+                            onClick = { viewModel.toggleSelectionMode() },
+                            enabled = !viewModel.isApplyingBatchMedia
+                        ) {
+                            Icon(
+                                imageVector = FluentuiSystemIconsSelectAllOff,
+                                contentDescription = "Select tasks",
+                                tint = if (viewModel.selectionMode) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                        IconButton(
                             onClick = { showSyncConfirm = true },
                             enabled = !isPacking
                         ) {
@@ -234,6 +286,43 @@ fun PackScreen(
                 }
             )
         },
+        bottomBar = {
+            if (viewModel.selectionMode && viewModel.selectedTaskIds.isNotEmpty()) {
+                BottomAppBar(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        TextButton(
+                            onClick = { batchImagePicker.launch("image/*") },
+                            enabled = !viewModel.isApplyingBatchMedia,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Add Image")
+                        }
+                        TextButton(
+                            onClick = { batchAudioPicker.launch("audio/*") },
+                            enabled = !viewModel.isApplyingBatchMedia,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Add Audio")
+                        }
+                    }
+                }
+            }
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { padding ->
@@ -257,6 +346,11 @@ fun PackScreen(
                     presetName = taskPresetName,
                     audioUri = taskAudioUri,
                     imageUris = taskImageUris,
+                    selectionMode = viewModel.selectionMode,
+                    checked = task.id in viewModel.selectedTaskIds,
+                    onCheckedChange = { checked ->
+                        viewModel.setTaskSelected(task.id, checked)
+                    },
                     onEdit = { onEditTask(task.id) },
                     onDelete = { viewModel.deleteTaskAndRenumber(task.id) }
                 )
@@ -309,6 +403,9 @@ private fun TaskItem(
     presetName: String,
     audioUri: Uri?,
     imageUris: List<Uri>,
+    selectionMode: Boolean,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -316,7 +413,13 @@ private fun TaskItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit)
+            .clickable {
+                if (selectionMode) {
+                    onCheckedChange(!checked)
+                } else {
+                    onEdit()
+                }
+            }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -324,6 +427,13 @@ private fun TaskItem(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            if (selectionMode) {
+                Checkbox(
+                    checked = checked,
+                    onCheckedChange = onCheckedChange
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Task ${index + 1}",
@@ -370,7 +480,10 @@ private fun TaskItem(
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
-            IconButton(onClick = onDelete) {
+            IconButton(
+                onClick = onDelete,
+                enabled = !selectionMode
+            ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Delete task"

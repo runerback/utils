@@ -1,5 +1,6 @@
 package com.runerback.queuehelper.ui.pack
 
+import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +18,7 @@ import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.template.TemplateLoader
+import com.runerback.queuehelper.domain.BatchTaskMediaUseCase
 import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -31,7 +33,8 @@ class PackViewModel(
     private val presetId: Int?,
     private val presetRepository: PresetRepository,
     private val taskRepository: TaskRepository,
-    private val templateLoader: TemplateLoader
+    private val templateLoader: TemplateLoader,
+    private val batchTaskMediaUseCase: BatchTaskMediaUseCase
 ) : ViewModel() {
 
     companion object {
@@ -57,6 +60,18 @@ class PackViewModel(
         private set
 
     var lastSelectedPresetId by mutableStateOf<Int?>(null)
+        private set
+
+    var selectionMode by mutableStateOf(false)
+        private set
+
+    var selectedTaskIds by mutableStateOf<Set<Int>>(emptySet())
+        private set
+
+    var isApplyingBatchMedia by mutableStateOf(false)
+        private set
+
+    var batchMediaMessage by mutableStateOf<String?>(null)
         private set
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -102,6 +117,7 @@ class PackViewModel(
             LogBuffer.add("PackViewModel.loadTasks() loaded ${loadedPresets.size} presets")
             presetNameMap = loadedPresets.associate { it.id to it.name }
             presets = loadedPresets
+            pruneSelection()
             isLoading = false
             Log.d(TAG, "loadTasks() finished")
             LogBuffer.add("PackViewModel.loadTasks() finished")
@@ -141,6 +157,70 @@ class PackViewModel(
 
     fun dismissPresetPicker() {
         showPresetPicker = false
+    }
+
+    fun toggleSelectionMode() {
+        selectionMode = !selectionMode
+        if (!selectionMode) selectedTaskIds = emptySet()
+    }
+
+    fun setTaskSelected(taskId: Int, selected: Boolean) {
+        selectedTaskIds = if (selected) {
+            selectedTaskIds + taskId
+        } else {
+            selectedTaskIds - taskId
+        }
+    }
+
+    fun clearBatchMediaMessage() {
+        batchMediaMessage = null
+    }
+
+    fun appendImagesToSelected(uris: List<Uri>) {
+        runBatchMediaOperation { selectedIds ->
+            batchTaskMediaUseCase.appendImages(selectedIds, uris).message
+        }
+    }
+
+    fun replaceAudioForSelected(uri: Uri) {
+        runBatchMediaOperation { selectedIds ->
+            batchTaskMediaUseCase.replaceAudio(selectedIds, uri).message
+        }
+    }
+
+    private fun runBatchMediaOperation(operation: suspend (Set<Int>) -> String) {
+        val selectedIds = selectedTaskIds
+        if (selectedIds.isEmpty() || isApplyingBatchMedia) return
+        viewModelScope.launch {
+            isApplyingBatchMedia = true
+            runCatching { operation(selectedIds) }
+                .onSuccess { message ->
+                    batchMediaMessage = message
+                    refreshTaskList()
+                }
+                .onFailure {
+                    LogBuffer.add("PackViewModel.runBatchMediaOperation: ${it.stackTraceToString()}")
+                    batchMediaMessage = "Failed to update media: ${it.message}"
+                }
+            isApplyingBatchMedia = false
+        }
+    }
+
+    private suspend fun refreshTaskList() {
+        tasks = if (presetId != null) {
+            taskRepository.loadTasks(presetId)
+        } else {
+            taskRepository.loadGlobalTasks()
+        }
+        pruneSelection()
+    }
+
+    private fun pruneSelection() {
+        val validIds = tasks.map { it.id }.toSet()
+        selectedTaskIds = selectedTaskIds.intersect(validIds)
+        if (validIds.isEmpty()) {
+            selectionMode = false
+        }
     }
 
     fun createTaskFromPreset(selectedPresetId: Int) {
@@ -214,6 +294,7 @@ class PackViewModel(
                 } else {
                     taskRepository.loadGlobalTasks()
                 }
+                pruneSelection()
             }.onFailure {
                 LogBuffer.add("PackViewModel.deleteTaskAndRenumber($taskId): ${it.stackTraceToString()}")
             }
@@ -236,6 +317,7 @@ class PackViewModel(
                 } else {
                     taskRepository.loadGlobalTasks()
                 }
+                pruneSelection()
             }.onFailure {
                 LogBuffer.add("PackViewModel.syncTasksFromPreset($presetId): ${it.stackTraceToString()}")
             }
@@ -251,6 +333,8 @@ class PackViewModel(
                     taskRepository.deleteAllGlobalTasks()
                 }
                 tasks = emptyList()
+                selectionMode = false
+                selectedTaskIds = emptySet()
             }.onFailure {
                 LogBuffer.add("PackViewModel.clearAllTasks($presetId): ${it.stackTraceToString()}")
             }
@@ -329,10 +413,17 @@ class PackViewModel(
         private val presetId: Int?,
         private val presetRepository: PresetRepository,
         private val taskRepository: TaskRepository,
-        private val templateLoader: TemplateLoader
+        private val templateLoader: TemplateLoader,
+        private val batchTaskMediaUseCase: BatchTaskMediaUseCase
     ) : ViewModelProvider.Factory {
         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-            return PackViewModel(presetId, presetRepository, taskRepository, templateLoader) as T
+            return PackViewModel(
+                presetId,
+                presetRepository,
+                taskRepository,
+                templateLoader,
+                batchTaskMediaUseCase
+            ) as T
         }
     }
 }
