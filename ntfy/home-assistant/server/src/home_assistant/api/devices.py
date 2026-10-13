@@ -52,14 +52,19 @@ async def ble_scan_stream(request: Request, current_user: auth.CurrentUser):
     scanner.on_device(_on_device)
 
     async def event_generator():
-        while True:
-            device = await queue.get()
-            payload = {
-                "address": device.address,
-                "name": device.name,
-                "rssi": device.rssi,
-            }
-            yield f"data: {json.dumps(payload)}\n\n"
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                device = await queue.get()
+                payload = {
+                    "address": device.address,
+                    "name": device.name,
+                    "rssi": device.rssi,
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+        finally:
+            scanner.off_device(_on_device)
 
     return StreamingResponse(
         event_generator(),
@@ -81,7 +86,8 @@ def pair_device(
     token = device_security.generate_access_token()
     claim_key = device_security.generate_claim_key()
     token_salt, token_hash = device_security.hash_secret(token)
-    claim_salt, claim_hash = device_security.hash_secret(claim_key)
+    # Unsalted deterministic digest so /api/v1/claim can look the row up.
+    claim_salt, claim_hash = device_security.hash_secret(claim_key, "")
 
     devices_db.add_device(
         device_id=device_id,
@@ -92,16 +98,23 @@ def pair_device(
         claim_salt=claim_salt,
         claim_hash=claim_hash,
         ble_mac=ble_address,
+        name=name,
     )
 
     server_host = _lan_ip()
-    payload = qr_display.show_pairing_qr(
-        claim_key=claim_key,
-        ssid=ssid,
-        password=password,
-        server_host=server_host,
-        serial_port=config.MSU_SCREEN_PORT or None,
-    )
+    try:
+        payload = qr_display.show_pairing_qr(
+            claim_key=claim_key,
+            ssid=ssid,
+            password=password,
+            server_host=server_host,
+            server_port=config.PORT,
+            serial_port=config.MSU_SCREEN_PORT or None,
+        )
+    except Exception as exc:
+        # Don't leave an orphaned pending_claim row holding a plaintext token.
+        devices_db.remove_device(device_id)
+        raise HTTPException(status_code=500, detail=f"QR display failed: {exc}") from exc
 
     return {
         "device_id": device_id,

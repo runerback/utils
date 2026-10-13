@@ -43,11 +43,16 @@ def claim(request: Request, body: ClaimRequest) -> ClaimResponse:
     if not body.claim_key:
         raise HTTPException(status_code=400, detail="claim_key required")
 
-    claim_salt, claim_hash = device_security.hash_secret(body.claim_key)
+    # Look up by a deterministic (unsalted) digest so the row can be found;
+    # the salted verify_secret below remains the actual authentication check.
+    # Claim keys are 128-bit random, so an unsalted SHA-256 is not brute-forceable.
+    _, claim_hash = device_security.hash_secret(body.claim_key, "")
     row = devices_db.get_device_by_claim_hash(claim_hash)
 
     # Unknown device or already claimed: same message to prevent enumeration.
-    if not row or row["status"] != "pending_claim":
+    # "pending_status" is accepted so a device that lost the claim response
+    # can retry instead of being bricked.
+    if not row or row["status"] not in ("pending_claim", "pending_status"):
         raise HTTPException(status_code=403, detail="invalid credentials")
 
     if not device_security.verify_secret(body.claim_key, row["claim_salt"], row["claim_hash"]):

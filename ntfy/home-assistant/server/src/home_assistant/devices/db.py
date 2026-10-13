@@ -45,16 +45,23 @@ CREATE TABLE IF NOT EXISTS devices (
     mqtt_username TEXT,
     mqtt_password TEXT,
     ble_mac       TEXT,
+    name          TEXT,
     status        TEXT NOT NULL DEFAULT 'pending_claim',
     created_at    REAL NOT NULL,
     claimed_at    REAL
 );
+CREATE INDEX IF NOT EXISTS idx_devices_claim_hash ON devices(claim_hash);
 """
 
 
 def init_db() -> None:
     with _connect() as conn:
         conn.executescript(_SCHEMA)
+        # Migration for databases created before the name column existed.
+        try:
+            conn.execute("ALTER TABLE devices ADD COLUMN name TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def add_device(
@@ -66,15 +73,16 @@ def add_device(
     claim_salt: str,
     claim_hash: str,
     ble_mac: Optional[str] = None,
+    name: Optional[str] = None,
 ) -> str:
     with _connect() as conn:
         conn.execute(
             """INSERT INTO devices
                (device_id, token_hash, token_salt, token_plain,
-                claim_hash, claim_salt, mqtt_username, ble_mac, status, created_at)
-               VALUES (?,?,?,?,?,?,?,?, 'pending_claim', ?)""",
+                claim_hash, claim_salt, mqtt_username, ble_mac, name, status, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?, 'pending_claim', ?)""",
             (device_id, token_hash, token_salt, token,
-             claim_hash, claim_salt, device_id, ble_mac, time.time()),
+             claim_hash, claim_salt, device_id, ble_mac, name, time.time()),
         )
     return claim_key
 
@@ -135,7 +143,7 @@ def remove_device(device_id: str) -> None:
 def list_devices() -> list[dict]:
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT device_id, ble_mac, status, created_at, claimed_at "
+            "SELECT device_id, ble_mac, name, status, created_at, claimed_at "
             "FROM devices ORDER BY created_at DESC"
         ).fetchall()
         return [dict(r) for r in rows]

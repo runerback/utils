@@ -5,7 +5,7 @@
  *   1. On first boot: advertise BLE name "ESP32-PROV-XXXXXX" so the server can
  *      discover this device.
  *   2. Power on the camera and scan for a QR code shown on the MSU mini screen.
- *   3. Decode QR JSON: {"claim_key","ssid","pass","server_host"}
+ *   3. Decode QR JSON: {"claim_key","ssid","pass","server_host","server_port"}
  *   4. Connect to WiFi, discover the provisioning server via mDNS (_devprov._tcp)
  *      or fall back to server_host.
  *   5. POST /api/v1/claim with the claim_key; receive device_id, access_token,
@@ -72,6 +72,7 @@ struct ProvPayload {
   String ssid;
   String pass;
   String serverHost;
+  int    serverPort = 0;
 };
 
 extern ProvPayload prov;
@@ -100,4 +101,4 @@ bool claimDevice(const ProvPayload &p, DeviceCreds &out);
 
 void ensureMqtt();
 void onMqttMessage(char* topic, byte* payload, unsigned int len);
-void mqttPublish(const char* topic, const char* payload);
+void mqttPublish(const char* topic, const char* payload, bool retained = true);

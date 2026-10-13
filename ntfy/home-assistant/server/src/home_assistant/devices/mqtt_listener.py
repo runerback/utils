@@ -46,22 +46,21 @@ class MqttListener:
                 await asyncio.sleep(5)
 
     async def _loop(self) -> None:
-        shell = shutil.which("bash") or shutil.which("sh")
-        if not shell:
-            raise RuntimeError("no shell found for alias resolution")
+        if not shutil.which("bash"):
+            raise RuntimeError("bash not found for alias resolution")
 
         topic_quoted = shlex.quote(self.topic)
+        # Aliases are only expanded by interactive shells.
         cmd = f"{config.MOSQUITTO_SUB_BIN} -v -t {topic_quoted}"
 
-        self._proc = await asyncio.create_subprocess_shell(
-            cmd,
+        self._proc = await asyncio.create_subprocess_exec(
+            "bash", "-ic", cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            executable=shell,
+            stderr=asyncio.subprocess.DEVNULL,
         )
 
         if self._proc.stdout is None:
-            return
+            raise RuntimeError("mosquitto_sub started without stdout")
 
         async for line in self._proc.stdout:
             text = line.decode("utf-8", "ignore").strip()

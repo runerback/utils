@@ -20,6 +20,7 @@ def make_qr_payload(
     ssid: str,
     password: str,
     server_host: str,
+    server_port: int = 0,
 ) -> str:
     return json.dumps(
         {
@@ -27,6 +28,7 @@ def make_qr_payload(
             "ssid": ssid,
             "pass": password,
             "server_host": server_host,
+            "server_port": server_port,
         },
         separators=(",", ":"),
     )
@@ -34,21 +36,31 @@ def make_qr_payload(
 
 def render_qr_png(
     payload: str,
-    box_size: int = 10,
     border: int = 2,
     size: tuple[int, int] = (MSU_WIDTH, MSU_HEIGHT),
 ) -> Image.Image:
+    """Render at an integer pixels-per-module scale and center on the canvas.
+
+    Resizing a QR to arbitrary pixel dimensions distorts module widths and
+    makes the code hard for camera readers to scan, so the box size is chosen
+    as an integer and the image is padded instead of stretched.
+    """
     qr = qrcode.QRCode(
         version=None,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=box_size,
+        box_size=1,
         border=border,
     )
     qr.add_data(payload)
     qr.make(fit=True)
+    modules = len(qr.get_matrix())
+    box = max(1, min(size[0] // modules, size[1] // modules))
+    qr.box_size = box
     img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-    img = img.resize(size, Image.Resampling.NEAREST)
-    return img
+
+    canvas = Image.new("RGB", size, "white")
+    canvas.paste(img, ((size[0] - img.width) // 2, (size[1] - img.height) // 2))
+    return canvas
 
 
 def save_qr_png(payload: str, path: str | Path) -> None:
@@ -77,10 +89,11 @@ def show_pairing_qr(
     ssid: str,
     password: str,
     server_host: str,
+    server_port: int = 0,
     serial_port: Optional[str] = None,
 ) -> str:
     """Build the QR payload, optionally display it, and return the payload."""
-    payload = make_qr_payload(claim_key, ssid, password, server_host)
+    payload = make_qr_payload(claim_key, ssid, password, server_host, server_port)
     if serial_port:
         show_qr_on_msu(payload, serial_port)
     return payload

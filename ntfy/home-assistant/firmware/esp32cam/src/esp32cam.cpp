@@ -113,6 +113,7 @@ bool scanQrPayload(ProvPayload &out) {
   out.ssid       = doc["ssid"]        | "";
   out.pass       = doc["pass"]        | "";
   out.serverHost = doc["server_host"] | "";
+  out.serverPort = doc["server_port"] | 0;
 
   if (out.claimKey.length() == 0 || out.ssid.length() == 0) {
     Serial.println("[qr] missing claim_key or ssid");
@@ -205,7 +206,7 @@ bool claimDevice(const ProvPayload &p, DeviceCreds &out) {
       return false;
     }
     ip.fromString(p.serverHost.c_str());
-    port = 8000;
+    port = p.serverPort > 0 ? (uint16_t)p.serverPort : 8000;
     Serial.printf("[claim] falling back to %s:%u\n", ip.toString().c_str(), port);
   }
 
@@ -328,9 +329,9 @@ void ensureMqtt() {
   }
 }
 
-void mqttPublish(const char* topic, const char* payload) {
+void mqttPublish(const char* topic, const char* payload, bool retained) {
   if (mqtt.connected()) {
-    mqtt.publish(topic, payload, true);
+    mqtt.publish(topic, payload, retained);
   }
 }
 
@@ -350,5 +351,5 @@ void onMqttMessage(char* topic, byte* payload, unsigned int len) {
   ack["result"] = "not_implemented";
   char buf[256];
   serializeJson(ack, buf, sizeof(buf));
-  mqttPublish(ackTopic, buf);
+  mqttPublish(ackTopic, buf, false);  // acks are transient, don't retain them
 }

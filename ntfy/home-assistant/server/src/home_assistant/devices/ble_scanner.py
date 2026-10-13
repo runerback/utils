@@ -24,11 +24,18 @@ class BleScanner:
         self.prefix = prefix
         self._scanner: BleakScanner | None = None
         self._task: asyncio.Task | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._seen: dict[str, BleDevice] = {}
         self._callbacks: list[callable] = []
 
     def on_device(self, callback: callable) -> None:
         self._callbacks.append(callback)
+
+    def off_device(self, callback: callable) -> None:
+        try:
+            self._callbacks.remove(callback)
+        except ValueError:
+            pass
 
     def _emit(self, device: BleDevice) -> None:
         for cb in self._callbacks:
@@ -45,11 +52,14 @@ class BleScanner:
         previous = self._seen.get(device.address)
         self._seen[device.address] = bd
         if previous is None or previous.rssi != bd.rssi:
-            self._emit(bd)
+            # bleak invokes this callback on its own thread; hop to the loop.
+            if self._loop is not None:
+                self._loop.call_soon_threadsafe(self._emit, bd)
 
     async def start(self) -> None:
         if self._task is not None:
             return
+        self._loop = asyncio.get_running_loop()
         self._seen.clear()
         self._scanner = BleakScanner(detection_callback=self._detection_callback)
         await self._scanner.start()
@@ -70,6 +80,7 @@ class BleScanner:
         if self._scanner is not None:
             await self._scanner.stop()
             self._scanner = None
+        self._loop = None
 
     def list_devices(self) -> list[BleDevice]:
         return sorted(self._seen.values(), key=lambda d: d.rssi, reverse=True)
