@@ -3,6 +3,7 @@ import { fetchCsrf } from '../api.ts'
 import {
   type BleDevice,
   type Device,
+  type Subscription,
   listDevices,
   pairDevice,
   startBleScan,
@@ -25,8 +26,8 @@ export function Devices() {
   const [password, setPassword] = useState('')
   const [deviceName, setDeviceName] = useState('')
 
-  const scanEsRef = useRef<EventSource | null>(null)
-  const eventsEsRef = useRef<EventSource | null>(null)
+  const scanEsRef = useRef<Subscription | null>(null)
+  const eventsEsRef = useRef<Subscription | null>(null)
 
   const loadDevices = async () => {
     setLoading(true)
@@ -240,12 +241,13 @@ export function Devices() {
           <div key={device.device_id} class="card device-item">
             <div class="device-info">
               <div class="device-name">
-                {device.device_id}
+                {device.name ?? device.device_id}
                 <span class={`status-pill status-${device.status}`}>
                   {statusLabel(device.status)}
                 </span>
               </div>
               <div class="device-meta">
+                {device.name ? `${device.device_id} · ` : ''}
                 {device.ble_mac || 'No BLE address'} · Added {formatDate(device.created_at)}
               </div>
             </div>

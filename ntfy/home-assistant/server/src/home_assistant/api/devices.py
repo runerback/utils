@@ -32,7 +32,7 @@ def list_devices(current_user: auth.CurrentUser):
 
 
 @router.post("/devices/ble-scan/start")
-async def start_ble_scan(request: Request, current_user: auth.CurrentUser):
+async def start_ble_scan(request: Request, current_user: auth.CurrentUser, csrf: auth.CsrfRequired):
     scanner = request.app.state.ble_scanner
     await scanner.start()
     return {"ok": True}

@@ -5,8 +5,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, config, db, events
@@ -95,4 +94,11 @@ async def me(current_user: auth.CurrentUser):
 # Serve built web in production; during development Vite proxies /api.
 _dist_path = Path(__file__).parents[3] / "web" / "dist"
 if _dist_path.exists():
-    app.mount("/", StaticFiles(directory=_dist_path, html=True), name="web")
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = (_dist_path / full_path).resolve()
+        if full_path and candidate.is_file() and candidate.is_relative_to(_dist_path.resolve()):
+            return FileResponse(candidate)
+        return FileResponse(_dist_path / "index.html")

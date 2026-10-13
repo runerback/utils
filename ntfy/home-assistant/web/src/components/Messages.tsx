@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, createEventSource } from '../api.ts'
+import { username } from '../auth.ts'
 
 interface Topic {
   id: number
@@ -108,6 +109,7 @@ export function Messages() {
             sender: data.sender,
             body: data.body,
             sent_at: data.sent_at || new Date().toISOString(),
+            is_mine: data.sender === username.value,
           },
         ])
       }

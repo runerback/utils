@@ -62,5 +62,3 @@ def update_from_form(data: dict[str, str]) -> None:
         set_logs_path(data["logs.path"])
     if "logs.use_journal" in data:
         set_logs_use_journal(data["logs.use_journal"].lower() in ("true", "1", "on"))
-    else:
-        set_logs_use_journal(False)

@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals'
-import { api, fetchCsrf, setCsrfToken, getCsrfToken } from './api.ts'
+import { api, fetchCsrf, getCsrfToken } from './api.ts'
 
 export const username = signal<string | null>(null)
 
@@ -31,8 +31,7 @@ export async function login(user: string, password: string): Promise<void> {
     throw new Error(data.detail || 'Login failed')
   }
   username.value = user
-  const csrf = await fetchCsrf()
-  setCsrfToken(csrf)
+  await fetchCsrf()
 }
 
 export async function logout(): Promise<void> {

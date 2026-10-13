@@ -137,3 +137,47 @@ def test_static_index_served(client: TestClient):
     resp = client.get("/")
     assert resp.status_code == 200
     assert "Home Assistant" in resp.text
+
+
+def test_spa_fallback_serves_index(client: TestClient):
+    resp = client.get("/login")
+    assert resp.status_code == 200
+    assert "Home Assistant" in resp.text
+
+    resp = client.get("/devices")
+    assert resp.status_code == 200
+    assert "Home Assistant" in resp.text
+
+
+def test_unknown_api_route_returns_404_json(client: TestClient):
+    resp = client.get("/api/does-not-exist")
+    assert resp.status_code == 404
+    assert resp.headers["content-type"].startswith("application/json")
+
+
+def test_settings_partial_update_preserves_logs_use_journal(client: TestClient):
+    token = _login(client)
+
+    resp = client.post(
+        "/api/settings",
+        headers={"X-CSRFToken": token},
+        data={"logs.use_journal": "true"},
+    )
+    assert resp.status_code == 200
+
+    # The web form only submits messages.* keys; logs.use_journal must survive.
+    resp = client.post(
+        "/api/settings",
+        headers={"X-CSRFToken": token},
+        data={"messages.server_url": "http://ntfy.local"},
+    )
+    assert resp.status_code == 200
+
+    resp = client.get("/api/settings", headers={"X-CSRFToken": token})
+    assert resp.json()["logs.use_journal"] == "true"
+
+
+def test_ble_scan_start_requires_csrf(client: TestClient):
+    client.post("/api/login", data={"username": "testuser", "password": "x"})
+    resp = client.post("/api/devices/ble-scan/start")
+    assert resp.status_code == 403

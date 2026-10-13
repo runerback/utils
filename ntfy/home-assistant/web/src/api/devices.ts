@@ -3,6 +3,7 @@ import { api, createEventSource } from '../api.ts'
 export interface Device {
   device_id: string
   ble_mac: string | null
+  name: string | null
   status: 'pending_claim' | 'pending_status' | 'active' | 'failed'
   created_at: number
   claimed_at: number | null
@@ -62,39 +63,66 @@ export async function pairDevice(
   return data
 }
 
-export function subscribeBleScan(
-  onDevice: (device: BleDevice) => void,
-): EventSource {
-  const es = createEventSource('/api/devices/ble-scan')
-  es.onmessage = (e) => {
-    try {
-      onDevice(JSON.parse(e.data))
-    } catch {
-      // ignore malformed lines
+export interface Subscription {
+  close(): void
+}
+
+function subscribeWithReconnect(
+  url: string,
+  onMessage: (data: unknown) => void,
+): Subscription {
+  let es: EventSource | null = null
+  let timer: number | null = null
+  let closed = false
+
+  const connect = () => {
+    if (closed) return
+    es = createEventSource(url)
+    es.onmessage = (e) => {
+      try {
+        onMessage(JSON.parse(e.data))
+      } catch {
+        // ignore malformed lines
+      }
+    }
+    es.onerror = () => {
+      es?.close()
+      es = null
+      if (!closed) {
+        timer = window.setTimeout(connect, 3000)
+      }
     }
   }
-  es.onerror = () => {
-    es.close()
+  connect()
+
+  return {
+    close() {
+      closed = true
+      if (timer !== null) {
+        clearTimeout(timer)
+        timer = null
+      }
+      es?.close()
+      es = null
+    },
   }
-  return es
+}
+
+export function subscribeBleScan(
+  onDevice: (device: BleDevice) => void,
+): Subscription {
+  return subscribeWithReconnect('/api/devices/ble-scan', (data) => {
+    onDevice(data as BleDevice)
+  })
 }
 
 export function subscribeDeviceEvents(
   onEvent: (event: DeviceClaimedEvent) => void,
-): EventSource {
-  const es = createEventSource('/api/messages/stream')
-  es.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data)
-      if (data.type === 'device_claimed') {
-        onEvent(data as DeviceClaimedEvent)
-      }
-    } catch {
-      // ignore malformed lines
+): Subscription {
+  return subscribeWithReconnect('/api/messages/stream', (data) => {
+    const event = data as { type?: string }
+    if (event.type === 'device_claimed') {
+      onEvent(event as unknown as DeviceClaimedEvent)
     }
-  }
-  es.onerror = () => {
-    es.close()
-  }
-  return es
+  })
 }
