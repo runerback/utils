@@ -1,0 +1,4 @@
+# Local deployment configuration
+.env
+config
+config.env

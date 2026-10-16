@@ -1,0 +1,19 @@
+[Unit]
+Description=Refresh FreshRSS subscriptions
+ConditionPathExists=/var/lib/freshrss/data/config.php
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+Slice=rss.slice
+ExecStart=/usr/bin/flock -n -E 0 /var/lib/freshrss/data/actualize.lock /usr/bin/php -d memory_limit=64M -d opcache.enable_cli=0 /var/www/freshrss/app/actualize_script.php
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/freshrss/data
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+RestrictRealtime=yes

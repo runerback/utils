@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule FreshRSS subscription refreshes
+
+[Timer]
+OnCalendar=*:0/20
+Persistent=true
+RandomizedDelaySec=20s
+Unit=freshrss-actualize.service
+
+[Install]
+WantedBy=timers.target

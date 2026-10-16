@@ -1,0 +1,6 @@
+[Unit]
+Description=Memory-limited RSS application stack
+
+[Slice]
+MemoryMax=96M
+MemorySwapMax=0
