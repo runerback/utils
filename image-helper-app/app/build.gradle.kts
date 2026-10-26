@@ -3,6 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val buildNumber = (System.currentTimeMillis() / 1000).toInt()
+
 android {
     namespace = "com.runerback.imagehelper"
     compileSdk = 34
@@ -11,8 +13,8 @@ android {
         applicationId = "com.runerback.imagehelper"
         minSdk = 34
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
     }
 
     buildTypes {
@@ -51,7 +53,7 @@ android {
     applicationVariants.configureEach {
         outputs.configureEach {
             val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            outputImpl.outputFileName = "image-helper-${buildType.name}.apk"
+            outputImpl.outputFileName = "image-helper-${buildType.name}-${defaultConfig.versionName}.apk"
         }
     }
 }
