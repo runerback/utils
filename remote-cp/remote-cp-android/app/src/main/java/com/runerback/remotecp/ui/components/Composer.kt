@@ -11,6 +11,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,11 +25,10 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,7 +62,7 @@ fun Composer(
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetMultipleContents()
     ) { uris ->
-        if (uris != null && uris.isNotEmpty()) {
+        if (uris.isNotEmpty()) {
             onSendMedia(uris, null, null)
         }
     }
@@ -70,7 +70,7 @@ fun Composer(
     val videoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetMultipleContents()
     ) { uris ->
-        if (uris != null && uris.isNotEmpty()) {
+        if (uris.isNotEmpty()) {
             onSendMedia(null, uris, null)
         }
     }
@@ -112,7 +112,7 @@ fun Composer(
                 )
             }
             IconButton(onClick = onOpenLogs) {
-                Icon(Icons.Default.List, contentDescription = "Logs")
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Logs")
             }
             IconButton(onClick = onOpenSettings) {
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -120,51 +120,47 @@ fun Composer(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = { Text("Message") },
-            modifier = Modifier.fillMaxWidth(),
-            maxLines = 4,
-            shape = RoundedCornerShape(14.dp)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = {
-                    if (text.isNotBlank()) {
-                        onSendText(text)
-                        text = ""
-                    }
-                },
-                enabled = !isLoading && text.isNotBlank(),
-                modifier = Modifier.weight(1f)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text("Message") },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 4,
+                shape = RoundedCornerShape(14.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 4.dp, bottom = 4.dp)
             ) {
-                Icon(Icons.Default.Send, contentDescription = null)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Send")
-            }
-            OutlinedButton(
-                onClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    val clip = clipboard.primaryClip
-                    if (clip != null && clip.itemCount > 0) {
-                        val item = clip.getItemAt(0)
-                        val clipText = item.text?.toString() ?: ""
-                        if (clipText.isNotBlank()) {
-                            onSendText(clipText)
+                IconButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = clipboard.primaryClip
+                        if (clip != null && clip.itemCount > 0) {
+                            val item = clip.getItemAt(0)
+                            val clipText = item.text?.toString() ?: ""
+                            if (clipText.isNotBlank()) {
+                                onSendText(clipText)
+                            }
                         }
-                    }
-                },
-                enabled = !isLoading,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Default.ContentPaste, contentDescription = null)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Paste")
+                    },
+                    enabled = !isLoading
+                ) {
+                    Icon(Icons.Default.ContentPaste, contentDescription = "Paste")
+                }
+                IconButton(
+                    onClick = {
+                        if (text.isNotBlank()) {
+                            onSendText(text)
+                            text = ""
+                        }
+                    },
+                    enabled = !isLoading && text.isNotBlank()
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                }
             }
         }
 
@@ -204,7 +200,7 @@ fun Composer(
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Send, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Send files")
                 }
