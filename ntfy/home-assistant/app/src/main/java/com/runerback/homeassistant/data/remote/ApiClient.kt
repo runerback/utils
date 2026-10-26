@@ -14,11 +14,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.logging.HttpLoggingInterceptor
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
+    // Generous timeouts for users connecting over high-latency VPN links.
     internal val client = OkHttpClient.Builder()
         .cookieJar(MemoryCookieJar())
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         })
@@ -27,6 +32,24 @@ object ApiClient {
     val json = Json { ignoreUnknownKeys = true }
 
     internal var csrfToken: String = ""
+
+    /**
+     * Probes the server without requiring auth. Any HTTP response (even 401)
+     * proves reachability; only transport-level failures are errors.
+     */
+    suspend fun testConnection(baseUrl: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val url = "${baseUrl.trim().trimEnd('/')}/api/csrf"
+            LogBuffer.append("Testing connection to $url")
+            val request = Request.Builder().url(url).get().build()
+            client.newCall(request).execute().use { response ->
+                LogBuffer.append("Test connection got HTTP ${response.code}")
+                "Server is reachable (HTTP ${response.code})"
+            }
+        }.onFailure { e ->
+            LogBuffer.append("Test connection error: ${e.message}")
+        }
+    }
 
     suspend fun fetchCsrf(baseUrl: String): Result<String> = get(baseUrl, "/api/csrf") { body ->
         val response = json.decodeFromString(CsrfResponse.serializer(), body)

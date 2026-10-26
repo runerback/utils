@@ -57,9 +57,17 @@ void startBleAdvertising() {
   svc->start();
 
   NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
-  adv->addServiceUUID(PROV_SERVICE_UUID);
+  // Name first: flags(3) + name(19) = 22 of the 31-byte legacy advertising
+  // packet. The 128-bit UUID no longer fits, so NimBLE automatically moves
+  // it to the scan response buffer; enableScanResponse makes it transmittable.
+  // The server discovers devices by name anyway.
   adv->setName(name);
-  adv->start();
+  adv->addServiceUUID(PROV_SERVICE_UUID);
+  adv->enableScanResponse(true);
+  if (!adv->start()) {
+    Serial.println("[ble] advertising FAILED to start");
+    return;
+  }
   Serial.printf("[ble] advertising as %s\n", name);
 }
 

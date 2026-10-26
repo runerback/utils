@@ -9,10 +9,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.runerback.homeassistant.data.local.SettingsRepository
 import com.runerback.homeassistant.data.remote.ApiClient
 import com.runerback.homeassistant.data.remote.model.BleDevice
+import com.runerback.homeassistant.data.remote.model.BluetoothStatus
 import com.runerback.homeassistant.data.remote.model.Device
 import com.runerback.homeassistant.data.remote.model.DeviceEvent
 import com.runerback.homeassistant.data.remote.model.PairingResult
 import com.runerback.homeassistant.util.LogBuffer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,11 +54,18 @@ class DevicesViewModel(
     private val _pendingDeviceId = MutableStateFlow<String?>(null)
     val pendingDeviceId: StateFlow<String?> = _pendingDeviceId.asStateFlow()
 
+    private val _bluetoothStatus = MutableStateFlow<BluetoothStatus?>(null)
+    val bluetoothStatus: StateFlow<BluetoothStatus?> = _bluetoothStatus.asStateFlow()
+
+    private val _bluetoothBusy = MutableStateFlow(false)
+    val bluetoothBusy: StateFlow<Boolean> = _bluetoothBusy.asStateFlow()
+
     private var scanJob: Job? = null
     private var eventsJob: Job? = null
 
     init {
         load()
+        refreshBluetoothStatus()
     }
 
     fun load() {
@@ -74,6 +83,38 @@ class DevicesViewModel(
                     _error.value = it.message
                 }
             _loading.value = false
+        }
+    }
+
+    fun refreshBluetoothStatus() {
+        viewModelScope.launch {
+            val baseUrl = settingsRepository.serverUrl.first()
+            ApiClient.get<BluetoothStatus>(baseUrl, "/api/system/bluetooth")
+                .onSuccess { _bluetoothStatus.value = it }
+                .onFailure { LogBuffer.append("Failed to load Bluetooth status: ${it.message}") }
+        }
+    }
+
+    fun toggleBluetooth() {
+        val current = _bluetoothStatus.value ?: return
+        viewModelScope.launch {
+            _bluetoothBusy.value = true
+            _error.value = null
+            val baseUrl = settingsRepository.serverUrl.first()
+            ApiClient.postFormAndParse<BluetoothStatus>(
+                baseUrl,
+                "/api/system/bluetooth/power",
+                mapOf("on" to (!current.powered).toString()),
+            )
+                .onSuccess {
+                    LogBuffer.append("Server Bluetooth powered ${if (it.powered) "on" else "off"}")
+                    _bluetoothStatus.value = it
+                }
+                .onFailure {
+                    LogBuffer.append("Failed to toggle Bluetooth: ${it.message}")
+                    _error.value = it.message
+                }
+            _bluetoothBusy.value = false
         }
     }
 
@@ -98,7 +139,7 @@ class DevicesViewModel(
 
     private fun observeBleScan(baseUrl: String) {
         scanJob?.cancel()
-        scanJob = viewModelScope.launch {
+        scanJob = viewModelScope.launch(Dispatchers.IO) {
             val client = ApiClient.client.newBuilder()
                 .addInterceptor(HttpLoggingInterceptor().apply {
                     level = HttpLoggingInterceptor.Level.HEADERS
@@ -123,11 +164,12 @@ class DevicesViewModel(
                     }
                     while (true) {
                         val line = source.readUtf8Line() ?: break
-                        if (line.isBlank()) continue
+                        val payload = line.removePrefix("data:").trim()
+                        if (payload.isEmpty()) continue
                         try {
                             val device = ApiClient.json.decodeFromString(
                                 BleDevice.serializer(),
-                                line,
+                                payload,
                             )
                             _scanDevices.value = (_scanDevices.value.filter { it.address != device.address } + device)
                                 .sortedByDescending { it.rssi }
@@ -138,7 +180,7 @@ class DevicesViewModel(
                     }
                 }
             } catch (e: Exception) {
-                LogBuffer.append("BLE SSE error: ${e.message}")
+                LogBuffer.append("BLE SSE error: ${e.javaClass.simpleName}: ${e.message}")
             } finally {
                 _scanning.value = false
             }
@@ -197,7 +239,7 @@ class DevicesViewModel(
 
     private fun observeClaimEvents(baseUrl: String, deviceId: String) {
         eventsJob?.cancel()
-        eventsJob = viewModelScope.launch {
+        eventsJob = viewModelScope.launch(Dispatchers.IO) {
             val client = ApiClient.client.newBuilder()
                 .addInterceptor(HttpLoggingInterceptor().apply {
                     level = HttpLoggingInterceptor.Level.HEADERS
@@ -217,11 +259,12 @@ class DevicesViewModel(
                     val source = response.body?.source() ?: return@launch
                     while (true) {
                         val line = source.readUtf8Line() ?: break
-                        if (line.isBlank()) continue
+                        val payload = line.removePrefix("data:").trim()
+                        if (payload.isEmpty()) continue
                         try {
                             val event = ApiClient.json.decodeFromString(
                                 DeviceEvent.serializer(),
-                                line,
+                                payload,
                             )
                             if (event.type == "device_claimed" && event.deviceId == deviceId) {
                                 LogBuffer.append("Device $deviceId claimed")
@@ -235,7 +278,7 @@ class DevicesViewModel(
                     }
                 }
             } catch (e: Exception) {
-                LogBuffer.append("Device events SSE error: ${e.message}")
+                LogBuffer.append("Device events SSE error: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
     }

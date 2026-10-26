@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.runerback.homeassistant.data.AuthManager
 import com.runerback.homeassistant.data.local.SettingsRepository
 import com.runerback.homeassistant.util.LogBuffer
+import com.runerback.homeassistant.util.NetworkErrors
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,7 +50,7 @@ class LoginViewModel(
             val result = AuthManager.login(baseUrl, _username.value.trim(), _password.value)
             result.onFailure { error ->
                 LogBuffer.append("Login error for ${_username.value}: ${error.message}")
-                _error.value = error.message ?: "Login failed"
+                _error.value = NetworkErrors.describe(error, baseUrl)
             }
             _loading.value = false
         }

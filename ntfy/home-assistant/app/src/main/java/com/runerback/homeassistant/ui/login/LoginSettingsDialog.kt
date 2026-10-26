@@ -36,6 +36,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.runerback.homeassistant.R
 import com.runerback.homeassistant.data.local.SettingsRepository
+import com.runerback.homeassistant.data.remote.ApiClient
+import com.runerback.homeassistant.util.NetworkErrors
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -48,6 +50,9 @@ fun LoginSettingsDialog(
     val focusManager = LocalFocusManager.current
     val settingsRepository = remember { SettingsRepository(context) }
     var serverUrl by remember { mutableStateOf("") }
+    var testing by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    var testSuccess by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         serverUrl = settingsRepository.serverUrl.first()
@@ -87,7 +92,10 @@ fun LoginSettingsDialog(
 
                 OutlinedTextField(
                     value = serverUrl,
-                    onValueChange = { serverUrl = it },
+                    onValueChange = {
+                        serverUrl = it
+                        testResult = null
+                    },
                     label = { Text(stringResource(R.string.server_url)) },
                     placeholder = { Text(stringResource(R.string.server_url_hint)) },
                     keyboardOptions = KeyboardOptions(
@@ -106,10 +114,46 @@ fun LoginSettingsDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
+                testResult?.let { result ->
+                    Text(
+                        text = result,
+                        color = if (testSuccess) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 ) {
+                    TextButton(
+                        onClick = {
+                            focusManager.clearFocus()
+                            scope.launch {
+                                testing = true
+                                testResult = null
+                                val url = serverUrl.trim().trimEnd('/')
+                                ApiClient.testConnection(url)
+                                    .onSuccess {
+                                        testSuccess = true
+                                        testResult = it
+                                    }
+                                    .onFailure {
+                                        testSuccess = false
+                                        testResult = NetworkErrors.describe(it, url)
+                                    }
+                                testing = false
+                            }
+                        },
+                        enabled = !testing && serverUrl.isNotBlank(),
+                    ) {
+                        Text(
+                            stringResource(
+                                if (testing) R.string.testing else R.string.test_connection
+                            )
+                        )
+                    }
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.cancel))
                     }

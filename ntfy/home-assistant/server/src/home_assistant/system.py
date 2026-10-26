@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 from typing import Optional
 
 
@@ -48,3 +49,51 @@ def memory_usage() -> dict[str, Optional[int]]:
     used = total - available
     percent = round(used / total * 100, 1) if total else 0.0
     return {"total_kb": total, "used_kb": used, "percent": percent}
+
+
+def bluetooth_status() -> dict:
+    """BlueZ adapter state via bluetoothctl. Never raises."""
+    try:
+        result = subprocess.run(
+            ["bluetoothctl", "show"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {"available": False, "powered": False, "adapter": None}
+    output = result.stdout or ""
+    if "Controller" not in output:
+        return {"available": False, "powered": False, "adapter": None}
+    powered = "Powered: yes" in output
+    adapter = None
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("Name:"):
+            adapter = line.split(":", 1)[1].strip() or None
+            break
+    return {"available": True, "powered": powered, "adapter": adapter}
+
+
+def set_bluetooth_power(on: bool) -> dict:
+    """Power the BlueZ adapter on/off. Returns fresh status; raises RuntimeError."""
+    def _power() -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["bluetoothctl", "power", "on" if on else "off"],
+            capture_output=True, text=True, timeout=10,
+        )
+
+    try:
+        result = _power()
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"failed to run bluetoothctl: {exc}") from exc
+    output = f"{result.stdout}\n{result.stderr}".strip()
+    if on and "org.bluez.Error.Blocked" in output:
+        # soft-blocked via rfkill; unblock once and retry
+        subprocess.run(
+            ["rfkill", "unblock", "bluetooth"],
+            capture_output=True, text=True, timeout=10,
+        )
+        result = _power()
+        output = f"{result.stdout}\n{result.stderr}".strip()
+    if result.returncode != 0 or "Failed" in output:
+        raise RuntimeError(output or f"bluetoothctl exited with {result.returncode}")
+    return bluetooth_status()

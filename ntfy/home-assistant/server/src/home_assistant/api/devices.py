@@ -4,6 +4,7 @@ import json
 import time
 from typing import Annotated
 
+from bleak.exc import BleakError
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
@@ -34,7 +35,14 @@ def list_devices(current_user: auth.CurrentUser):
 @router.post("/devices/ble-scan/start")
 async def start_ble_scan(request: Request, current_user: auth.CurrentUser, csrf: auth.CsrfRequired):
     scanner = request.app.state.ble_scanner
-    await scanner.start()
+    try:
+        await scanner.start()
+    except BleakError as exc:
+        # e.g. no powered Bluetooth adapter on the host
+        raise HTTPException(
+            status_code=503,
+            detail=f"Bluetooth is not available on the server: {exc}",
+        ) from exc
     return {"ok": True}
 
 

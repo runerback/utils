@@ -29,6 +29,8 @@
     <string name="no_messages_yet">No messages yet</string>
     <string name="server_url">Server URL</string>
     <string name="server_url_hint">http://localhost</string>
+    <string name="test_connection">Test connection</string>
+    <string name="testing">Testing…</string>
     <string name="token">Token</string>
     <string name="token_hint">Optional access token</string>
     <string name="token_hidden">••••••••</string>
@@ -50,6 +52,13 @@
     <string name="wifi_ssid">Wi-Fi network</string>
     <string name="wifi_password">Wi-Fi password</string>
     <string name="bluetooth_devices">Bluetooth devices</string>
+    <string name="server_bluetooth">Server Bluetooth</string>
+    <string name="bluetooth_on">On</string>
+    <string name="bluetooth_off">Off</string>
+    <string name="bluetooth_unavailable">Unavailable</string>
+    <string name="bluetooth_unknown">Unknown</string>
+    <string name="bluetooth_start">Start Bluetooth</string>
+    <string name="bluetooth_close">Close Bluetooth</string>
     <string name="registered_devices">Registered devices</string>
     <string name="looking_for_devices">Looking for ESP32-PROV devices…</string>
     <string name="no_devices">No devices registered yet.</string>

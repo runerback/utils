@@ -1,5 +1,7 @@
 import os
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("HOME_ASSISTANT_HOST", "127.0.0.1")
 os.environ.setdefault("HOME_ASSISTANT_PORT", "8000")
@@ -12,7 +14,7 @@ os.environ.setdefault("DEV_AUTH_BYPASS", "1")
 import pytest
 from fastapi.testclient import TestClient
 
-from home_assistant import db, main
+from home_assistant import db, main, system
 
 
 @pytest.fixture(autouse=True)
@@ -181,3 +183,58 @@ def test_ble_scan_start_requires_csrf(client: TestClient):
     client.post("/api/login", data={"username": "testuser", "password": "x"})
     resp = client.post("/api/devices/ble-scan/start")
     assert resp.status_code == 403
+
+
+_SHOW_POWERED_ON = "Controller AA:BB:CC:DD:EE:FF\n\tName: armbian\n\tPowered: yes\n"
+_SHOW_POWERED_OFF = "Controller AA:BB:CC:DD:EE:FF\n\tName: armbian\n\tPowered: no\n"
+
+
+def _completed(stdout: str, returncode: int = 0, stderr: str = "") -> subprocess.CompletedProcess:
+    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr)
+
+
+def test_bluetooth_status_powered_on(client: TestClient):
+    _login(client)
+    with patch.object(system.subprocess, "run", return_value=_completed(_SHOW_POWERED_ON)):
+        resp = client.get("/api/system/bluetooth")
+    assert resp.status_code == 200
+    assert resp.json() == {"available": True, "powered": True, "adapter": "armbian"}
+
+
+def test_bluetooth_status_unavailable(client: TestClient):
+    _login(client)
+    with patch.object(system.subprocess, "run", side_effect=FileNotFoundError("bluetoothctl")):
+        resp = client.get("/api/system/bluetooth")
+    assert resp.status_code == 200
+    assert resp.json() == {"available": False, "powered": False, "adapter": None}
+
+
+def test_bluetooth_power_on_success(client: TestClient):
+    token = _login(client)
+    with patch.object(
+        system.subprocess, "run",
+        side_effect=[_completed("Changing power on succeeded"), _completed(_SHOW_POWERED_ON)],
+    ) as mock_run:
+        resp = client.post(
+            "/api/system/bluetooth/power",
+            headers={"X-CSRFToken": token},
+            data={"on": "true"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["powered"] is True
+    assert mock_run.call_count == 2  # power command + status re-read
+
+
+def test_bluetooth_power_on_failure_returns_502(client: TestClient):
+    token = _login(client)
+    with patch.object(
+        system.subprocess, "run",
+        return_value=_completed("Failed to set power on: org.bluez.Error.DBusError", returncode=1),
+    ):
+        resp = client.post(
+            "/api/system/bluetooth/power",
+            headers={"X-CSRFToken": token},
+            data={"on": "true"},
+        )
+    assert resp.status_code == 502
+    assert "Failed to set power on" in resp.json()["detail"]

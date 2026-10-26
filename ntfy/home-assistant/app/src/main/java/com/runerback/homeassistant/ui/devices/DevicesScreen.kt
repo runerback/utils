@@ -19,6 +19,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -44,6 +45,8 @@ fun DevicesScreen(
     val error by viewModel.error.collectAsState()
     val pairingDevice by viewModel.pairingDevice.collectAsState()
     val pairingStatus by viewModel.pairingStatus.collectAsState()
+    val bluetoothStatus by viewModel.bluetoothStatus.collectAsState()
+    val bluetoothBusy by viewModel.bluetoothBusy.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -68,6 +71,41 @@ fun DevicesScreen(
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(stringResource(if (scanning) R.string.scanning else R.string.add_device))
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val status = bluetoothStatus
+                val statusText = when {
+                    status == null -> stringResource(R.string.bluetooth_unknown)
+                    !status.available -> stringResource(R.string.bluetooth_unavailable)
+                    status.powered -> stringResource(R.string.bluetooth_on) +
+                        (status.adapter?.let { " ($it)" } ?: "")
+                    else -> stringResource(R.string.bluetooth_off)
+                }
+                Text(
+                    text = "${stringResource(R.string.server_bluetooth)}: $statusText",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (status?.powered == true) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                OutlinedButton(
+                    onClick = { viewModel.toggleBluetooth() },
+                    enabled = !bluetoothBusy && status != null && status.available,
+                ) {
+                    Text(
+                        stringResource(
+                            if (status?.powered == true) R.string.bluetooth_close
+                            else R.string.bluetooth_start
+                        )
+                    )
                 }
             }
 

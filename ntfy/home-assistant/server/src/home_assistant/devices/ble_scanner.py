@@ -61,8 +61,14 @@ class BleScanner:
             return
         self._loop = asyncio.get_running_loop()
         self._seen.clear()
-        self._scanner = BleakScanner(detection_callback=self._detection_callback)
-        await self._scanner.start()
+        scanner = BleakScanner(detection_callback=self._detection_callback)
+        try:
+            await scanner.start()
+        except Exception:
+            # leave clean state so a later start() can retry
+            self._loop = None
+            raise
+        self._scanner = scanner
         self._task = asyncio.create_task(self._run())
 
     async def _run(self) -> None:

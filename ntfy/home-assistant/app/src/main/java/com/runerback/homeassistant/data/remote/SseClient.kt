@@ -50,9 +50,10 @@ object SseClient {
                         }
                     while (isActive) {
                         val line = source.readUtf8Line() ?: break
-                        if (line.isBlank()) continue
+                        val payload = line.removePrefix("data:").trim()
+                        if (payload.isEmpty()) continue
                         try {
-                            val event = json.decodeFromString(MessageEvent.serializer(), line)
+                            val event = json.decodeFromString(MessageEvent.serializer(), payload)
                             if (event.type == "message" && event.topic == topic) {
                                 LogBuffer.append("SSE message on $topic from ${event.sender}")
                                 send(
