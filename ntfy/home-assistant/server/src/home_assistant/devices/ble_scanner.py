@@ -29,6 +29,7 @@ class BleScanner:
         self._task: asyncio.Task | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._seen: dict[str, BleDevice] = {}
+        self._adv_count = 0
         self._callbacks: list[callable] = []
 
     def on_device(self, callback: callable) -> None:
@@ -48,6 +49,13 @@ class BleScanner:
                 pass
 
     def _detection_callback(self, device, advertising_data) -> None:
+        self._adv_count += 1
+        if self._adv_count == 1:
+            logger.info(
+                "first BLE advertisement received: address=%s name=%r "
+                "(scanner is receiving from the adapter)",
+                device.address, device.name,
+            )
         # bleak's device.name is often None on early advertisements; the
         # complete local name from the adv/scan-response is more reliable.
         name = advertising_data.local_name or device.name or ""
@@ -79,6 +87,7 @@ class BleScanner:
             return
         self._loop = asyncio.get_running_loop()
         self._seen.clear()
+        self._adv_count = 0
         scanner = BleakScanner(detection_callback=self._detection_callback)
         try:
             await scanner.start()
@@ -93,7 +102,23 @@ class BleScanner:
 
     async def _run(self) -> None:
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(5)
+            if self._adv_count == 0:
+                logger.info(
+                    "BLE scan active: no advertisements received yet "
+                    "(adapter not delivering?)"
+                )
+            elif not self._seen:
+                logger.info(
+                    "BLE scan active: %d advertisement(s) received, "
+                    "none matching prefix %r",
+                    self._adv_count, self.prefix,
+                )
+            else:
+                logger.info(
+                    "BLE scan active: %d advertisement(s), %d matching device(s)",
+                    self._adv_count, len(self._seen),
+                )
 
     async def stop(self) -> None:
         if self._task is not None:

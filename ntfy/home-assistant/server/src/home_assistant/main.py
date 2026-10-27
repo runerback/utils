@@ -14,7 +14,7 @@ from .devices import ble_scanner, mdns_advertiser, mqtt_listener
 from .devices import db as devices_db
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
