@@ -187,22 +187,20 @@ def main() -> int:
             print("nothing to update; target already matches the zip")
             return 0
 
+        for action, rel in changed:
+            path = rel.as_posix()
+            if action == "add":
+                print(f"{c('new:', _GREEN)}   {path}")
+            elif action == "delete":
+                print(f"{c('del:  ', _RED)}   {path}")
+            else:
+                print(f"{c('mod:  ', _YELLOW)}   {path}")
+                print_update_diff(rel, (target / rel).read_bytes(),
+                                  (staging / rel).read_bytes())
+
         if args.dry_run:
-            for action, rel in changed:
-                path = rel.as_posix()
-                if action == "add":
-                    print(f"{c('new file:', _GREEN)}   {path}")
-                elif action == "delete":
-                    print(f"{c('deleted:  ', _RED)}   {path}")
-                else:
-                    print_update_diff(rel, (target / rel).read_bytes(),
-                                      (staging / rel).read_bytes())
             print(c("dry run: no files written", _YELLOW))
             return 0
-
-        for action, rel in changed:
-            color = _GREEN if action == "add" else _YELLOW
-            print(f"  {c(action, color)} {rel.as_posix()}")
 
         if not args.no_backup:
             backup = target / f".backup-{datetime.now():%Y%m%d-%H%M%S}"
