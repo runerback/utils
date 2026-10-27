@@ -1,6 +1,12 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").inputStream().use { load(it) }
 }
 
 val buildNumber = (System.currentTimeMillis() / 1000).toInt()
@@ -8,6 +14,15 @@ val buildNumber = (System.currentTimeMillis() / 1000).toInt()
 android {
     namespace = "com.runerback.imagehelper"
     compileSdk = 34
+
+    signingConfigs {
+        create("release") {
+            storeFile = file(localProperties.getProperty("RELEASE_STORE_FILE"))
+            keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+            storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+            keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+        }
+    }
 
     defaultConfig {
         applicationId = "com.runerback.imagehelper"
@@ -20,6 +35,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
