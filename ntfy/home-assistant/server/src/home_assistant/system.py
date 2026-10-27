@@ -1,6 +1,9 @@
 from pathlib import Path
+import logging
 import subprocess
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def cpu_temp_celsius() -> Optional[float]:
@@ -81,6 +84,7 @@ def set_bluetooth_power(on: bool) -> dict:
             capture_output=True, text=True, timeout=10,
         )
 
+    logger.info("bluetooth power %s requested", "on" if on else "off")
     try:
         result = _power()
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -95,5 +99,8 @@ def set_bluetooth_power(on: bool) -> dict:
         result = _power()
         output = f"{result.stdout}\n{result.stderr}".strip()
     if result.returncode != 0 or "Failed" in output:
+        logger.warning("bluetooth power %s failed: %s", "on" if on else "off", output)
         raise RuntimeError(output or f"bluetoothctl exited with {result.returncode}")
-    return bluetooth_status()
+    status = bluetooth_status()
+    logger.info("bluetooth power %s ok: %s", "on" if on else "off", status)
+    return status

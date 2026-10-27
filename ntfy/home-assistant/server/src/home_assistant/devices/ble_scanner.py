@@ -3,9 +3,12 @@
 Adapted from devices/server/ble_provisioner.py.
 """
 import asyncio
+import logging
 from dataclasses import dataclass
 
 from bleak import BleakScanner
+
+logger = logging.getLogger(__name__)
 
 BLE_NAME_PREFIX = "ESP32-PROV"
 
@@ -45,12 +48,26 @@ class BleScanner:
                 pass
 
     def _detection_callback(self, device, advertising_data) -> None:
-        name = device.name or ""
+        # bleak's device.name is often None on early advertisements; the
+        # complete local name from the adv/scan-response is more reliable.
+        name = advertising_data.local_name or device.name or ""
         if not name.startswith(self.prefix):
+            logger.debug(
+                "BLE adv ignored: address=%s name=%r local_name=%r rssi=%s",
+                device.address, device.name, advertising_data.local_name,
+                advertising_data.rssi,
+            )
             return
         bd = BleDevice(address=device.address, name=name, rssi=advertising_data.rssi)
         previous = self._seen.get(device.address)
         self._seen[device.address] = bd
+        if previous is None:
+            logger.info(
+                "BLE device found: %s (%s) rssi=%d, %d device(s) total",
+                bd.name, bd.address, bd.rssi, len(self._seen),
+            )
+        elif previous.rssi != bd.rssi:
+            logger.debug("BLE device update: %s (%s) rssi=%d", bd.name, bd.address, bd.rssi)
         if previous is None or previous.rssi != bd.rssi:
             # bleak invokes this callback on its own thread; hop to the loop.
             if self._loop is not None:
@@ -58,6 +75,7 @@ class BleScanner:
 
     async def start(self) -> None:
         if self._task is not None:
+            logger.info("BLE scan already running, %d device(s) seen", len(self._seen))
             return
         self._loop = asyncio.get_running_loop()
         self._seen.clear()
@@ -67,9 +85,11 @@ class BleScanner:
         except Exception:
             # leave clean state so a later start() can retry
             self._loop = None
+            logger.exception("BLE scan failed to start")
             raise
         self._scanner = scanner
         self._task = asyncio.create_task(self._run())
+        logger.info("BLE scan started (prefix=%r)", self.prefix)
 
     async def _run(self) -> None:
         while True:
@@ -87,6 +107,7 @@ class BleScanner:
             await self._scanner.stop()
             self._scanner = None
         self._loop = None
+        logger.info("BLE scan stopped, %d device(s) seen", len(self._seen))
 
     def list_devices(self) -> list[BleDevice]:
         return sorted(self._seen.values(), key=lambda d: d.rssi, reverse=True)

@@ -1,6 +1,7 @@
 """Device onboarding API for the web and Android frontends."""
 import asyncio
 import json
+import logging
 import time
 from typing import Annotated
 
@@ -11,6 +12,8 @@ from fastapi.responses import StreamingResponse
 from .. import auth, config
 from ..devices import ble_scanner, qr_display, security as device_security
 from ..devices import db as devices_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -39,10 +42,12 @@ async def start_ble_scan(request: Request, current_user: auth.CurrentUser, csrf:
         await scanner.start()
     except BleakError as exc:
         # e.g. no powered Bluetooth adapter on the host
+        logger.warning("BLE scan start failed: %s", exc)
         raise HTTPException(
             status_code=503,
             detail=f"Bluetooth is not available on the server: {exc}",
         ) from exc
+    logger.info("BLE scan start requested by %s", current_user)
     return {"ok": True}
 
 
@@ -58,8 +63,10 @@ async def ble_scan_stream(request: Request, current_user: auth.CurrentUser):
             pass
 
     scanner.on_device(_on_device)
+    logger.info("BLE scan stream connected by %s", current_user)
 
     async def event_generator():
+        streamed: set[str] = set()
         try:
             while True:
                 if await request.is_disconnected():
@@ -70,9 +77,16 @@ async def ble_scan_stream(request: Request, current_user: auth.CurrentUser):
                     "name": device.name,
                     "rssi": device.rssi,
                 }
+                if device.address not in streamed:
+                    streamed.add(device.address)
+                    logger.info(
+                        "BLE stream -> client: %s (%s) rssi=%d",
+                        device.name, device.address, device.rssi,
+                    )
                 yield f"data: {json.dumps(payload)}\n\n"
         finally:
             scanner.off_device(_on_device)
+            logger.info("BLE scan stream disconnected by %s", current_user)
 
     return StreamingResponse(
         event_generator(),
