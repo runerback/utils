@@ -35,7 +35,7 @@ object LogManager {
         logFile = File(application.filesDir, LOG_FILE_NAME)
         loadExistingLogs()
         initialized = true
-        d("LogManager", "Initialized, log file: ${logFile?.absolutePath}")
+        d("LogManager", "Initialized")
     }
 
     private fun loadExistingLogs() {

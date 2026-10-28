@@ -14,13 +14,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -39,8 +45,16 @@ import com.runerback.imagehelper.ui.viewmodel.GifMakerViewModel
 @Composable
 fun GifMakerScreen(viewModel: GifMakerViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Scaffold { padding ->
+    LaunchedEffect(state.exportMessage) {
+        state.exportMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.consumeExportMessage()
+        }
+    }
+
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
         val width = state.gifWidth
         val height = state.gifHeight
         if (width == null || height == null) {
@@ -148,6 +162,14 @@ private fun GifWorkArea(
         )
     }
 
+    val context = LocalContext.current
+    val canvasBackground = MaterialTheme.colorScheme.surfaceVariant.toArgb()
+    val exportGif = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/gif")
+    ) { uri ->
+        if (uri != null) viewModel.exportGif(context, uri, canvasBackground)
+    }
+
     Column(modifier = modifier) {
         Row(
             modifier = Modifier
@@ -164,6 +186,23 @@ private fun GifWorkArea(
             TextButton(onClick = { launchPicker() }) {
                 Text("Add images")
             }
+            TextButton(
+                enabled = state.frames.isNotEmpty() && !state.exporting,
+                onClick = {
+                    exportGif.launch("gif-maker-${System.currentTimeMillis()}.gif")
+                }
+            ) {
+                Text("Export")
+            }
+        }
+
+        if (state.exporting) {
+            LinearProgressIndicator(
+                progress = state.exportProgress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            )
         }
 
         Box(
@@ -181,6 +220,7 @@ private fun GifWorkArea(
                 onTransformChange = { index, transform ->
                     viewModel.updateFrameTransform(index, transform)
                 },
+                onFitScaleChange = { viewModel.setCanvasFitScale(it) },
                 modifier = Modifier.fillMaxSize()
             )
 

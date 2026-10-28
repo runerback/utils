@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -42,6 +43,7 @@ fun GifWorkzone(
     editMode: Boolean,
     onToggleEditMode: (Boolean) -> Unit,
     onTransformChange: (Int, FrameTransform) -> Unit,
+    onFitScaleChange: (Float) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -51,6 +53,8 @@ fun GifWorkzone(
         val fitScale = min(availW / gifWidth, availH / gifHeight)
         val canvasW = gifWidth * fitScale
         val canvasH = gifHeight * fitScale
+
+        LaunchedEffect(fitScale) { onFitScaleChange(fitScale) }
 
         val frame = selectedFrameIndex?.let { frames.getOrNull(it) }
         val previousFrame = selectedFrameIndex?.let { frames.getOrNull(it - 1) }
