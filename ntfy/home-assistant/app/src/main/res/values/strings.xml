@@ -49,8 +49,6 @@
     <string name="pair_device">Pair device</string>
     <string name="start_pairing">Start pairing</string>
     <string name="device_name">Device name</string>
-    <string name="wifi_ssid">Wi-Fi network</string>
-    <string name="wifi_password">Wi-Fi password</string>
     <string name="bluetooth_devices">Bluetooth devices</string>
     <string name="server_bluetooth">Server Bluetooth</string>
     <string name="bluetooth_on">On</string>
@@ -69,7 +67,9 @@
     <string name="status_pending_status">Waiting for status</string>
     <string name="status_failed">Failed</string>
     <string name="pairing_progress_title">Pairing in progress</string>
-    <string name="pairing_scan_qr_hint">A QR code is displayed on the MSU screen. Point the ESP32-CAM at the screen and wait for the device to connect.</string>
+    <string name="pairing_preparing_qr">Preparing QR code…</string>
+    <string name="pairing_qr_description">Pairing QR code</string>
+    <string name="pairing_scan_qr_hint">Point the ESP32-CAM at this QR code, then at your phone\'s Wi-Fi sharing QR (Settings → Wi-Fi → tap your network → Share). Wait for the device to connect.</string>
     <string name="pairing_success_title">Paired</string>
     <string name="pairing_success_message">The device claimed its credentials and is now active.</string>
     <string name="pairing_error_title">Pairing failed</string>

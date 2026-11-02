@@ -17,21 +17,22 @@ MSU_HEIGHT = 80
 
 def make_qr_payload(
     claim_key: str,
-    ssid: str,
-    password: str,
-    server_host: str,
+    ssid: str = "",
+    password: str = "",
+    server_host: str = "",
     server_port: int = 0,
 ) -> str:
-    return json.dumps(
-        {
-            "claim_key": claim_key,
-            "ssid": ssid,
-            "pass": password,
-            "server_host": server_host,
-            "server_port": server_port,
-        },
-        separators=(",", ":"),
-    )
+    payload: dict = {
+        "claim_key": claim_key,
+        "server_host": server_host,
+        "server_port": server_port,
+    }
+    # WiFi creds are only included when supplied; the preferred flow is the
+    # device scanning the phone's own WiFi sharing QR instead.
+    if ssid:
+        payload["ssid"] = ssid
+        payload["pass"] = password
+    return json.dumps(payload, separators=(",", ":"))
 
 
 def render_qr_png(
@@ -86,9 +87,9 @@ def show_qr_on_msu(
 
 def show_pairing_qr(
     claim_key: str,
-    ssid: str,
-    password: str,
-    server_host: str,
+    ssid: str = "",
+    password: str = "",
+    server_host: str = "",
     server_port: int = 0,
     serial_port: Optional[str] = None,
 ) -> str:

@@ -1,38 +1,47 @@
 package com.runerback.homeassistant.ui.devices
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.runerback.homeassistant.R
 import com.runerback.homeassistant.data.remote.model.BleDevice
+import com.runerback.homeassistant.util.renderQrBitmap
 
 @Composable
 fun PairingDialog(
     device: BleDevice,
     status: DevicesViewModel.PairingStatus,
+    qrPayload: String?,
     error: String?,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, ssid: String, password: String) -> Unit,
+    onConfirm: (name: String) -> Unit,
 ) {
     var name by remember { mutableStateOf(device.name) }
-    var ssid by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
 
     val title = when (status) {
         DevicesViewModel.PairingStatus.SUCCESS -> stringResource(R.string.pairing_success_title)
@@ -48,10 +57,37 @@ fun PairingDialog(
             Column(modifier = Modifier.fillMaxWidth()) {
                 when (status) {
                     DevicesViewModel.PairingStatus.PAIRING -> {
+                        // The ESP32-CAM may take a while to scan; don't let the
+                        // screen turn off while the QR is up.
+                        val view = LocalView.current
+                        DisposableEffect(Unit) {
+                            view.keepScreenOn = true
+                            onDispose { view.keepScreenOn = false }
+                        }
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         Spacer(modifier = Modifier.height(12.dp))
+                        if (qrPayload != null) {
+                            val sizePx = with(LocalDensity.current) { 240.dp.roundToPx() }
+                            val qrBitmap = remember(qrPayload) { renderQrBitmap(qrPayload, sizePx) }
+                            Surface(
+                                color = Color.White,
+                                modifier = Modifier.align(Alignment.CenterHorizontally),
+                            ) {
+                                Image(
+                                    bitmap = qrBitmap.asImageBitmap(),
+                                    contentDescription = stringResource(R.string.pairing_qr_description),
+                                    modifier = Modifier
+                                        .padding(12.dp)
+                                        .size(240.dp),
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
                         Text(
-                            text = stringResource(R.string.pairing_scan_qr_hint),
+                            text = stringResource(
+                                if (qrPayload != null) R.string.pairing_scan_qr_hint
+                                else R.string.pairing_preparing_qr
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
@@ -77,22 +113,6 @@ fun PairingDialog(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = ssid,
-                            onValueChange = { ssid = it },
-                            label = { Text(stringResource(R.string.wifi_ssid)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            label = { Text(stringResource(R.string.wifi_password)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
                     }
                 }
             }
@@ -115,10 +135,7 @@ fun PairingDialog(
                     }
                 }
                 else -> {
-                    TextButton(
-                        onClick = { onConfirm(name, ssid, password) },
-                        enabled = ssid.isNotBlank() && password.isNotBlank(),
-                    ) {
+                    TextButton(onClick = { onConfirm(name) }) {
                         Text(stringResource(R.string.start_pairing))
                     }
                 }

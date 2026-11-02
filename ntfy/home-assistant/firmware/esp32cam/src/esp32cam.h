@@ -4,13 +4,16 @@
  * Flow:
  *   1. On first boot: advertise BLE name "ESP32-PROV-XXXXXX" so the server can
  *      discover this device.
- *   2. Power on the camera and scan for a QR code shown on the MSU mini screen.
- *   3. Decode QR JSON: {"claim_key","ssid","pass","server_host","server_port"}
- *   4. Connect to WiFi, discover the provisioning server via mDNS (_devprov._tcp)
+ *   2. Scan QR codes until both pieces are known, in any order:
+ *      - WiFi creds from a standard WiFi sharing QR (WIFI:S:..;T:..;P:..;;),
+ *        e.g. Android Settings > Wi-Fi > tap network > Share.
+ *      - Claim JSON {"claim_key","server_host","server_port"} shown by the
+ *        companion app (or the MSU mini screen).
+ *   3. Connect to WiFi, discover the provisioning server via mDNS (_devprov._tcp)
  *      or fall back to server_host.
- *   5. POST /api/v1/claim with the claim_key; receive device_id, access_token,
+ *   4. POST /api/v1/claim with the claim_key; receive device_id, access_token,
  *      mqtt_user and mqtt_pass.
- *   6. Persist credentials to NVS, shut down Bluetooth, then run normal MQTT mode.
+ *   5. Persist credentials to NVS, shut down Bluetooth, then run normal MQTT mode.
  *
  * Required libraries (Arduino IDE Library Manager):
  *   - NimBLE-Arduino (h2zero)
@@ -48,6 +51,13 @@
 #define FACTORY_RESET_MS    3000
 #define BOOT_BUTTON_PIN     0
 
+// Camera fault signalling. AI Thinker ESP32-CAM: GPIO 4 is the bright white
+// flash LED, GPIO 33 is the onboard red LED (active-low).
+#define FLASH_LED_PIN             4
+#define STATUS_LED_PIN            33
+#define CAMERA_CHECK_INTERVAL_MS  30000
+#define CAMERA_FAULT_BLINK_MS     10000
+
 // ============== Globals ==============
 extern Preferences prefs;
 extern WiFiClient wifiClient;
@@ -55,6 +65,7 @@ extern PubSubClient mqtt;
 extern ESP32QRCodeReader qrReader;
 
 extern bool provisioned;
+extern bool cameraOk;
 
 struct DeviceCreds {
   String deviceId;
@@ -69,13 +80,18 @@ extern DeviceCreds creds;
 
 struct ProvPayload {
   String claimKey;
-  String ssid;
-  String pass;
   String serverHost;
   int    serverPort = 0;
 };
 
 extern ProvPayload prov;
+
+struct WifiCreds {
+  String ssid;
+  String pass;
+};
+
+extern WifiCreds wifiCreds;
 
 extern char statusTopic[64];
 extern char cmdTopic[64];
@@ -93,7 +109,19 @@ void startBleAdvertising();
 void stopBleAdvertising();
 
 bool initQrScanner();
-bool scanQrPayload(ProvPayload &out);
+bool parseWifiQr(const String &text, WifiCreds &out);
+bool scanQrCode(ProvPayload &provOut, WifiCreds &wifiOut, bool &haveClaim, bool &haveWifi);
+
+// Camera health. cameraHealthy() checks the sensor answered on the SCCB bus
+// (a loose ribbon cable makes the probe fail). cameraFrameOk() additionally
+// grabs a test frame — only call it when the QR reader task is NOT running,
+// since with fb_count=1 both consumers race for the same buffer.
+bool cameraHealthy();
+bool cameraFrameOk();
+bool initCameraNormalMode();
+void updateCameraHealth();
+void setFaultLeds(bool on);
+void blinkCameraFault(uint32_t durationMs);
 
 bool connectWiFi(const char* ssid, const char* pass);
 bool discoverServer(IPAddress &ip, uint16_t &port);

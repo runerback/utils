@@ -100,10 +100,15 @@ def pair_device(
     csrf: auth.CsrfRequired,
     ble_address: Annotated[str, Form()],
     name: Annotated[str, Form()],
-    ssid: Annotated[str, Form()],
-    password: Annotated[str, Form()],
+    ssid: Annotated[str, Form()] = "",
+    password: Annotated[str, Form()] = "",
 ):
-    """Generate credentials for the selected BLE device and show the QR code."""
+    """Generate credentials for the selected BLE device and show the QR code.
+
+    ssid/password are optional: the preferred flow is the ESP32-CAM scanning
+    the phone's own WiFi sharing QR, so the claim QR usually carries only the
+    claim key and server address.
+    """
     device_id = device_security.generate_device_id()
     token = device_security.generate_access_token()
     claim_key = device_security.generate_claim_key()

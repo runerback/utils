@@ -11,9 +11,15 @@ PubSubClient mqtt(wifiClient);
 ESP32QRCodeReader qrReader(CAMERA_MODEL_AI_THINKER);
 
 bool provisioned = false;
+bool cameraOk = false;
+
+static uint32_t lastCamCheck = 0;
+static uint32_t lastFaultBlink = 0;
+static bool faultLedOn = false;
 
 DeviceCreds creds;
 ProvPayload prov;
+WifiCreds wifiCreds;
 
 char statusTopic[64];
 char cmdTopic[64];
@@ -23,6 +29,9 @@ char ackTopic[64];
 void setup() {
   Serial.begin(115200);
   delay(100);
+  pinMode(FLASH_LED_PIN, OUTPUT);
+  pinMode(STATUS_LED_PIN, OUTPUT);
+  setFaultLeds(false);
   factoryResetCheck();
 
   if (loadCredentials()) {
@@ -39,6 +48,12 @@ void loop() {
   if (provisioned) {
     ensureMqtt();
     mqtt.loop();
+    updateCameraHealth();
+    if (!cameraOk && millis() - lastFaultBlink > 300) {
+      lastFaultBlink = millis();
+      faultLedOn = !faultLedOn;
+      setFaultLeds(faultLedOn);
+    }
   }
   delay(10);
 }
@@ -84,12 +99,197 @@ void shutdownBle() {
 
 // ============== QR scanner ==============
 bool initQrScanner() {
-  qrReader.setup();
+  QRCodeReaderSetupErr err = qrReader.setup();
+  if (err != SETUP_OK || !cameraHealthy()) {
+    Serial.printf("[qr] camera init failed (%d) — check the camera ribbon cable\n",
+                  (int)err);
+    return false;
+  }
+  qrReader.begin();  // starts the detect task that fills the QR queue
   Serial.println("[qr] scanner ready");
   return true;
 }
 
-bool scanQrPayload(ProvPayload &out) {
+// ============== Camera health ==============
+bool cameraHealthy() {
+  sensor_t *s = esp_camera_sensor_get();
+  return s != NULL && s->id.PID != 0;
+}
+
+bool cameraFrameOk() {
+  // The first frame(s) right after init can legitimately fail while the
+  // sensor warms up, so allow a few attempts before declaring a fault.
+  for (int attempt = 0; attempt < 3; attempt++) {
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (fb != NULL) {
+      esp_camera_fb_return(fb);
+      return true;
+    }
+    delay(200);
+  }
+  return false;
+}
+
+// Normal-mode camera init mirrors the QR reader's config (AI Thinker pins,
+// grayscale QVGA). Kept initialized so future capture commands can use it.
+bool initCameraNormalMode() {
+  CameraPins pins = CAMERA_MODEL_AI_THINKER;
+  camera_config_t c = {};
+  c.ledc_channel = LEDC_CHANNEL_0;
+  c.ledc_timer   = LEDC_TIMER_0;
+  c.pin_d0 = pins.Y2_GPIO_NUM;
+  c.pin_d1 = pins.Y3_GPIO_NUM;
+  c.pin_d2 = pins.Y4_GPIO_NUM;
+  c.pin_d3 = pins.Y5_GPIO_NUM;
+  c.pin_d4 = pins.Y6_GPIO_NUM;
+  c.pin_d5 = pins.Y7_GPIO_NUM;
+  c.pin_d6 = pins.Y8_GPIO_NUM;
+  c.pin_d7 = pins.Y9_GPIO_NUM;
+  c.pin_xclk  = pins.XCLK_GPIO_NUM;
+  c.pin_pclk  = pins.PCLK_GPIO_NUM;
+  c.pin_vsync = pins.VSYNC_GPIO_NUM;
+  c.pin_href  = pins.HREF_GPIO_NUM;
+  c.pin_sccb_sda = pins.SIOD_GPIO_NUM;
+  c.pin_sccb_scl = pins.SIOC_GPIO_NUM;
+  c.pin_pwdn  = pins.PWDN_GPIO_NUM;
+  c.pin_reset = pins.RESET_GPIO_NUM;
+  c.xclk_freq_hz = 10000000;
+  c.pixel_format = PIXFORMAT_GRAYSCALE;
+  c.frame_size   = FRAMESIZE_QVGA;
+  c.fb_count     = 1;
+
+  esp_err_t err = esp_camera_init(&c);
+  if (err != ESP_OK) {
+    Serial.printf("[cam] init failed 0x%x — check the camera ribbon cable\n", err);
+    return false;
+  }
+  if (!cameraHealthy() || !cameraFrameOk()) {
+    Serial.println("[cam] sensor not responding or no frames — check the ribbon cable");
+    esp_camera_deinit();
+    return false;
+  }
+  Serial.println("[cam] camera healthy");
+  return true;
+}
+
+// Periodic recheck in normal mode: grab a frame (or re-init from scratch when
+// the camera was never initialized) and publish on state change so the user
+// sees a fault — and a recovery — immediately in the app.
+void updateCameraHealth() {
+  if (millis() - lastCamCheck < CAMERA_CHECK_INTERVAL_MS) {
+    return;
+  }
+  lastCamCheck = millis();
+
+  bool ok = cameraFrameOk();
+  if (!ok) {
+    Serial.println("[cam] frame grab failed, re-initializing camera");
+    esp_camera_deinit();
+    ok = initCameraNormalMode();
+  }
+  if (ok != cameraOk) {
+    cameraOk = ok;
+    mqttPublish(statusTopic, ok ? "ok" : "camera_error");
+    Serial.printf("[cam] health changed: %s\n", ok ? "ok" : "camera_error");
+  }
+  if (cameraOk) {
+    setFaultLeds(false);
+    faultLedOn = false;
+  }
+}
+
+void setFaultLeds(bool on) {
+  digitalWrite(FLASH_LED_PIN, on ? HIGH : LOW);
+  digitalWrite(STATUS_LED_PIN, on ? LOW : HIGH);  // red LED is active-low
+}
+
+// Blocking fault pattern: alternating flash/red blinks the user cannot miss.
+// Used when the camera is unusable during provisioning; the caller restarts
+// afterwards so a reseated cable gets a clean retry.
+void blinkCameraFault(uint32_t durationMs) {
+  uint32_t start = millis();
+  bool on = false;
+  while (millis() - start < durationMs) {
+    on = !on;
+    setFaultLeds(on);
+    delay(250);
+  }
+  setFaultLeds(false);
+}
+
+// Remove the backslash escapes defined by the ZXing WiFi QR format
+// (\ before any of \ ; , : " marks a literal character).
+static String wifiUnescape(const String &s) {
+  String out;
+  for (size_t i = 0; i < s.length(); i++) {
+    char c = s[i];
+    if (c == '\\' && i + 1 < s.length()) {
+      char n = s[i + 1];
+      if (n == '\\' || n == ';' || n == ',' || n == ':' || n == '"') {
+        out += n;
+        i++;
+        continue;
+      }
+    }
+    out += c;
+  }
+  return out;
+}
+
+// Parse a standard WiFi sharing QR payload:
+//   WIFI:T:<WPA|WEP|nopass>;S:<ssid>;P:<pass>;H:<true|false>;;
+// Fields may appear in any order and are ';'-terminated.
+bool parseWifiQr(const String &text, WifiCreds &out) {
+  if (!text.startsWith("WIFI:")) {
+    return false;
+  }
+  String body = text.substring(5);
+  String sec, ssid, pass;
+  int i = 0;
+  while (i < (int)body.length()) {
+    int colon = body.indexOf(':', i);
+    if (colon < 0) {
+      break;
+    }
+    String key = body.substring(i, colon);
+    String val;
+    int j = colon + 1;
+    for (; j < (int)body.length(); j++) {
+      char c = body[j];
+      if (c == '\\' && j + 1 < (int)body.length()) {
+        val += c;
+        val += body[++j];
+        continue;
+      }
+      if (c == ';') {
+        break;
+      }
+      val += c;
+    }
+    if (key == "S") {
+      ssid = wifiUnescape(val);
+    } else if (key == "P") {
+      pass = wifiUnescape(val);
+    } else if (key == "T") {
+      sec = val;
+    }
+    i = j + 1;
+  }
+  if (ssid.length() == 0) {
+    return false;
+  }
+  if (sec == "nopass") {
+    pass = "";
+  }
+  out.ssid = ssid;
+  out.pass = pass;
+  return true;
+}
+
+// Decode one QR frame and route it: a WIFI: payload fills the network
+// credentials, anything else is treated as the claim JSON. Returns true when
+// a previously missing piece was completed.
+bool scanQrCode(ProvPayload &provOut, WifiCreds &wifiOut, bool &haveClaim, bool &haveWifi) {
   struct QRCodeData qrCodeData;
   if (!qrReader.receiveQrCode(&qrCodeData, QR_SCAN_INTERVAL_MS)) {
     return false;
@@ -110,6 +310,16 @@ bool scanQrPayload(ProvPayload &out) {
   String text(buf);
   Serial.printf("[qr] decoded (%d bytes): %s\n", len, text.c_str());
 
+  if (text.startsWith("WIFI:")) {
+    if (!parseWifiQr(text, wifiOut)) {
+      Serial.println("[qr] WIFI payload parse failed");
+      return false;
+    }
+    haveWifi = true;
+    Serial.printf("[qr] wifi creds received, ssid %s\n", wifiOut.ssid.c_str());
+    return true;
+  }
+
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, text);
   if (err) {
@@ -117,16 +327,16 @@ bool scanQrPayload(ProvPayload &out) {
     return false;
   }
 
-  out.claimKey   = doc["claim_key"]   | "";
-  out.ssid       = doc["ssid"]        | "";
-  out.pass       = doc["pass"]        | "";
-  out.serverHost = doc["server_host"] | "";
-  out.serverPort = doc["server_port"] | 0;
+  provOut.claimKey   = doc["claim_key"]   | "";
+  provOut.serverHost = doc["server_host"] | "";
+  provOut.serverPort = doc["server_port"] | 0;
 
-  if (out.claimKey.length() == 0 || out.ssid.length() == 0) {
-    Serial.println("[qr] missing claim_key or ssid");
+  if (provOut.claimKey.length() == 0) {
+    Serial.println("[qr] missing claim_key");
     return false;
   }
+  haveClaim = true;
+  Serial.println("[qr] claim payload received");
   return true;
 }
 
@@ -136,21 +346,24 @@ void runProvisioningMode() {
   startBleAdvertising();
 
   if (!initQrScanner()) {
-    Serial.println("[prov] QR scanner init failed, rebooting");
-    delay(2000);
+    // Blink the alert pattern so the user immediately sees the camera module
+    // is faulty (e.g. loose ribbon cable), then restart for a clean retry.
+    Serial.println("[prov] camera fault detected");
+    blinkCameraFault(CAMERA_FAULT_BLINK_MS);
     ESP.restart();
   }
 
-  bool gotQr = false;
-  while (!gotQr) {
-    gotQr = scanQrPayload(prov);
+  bool haveClaim = false;
+  bool haveWifi = false;
+  while (!(haveClaim && haveWifi)) {
+    scanQrCode(prov, wifiCreds, haveClaim, haveWifi);
     delay(10);
   }
 
-  Serial.println("[prov] QR received, stopping BLE advertising");
+  Serial.println("[prov] QR payloads complete, stopping BLE advertising");
   stopBleAdvertising();
 
-  if (!connectWiFi(prov.ssid.c_str(), prov.pass.c_str())) {
+  if (!connectWiFi(wifiCreds.ssid.c_str(), wifiCreds.pass.c_str())) {
     Serial.println("[prov] WiFi failed, rebooting");
     delay(2000);
     ESP.restart();
@@ -320,7 +533,9 @@ void runNormalMode() {
   mqtt.setBufferSize(2048);
   mqtt.setKeepAlive(30);
   ensureMqtt();
-  mqttPublish(statusTopic, "ok");
+  cameraOk = initCameraNormalMode();
+  lastCamCheck = millis();
+  mqttPublish(statusTopic, cameraOk ? "ok" : "camera_error");
 }
 
 void ensureMqtt() {

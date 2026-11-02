@@ -45,6 +45,7 @@ fun DevicesScreen(
     val error by viewModel.error.collectAsState()
     val pairingDevice by viewModel.pairingDevice.collectAsState()
     val pairingStatus by viewModel.pairingStatus.collectAsState()
+    val pairingQrPayload by viewModel.pairingQrPayload.collectAsState()
     val bluetoothStatus by viewModel.bluetoothStatus.collectAsState()
     val bluetoothBusy by viewModel.bluetoothBusy.collectAsState()
 
@@ -181,10 +182,11 @@ fun DevicesScreen(
             PairingDialog(
                 device = device,
                 status = pairingStatus,
+                qrPayload = pairingQrPayload,
                 error = error,
                 onDismiss = { viewModel.dismissPairing() },
-                onConfirm = { name, ssid, password ->
-                    viewModel.pairDevice(name, ssid, password)
+                onConfirm = { name ->
+                    viewModel.pairDevice(name)
                 },
             )
         }

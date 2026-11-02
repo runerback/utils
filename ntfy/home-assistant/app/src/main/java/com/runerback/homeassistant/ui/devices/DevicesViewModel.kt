@@ -51,6 +51,9 @@ class DevicesViewModel(
     private val _pairingStatus = MutableStateFlow(PairingStatus.IDLE)
     val pairingStatus: StateFlow<PairingStatus> = _pairingStatus.asStateFlow()
 
+    private val _pairingQrPayload = MutableStateFlow<String?>(null)
+    val pairingQrPayload: StateFlow<String?> = _pairingQrPayload.asStateFlow()
+
     private val _pendingDeviceId = MutableStateFlow<String?>(null)
     val pendingDeviceId: StateFlow<String?> = _pendingDeviceId.asStateFlow()
 
@@ -197,6 +200,7 @@ class DevicesViewModel(
     fun selectDevice(device: BleDevice) {
         _pairingDevice.value = device
         _pairingStatus.value = PairingStatus.IDLE
+        _pairingQrPayload.value = null
         _pendingDeviceId.value = null
         _error.value = null
     }
@@ -204,13 +208,15 @@ class DevicesViewModel(
     fun clearSelectedDevice() {
         _pairingDevice.value = null
         _pairingStatus.value = PairingStatus.IDLE
+        _pairingQrPayload.value = null
         _pendingDeviceId.value = null
     }
 
-    fun pairDevice(name: String, ssid: String, password: String) {
+    fun pairDevice(name: String) {
         val device = _pairingDevice.value ?: return
         viewModelScope.launch {
             _pairingStatus.value = PairingStatus.PAIRING
+            _pairingQrPayload.value = null
             _pendingDeviceId.value = null
             _error.value = null
             val baseUrl = settingsRepository.serverUrl.first()
@@ -220,12 +226,11 @@ class DevicesViewModel(
                 mapOf(
                     "ble_address" to device.address,
                     "name" to name.ifBlank { device.name },
-                    "ssid" to ssid,
-                    "password" to password,
                 ),
             )
                 .onSuccess { result ->
                     LogBuffer.append("Pairing started for ${result.deviceId}")
+                    _pairingQrPayload.value = result.qrPayload
                     _pendingDeviceId.value = result.deviceId
                     observeClaimEvents(baseUrl, result.deviceId)
                 }
@@ -288,6 +293,7 @@ class DevicesViewModel(
         eventsJob = null
         _pairingDevice.value = null
         _pairingStatus.value = PairingStatus.IDLE
+        _pairingQrPayload.value = null
         _pendingDeviceId.value = null
     }
 
