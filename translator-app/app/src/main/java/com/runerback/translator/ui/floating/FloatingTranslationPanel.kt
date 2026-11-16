@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -123,6 +124,8 @@ fun FloatingTranslationPanel(
                     Column(
                         modifier = Modifier
                             .padding(vertical = 8.dp)
+                            // Dictionary entries can be long: cap the panel at 60% of the screen height.
+                            .heightIn(max = with(density) { (screenHeightPx * 0.6f).toInt().toDp() })
                             .verticalScroll(rememberScrollState()),
                     ) {
                         state.sourceText?.let { source ->

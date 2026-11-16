@@ -58,11 +58,11 @@ class SettingsRepository(private val context: Context) {
     val showSimplifyButton: Flow<Boolean> = dataStore.data.map { prefs ->
         val provider = prefs[KEY_TRANSLATION_PROVIDER]?.let { TranslationProvider.valueOf(it) }
             ?: TranslationProvider.OLLAMA
-        prefs[keyShowSimplifyButton(provider)] ?: prefs[KEY_SHOW_SIMPLIFY_BUTTON] ?: true
+        prefs[keyShowSimplifyButton(provider)] ?: prefs[KEY_SHOW_SIMPLIFY_BUTTON] ?: (provider != TranslationProvider.DICTIONARY)
     }
 
     fun showSimplifyButton(provider: TranslationProvider): Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[keyShowSimplifyButton(provider)] ?: prefs[KEY_SHOW_SIMPLIFY_BUTTON] ?: true
+        prefs[keyShowSimplifyButton(provider)] ?: prefs[KEY_SHOW_SIMPLIFY_BUTTON] ?: (provider != TranslationProvider.DICTIONARY)
     }
 
     val useFakeServer: Flow<Boolean> = dataStore.data.map { prefs ->

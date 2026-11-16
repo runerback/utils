@@ -17,3 +17,5 @@ dependencyResolutionManagement {
 rootProject.name = "Translator"
 include(":app")
 include(":ppocr-sdk")
+include(":subread-dictionary-core")
+include(":dictionary-builder")

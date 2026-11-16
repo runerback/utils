@@ -1,5 +1,6 @@
 package com.runerback.translator.ui.floating
 
+import android.content.Context
 import android.graphics.Rect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,6 +9,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.runerback.translator.argostranslate.ArgosTranslateClient
 import com.runerback.translator.data.SettingsRepository
+import com.runerback.translator.dictionary.DictionaryStoreProvider
+import com.runerback.translator.dictionary.DictionaryUnavailableException
+import com.runerback.translator.dictionary.LocalDictionaryTranslator
 import com.runerback.translator.ollama.OllamaClient
 import com.runerback.translator.translate.TranslationProvider
 import com.runerback.translator.translate.TranslationResult
@@ -16,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class TranslationPanelViewModel(
+    private val context: Context,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
@@ -97,6 +102,11 @@ class TranslationPanelViewModel(
                 val baseUrl = settingsRepository.argosTranslateBaseUrl.first()
                 val sourceLanguage = settingsRepository.sourceLanguage.first()
                 ArgosTranslateClient(baseUrl, sourceLanguage)
+            }
+            TranslationProvider.DICTIONARY -> {
+                val store = DictionaryStoreProvider.get(context)
+                    ?: throw DictionaryUnavailableException("No dictionary bundled in this build")
+                LocalDictionaryTranslator(store)
             }
         }
     }

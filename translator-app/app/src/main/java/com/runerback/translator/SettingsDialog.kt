@@ -65,8 +65,6 @@ fun SettingsDialog(
     var targetLanguageInput by remember(targetLanguage) { mutableStateOf(targetLanguage) }
     var debugInput by remember(readerDebugMode) { mutableStateOf(readerDebugMode) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
-    var sourceLanguageDropdownExpanded by remember { mutableStateOf(false) }
-    var targetLanguageDropdownExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -117,157 +115,28 @@ fun SettingsDialog(
                             }
                         }
 
-                        if (providerInput == TranslationProvider.OLLAMA) {
-                            TextField(
-                                value = urlInput,
-                                onValueChange = { urlInput = it },
-                                label = { Text("Ollama base URL", color = Color.Black) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.White,
-                                    unfocusedContainerColor = Color.White,
-                                    focusedTextColor = Color.Black,
-                                    unfocusedTextColor = Color.Black,
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 16.dp),
+                        when (providerInput) {
+                            TranslationProvider.OLLAMA -> OllamaProviderSettings(
+                                baseUrl = urlInput,
+                                onBaseUrlChange = { urlInput = it },
+                                showSimplify = simplifyInput,
+                                onShowSimplifyChange = { simplifyInput = it },
+                                useFakeServer = fakeInput,
+                                onUseFakeServerChange = { fakeInput = it },
                             )
-                        } else {
-                            TextField(
-                                value = argosUrlInput,
-                                onValueChange = { argosUrlInput = it },
-                                label = { Text("ArgosTranslate server URL", color = Color.Black) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.White,
-                                    unfocusedContainerColor = Color.White,
-                                    focusedTextColor = Color.Black,
-                                    unfocusedTextColor = Color.Black,
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 16.dp),
+                            TranslationProvider.ARGOSTRANSLATE -> ArgosTranslateProviderSettings(
+                                baseUrl = argosUrlInput,
+                                onBaseUrlChange = { argosUrlInput = it },
+                                sourceLanguage = sourceLanguageInput,
+                                onSourceLanguageChange = { sourceLanguageInput = it },
+                                targetLanguage = targetLanguageInput,
+                                onTargetLanguageChange = { targetLanguageInput = it },
+                                showSimplify = simplifyInput,
+                                onShowSimplifyChange = { simplifyInput = it },
+                                useFakeServer = fakeInput,
+                                onUseFakeServerChange = { fakeInput = it },
                             )
-                        }
-
-                        if (providerInput == TranslationProvider.ARGOSTRANSLATE) {
-                            ExposedDropdownMenuBox(
-                                expanded = sourceLanguageDropdownExpanded,
-                                onExpandedChange = { sourceLanguageDropdownExpanded = it },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                TextField(
-                                    value = sourceLanguageInput.uppercase(),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Source language", color = Color.Black) },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sourceLanguageDropdownExpanded) },
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.White,
-                                        unfocusedContainerColor = Color.White,
-                                        focusedTextColor = Color.Black,
-                                        unfocusedTextColor = Color.Black,
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp)
-                                        .menuAnchor(MenuAnchorType.PrimaryEditable, true),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = sourceLanguageDropdownExpanded,
-                                    onDismissRequest = { sourceLanguageDropdownExpanded = false },
-                                ) {
-                                    listOf("en", "zh").forEach { code ->
-                                        DropdownMenuItem(
-                                            text = { Text(code.uppercase()) },
-                                            onClick = {
-                                                sourceLanguageInput = code
-                                                sourceLanguageDropdownExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-
-                            ExposedDropdownMenuBox(
-                                expanded = targetLanguageDropdownExpanded,
-                                onExpandedChange = { targetLanguageDropdownExpanded = it },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                TextField(
-                                    value = targetLanguageInput.uppercase(),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Default target language", color = Color.Black) },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = targetLanguageDropdownExpanded) },
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.White,
-                                        unfocusedContainerColor = Color.White,
-                                        focusedTextColor = Color.Black,
-                                        unfocusedTextColor = Color.Black,
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp)
-                                        .menuAnchor(MenuAnchorType.PrimaryEditable, true),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = targetLanguageDropdownExpanded,
-                                    onDismissRequest = { targetLanguageDropdownExpanded = false },
-                                ) {
-                                    listOf("en", "zh").forEach { code ->
-                                        DropdownMenuItem(
-                                            text = { Text(code.uppercase()) },
-                                            onClick = {
-                                                targetLanguageInput = code
-                                                targetLanguageDropdownExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                checked = simplifyInput,
-                                onCheckedChange = { simplifyInput = it },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = Color.Black,
-                                    uncheckedColor = Color.Black,
-                                    checkmarkColor = Color.White,
-                                ),
-                            )
-                            Text(
-                                text = "Show Simplify button",
-                                color = Color.Black,
-                            )
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                checked = fakeInput,
-                                onCheckedChange = { fakeInput = it },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = Color.Black,
-                                    uncheckedColor = Color.Black,
-                                    checkmarkColor = Color.White,
-                                ),
-                            )
-                            Text(
-                                text = "Use fake dev server",
-                                color = Color.Black,
-                            )
+                            TranslationProvider.DICTIONARY -> DictionaryProviderSettings()
                         }
                     }
                 }

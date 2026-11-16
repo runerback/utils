@@ -99,6 +99,26 @@ android {
             outputImpl.outputFileName = "translator-${abi}-${buildType.name}-${version}.apk"
         }
     }
+
+    // Prebuilt dictionary database: the dictionary-builder tool turns the Yomitan zips of the
+    // repo-root `dictionaries/` folder (git-ignored, supplied by whoever builds) into a SQLite
+    // asset. With no zips there the task is skipped and the app ships without a dictionary.
+    evaluationDependsOn(":dictionary-builder")
+    val dictionariesDir = rootProject.file("dictionaries")
+    val generatedAssets = layout.buildDirectory.dir("generated/dictionaries")
+    val buildDictionaryDatabase = tasks.register<JavaExec>("buildDictionaryDatabase") {
+        val outFile = generatedAssets.get().file("dictionaries.db").asFile
+        inputs.dir(dictionariesDir).optional(true).skipWhenEmpty()
+        outputs.file(outFile)
+        onlyIf { dictionariesDir.listFiles { file -> file.extension.lowercase() == "zip" }?.isNotEmpty() == true }
+        classpath = project(":dictionary-builder").extensions
+            .getByType<org.gradle.api.tasks.SourceSetContainer>()["main"].runtimeClasspath
+        mainClass.set("com.runerback.translator.dictbuilder.MainKt")
+        args(dictionariesDir.absolutePath, outFile.absolutePath)
+    }
+    // Deriving the srcDir from the task provider carries the producer dependency, so every
+    // consumer of the assets (merge tasks, lint models, ...) runs after the database build.
+    sourceSets["main"].assets.srcDir(buildDictionaryDatabase.map { generatedAssets.get() })
 }
 
 dependencies {
@@ -129,6 +149,9 @@ dependencies {
 
     // OCR
     implementation(project(":ppocr-sdk"))
+
+    // Local Yomitan dictionaries (vendored subread-dictionary core)
+    implementation(project(":subread-dictionary-core"))
 
     implementation(composeBom)
     androidTestImplementation(composeBom)

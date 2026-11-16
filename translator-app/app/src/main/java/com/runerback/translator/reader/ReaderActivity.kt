@@ -104,7 +104,7 @@ class ReaderActivity : ComponentActivity() {
 
     private val settingsRepository by lazy { SettingsRepository(this) }
     private val viewModel: TranslationPanelViewModel by viewModels {
-        TranslationPanelViewModelFactory(settingsRepository)
+        TranslationPanelViewModelFactory(this, settingsRepository)
     }
     private val readerViewModel: ReaderViewModel by viewModels()
 
