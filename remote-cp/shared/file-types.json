@@ -1,5 +1,5 @@
 {
-  "imageExtensions": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"],
+  "imageExtensions": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", "*.tif"],
   "videoExtensions": [".mp4"],
   "fileExtensions": [
     ".7z",
