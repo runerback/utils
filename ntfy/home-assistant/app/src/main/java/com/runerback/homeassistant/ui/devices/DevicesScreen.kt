@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -21,9 +22,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -44,6 +49,7 @@ fun DevicesScreen(
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
     val pairingDevice by viewModel.pairingDevice.collectAsState()
+    val resumeDevice by viewModel.resumeDevice.collectAsState()
     val pairingStatus by viewModel.pairingStatus.collectAsState()
     val pairingQrPayload by viewModel.pairingQrPayload.collectAsState()
     val bluetoothStatus by viewModel.bluetoothStatus.collectAsState()
@@ -172,7 +178,11 @@ fun DevicesScreen(
                     modifier = Modifier.weight(1f),
                 ) {
                     items(devices, key = { it.deviceId }) { device ->
-                        DeviceCard(device = device)
+                        DeviceCard(
+                            device = device,
+                            onResumeClaim = { viewModel.resumeClaim(device) },
+                            onRemove = { viewModel.removeDevice(device) },
+                        )
                     }
                 }
             }
@@ -180,7 +190,7 @@ fun DevicesScreen(
 
         pairingDevice?.let { device ->
             PairingDialog(
-                device = device,
+                deviceName = device.name,
                 status = pairingStatus,
                 qrPayload = pairingQrPayload,
                 error = error,
@@ -188,6 +198,17 @@ fun DevicesScreen(
                 onConfirm = { name ->
                     viewModel.pairDevice(name)
                 },
+            )
+        }
+
+        resumeDevice?.let { device ->
+            PairingDialog(
+                deviceName = device.name ?: device.deviceId,
+                status = pairingStatus,
+                qrPayload = pairingQrPayload,
+                error = error,
+                onDismiss = { viewModel.dismissPairing() },
+                onConfirm = { },
             )
         }
     }
@@ -228,7 +249,13 @@ private fun BleDeviceCard(
 }
 
 @Composable
-private fun DeviceCard(device: Device) {
+private fun DeviceCard(
+    device: Device,
+    onResumeClaim: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    var confirmRemove by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -239,7 +266,7 @@ private fun DeviceCard(device: Device) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = device.deviceId,
+                    text = device.name ?: device.deviceId,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
@@ -250,7 +277,49 @@ private fun DeviceCard(device: Device) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                if (device.status == "pending_claim" || device.status == "pending_status") {
+                    TextButton(onClick = onResumeClaim) {
+                        Text(stringResource(R.string.continue_claim))
+                    }
+                }
+                TextButton(onClick = { confirmRemove = true }) {
+                    Text(
+                        text = stringResource(R.string.remove_device),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
         }
+    }
+
+    if (confirmRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            title = { Text(stringResource(R.string.remove_device_confirm_title)) },
+            text = { Text(stringResource(R.string.remove_device_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRemove = false
+                        onRemove()
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.remove_device),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemove = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
 

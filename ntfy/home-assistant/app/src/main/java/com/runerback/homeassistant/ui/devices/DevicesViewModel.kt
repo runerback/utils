@@ -48,6 +48,9 @@ class DevicesViewModel(
     private val _pairingDevice = MutableStateFlow<BleDevice?>(null)
     val pairingDevice: StateFlow<BleDevice?> = _pairingDevice.asStateFlow()
 
+    private val _resumeDevice = MutableStateFlow<Device?>(null)
+    val resumeDevice: StateFlow<Device?> = _resumeDevice.asStateFlow()
+
     private val _pairingStatus = MutableStateFlow(PairingStatus.IDLE)
     val pairingStatus: StateFlow<PairingStatus> = _pairingStatus.asStateFlow()
 
@@ -205,6 +208,48 @@ class DevicesViewModel(
         _error.value = null
     }
 
+    fun resumeClaim(device: Device) {
+        viewModelScope.launch {
+            _resumeDevice.value = device
+            _pairingStatus.value = PairingStatus.PAIRING
+            _pairingQrPayload.value = null
+            _pendingDeviceId.value = device.deviceId
+            _error.value = null
+            val baseUrl = settingsRepository.serverUrl.first()
+            ApiClient.postFormAndParse<PairingResult>(
+                baseUrl,
+                "/api/devices/${device.deviceId}/claim-qr",
+                emptyMap(),
+            )
+                .onSuccess { result ->
+                    LogBuffer.append("Claim QR reissued for ${result.deviceId}")
+                    _pairingQrPayload.value = result.qrPayload
+                    observeClaimEvents(baseUrl, result.deviceId)
+                }
+                .onFailure {
+                    LogBuffer.append("Failed to reissue claim QR: ${it.message}")
+                    _pairingStatus.value = PairingStatus.ERROR
+                    _error.value = it.message
+                }
+        }
+    }
+
+    fun removeDevice(device: Device) {
+        viewModelScope.launch {
+            _error.value = null
+            val baseUrl = settingsRepository.serverUrl.first()
+            ApiClient.delete(baseUrl, "/api/devices/${device.deviceId}")
+                .onSuccess {
+                    LogBuffer.append("Removed device ${device.deviceId}")
+                    load()
+                }
+                .onFailure {
+                    LogBuffer.append("Failed to remove device: ${it.message}")
+                    _error.value = it.message
+                }
+        }
+    }
+
     fun clearSelectedDevice() {
         _pairingDevice.value = null
         _pairingStatus.value = PairingStatus.IDLE
@@ -292,6 +337,7 @@ class DevicesViewModel(
         eventsJob?.cancel()
         eventsJob = null
         _pairingDevice.value = null
+        _resumeDevice.value = null
         _pairingStatus.value = PairingStatus.IDLE
         _pairingQrPayload.value = null
         _pendingDeviceId.value = null

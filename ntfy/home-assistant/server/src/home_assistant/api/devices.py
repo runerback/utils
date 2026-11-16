@@ -10,7 +10,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from .. import auth, config
-from ..devices import ble_scanner, qr_display, security as device_security
+from ..devices import ble_scanner, mqtt_accounts, qr_display, security as device_security
 from ..devices import db as devices_db
 
 logger = logging.getLogger(__name__)
@@ -147,5 +147,62 @@ def pair_device(
         "device_id": device_id,
         "name": name,
         "status": "pending_claim",
+        "qr_payload": payload,
+    }
+
+
+@router.delete("/devices/{device_id}")
+def delete_device(device_id: str, current_user: auth.CurrentUser, csrf: auth.CsrfRequired):
+    """Remove a registered device, including stuck pending_claim rows."""
+    row = devices_db.get_device_by_id(device_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="device not found")
+
+    devices_db.remove_device(device_id)
+    # The MQTT user only exists once the device has claimed; cleanup is
+    # best-effort so a broker hiccup doesn't block the removal.
+    if row["status"] in ("pending_status", "active"):
+        try:
+            mqtt_accounts.delete_mqtt_user(device_id)
+        except RuntimeError as exc:
+            logger.warning("Failed to delete MQTT user for %s: %s", device_id, exc)
+    logger.info("Device %s removed by %s", device_id, current_user)
+    return {"ok": True}
+
+
+@router.post("/devices/{device_id}/claim-qr")
+def reissue_claim_qr(device_id: str, current_user: auth.CurrentUser, csrf: auth.CsrfRequired):
+    """Rotate the claim key of a pending device and show the QR code again.
+
+    The claim key plaintext is never stored, so the only way to resume a
+    claim after the original QR was lost is to generate a fresh key.
+    """
+    row = devices_db.get_device_by_id(device_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="device not found")
+    if row["status"] not in ("pending_claim", "pending_status"):
+        raise HTTPException(status_code=409, detail=f"device is {row['status']}")
+
+    claim_key = device_security.generate_claim_key()
+    # Unsalted deterministic digest, same as in pair_device, so /api/v1/claim
+    # can look the row up.
+    claim_salt, claim_hash = device_security.hash_secret(claim_key, "")
+    devices_db.update_claim_key(device_id, claim_salt, claim_hash)
+
+    try:
+        payload = qr_display.show_pairing_qr(
+            claim_key=claim_key,
+            server_host=_lan_ip(),
+            server_port=config.PORT,
+            serial_port=config.MSU_SCREEN_PORT or None,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"QR display failed: {exc}") from exc
+
+    logger.info("Claim QR reissued for %s by %s", device_id, current_user)
+    return {
+        "device_id": device_id,
+        "name": row["name"] or "",
+        "status": row["status"],
         "qr_payload": payload,
     }

@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class Device(
     @SerialName("device_id") val deviceId: String,
     @SerialName("ble_mac") val bleMac: String?,
+    val name: String? = null,
     val status: String,
     @SerialName("created_at") val createdAt: Double,
     @SerialName("claimed_at") val claimedAt: Double?,

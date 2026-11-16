@@ -95,6 +95,15 @@ def set_status(device_id: str, status: str) -> None:
         )
 
 
+def update_claim_key(device_id: str, claim_salt: str, claim_hash: str) -> None:
+    """Rotate the claim key so a stuck pending device can be claimed again."""
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE devices SET claim_salt=?, claim_hash=? WHERE device_id=?",
+            (claim_salt, claim_hash, device_id),
+        )
+
+
 def set_mqtt_password(device_id: str, mqtt_password: str) -> None:
     with _connect() as conn:
         conn.execute(

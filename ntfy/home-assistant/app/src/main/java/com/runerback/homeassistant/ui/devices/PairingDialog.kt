@@ -29,19 +29,18 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.runerback.homeassistant.R
-import com.runerback.homeassistant.data.remote.model.BleDevice
 import com.runerback.homeassistant.util.renderQrBitmap
 
 @Composable
 fun PairingDialog(
-    device: BleDevice,
+    deviceName: String,
     status: DevicesViewModel.PairingStatus,
     qrPayload: String?,
     error: String?,
     onDismiss: () -> Unit,
     onConfirm: (name: String) -> Unit,
 ) {
-    var name by remember { mutableStateOf(device.name) }
+    var name by remember(deviceName) { mutableStateOf(deviceName) }
 
     val title = when (status) {
         DevicesViewModel.PairingStatus.SUCCESS -> stringResource(R.string.pairing_success_title)
