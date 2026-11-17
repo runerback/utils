@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PartialBuild.Core\PartialBuild.Core.csproj" />
+    <ProjectReference Include="..\PartialBuild.MSBuild\PartialBuild.MSBuild.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PartialBuild.Core/PartialBuild.Core.csproj" />
+    <Project Path="src/PartialBuild.MSBuild/PartialBuild.MSBuild.csproj" />
+    <Project Path="src/PartialBuild.Server/PartialBuild.Server.csproj" />
+  </Folder>
+</Solution>
