@@ -46,7 +46,6 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.21.1")
     implementation("com.quickbirdstudios:opencv:4.5.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    implementation("androidx.core:core-ktx:1.15.0")
 
     androidTestImplementation("androidx.test:runner:1.2.0")
     androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
