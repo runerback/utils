@@ -2,6 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- In-app camera capture screen; requested at runtime on entry. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Camera capture self-hides at runtime; keep the app installable on camera-less devices.
+         Both declarations are needed: the CAMERA permission alone would make stores treat
+         android.hardware.camera as implicitly required. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
 
     <application
         android:name=".TranslatorApplication"
@@ -25,6 +37,14 @@
 
         <activity
             android:name=".reader.ReaderActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".camera.CaptureReaderActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".camera.CameraCaptureActivity"
             android:exported="false" />
 
         <activity

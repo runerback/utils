@@ -395,6 +395,8 @@ private fun ReaderScreen(
                     viewModel.dismiss()
                     readerViewModel.onCropSelectorClosed()
                 },
+                showActions = viewModel.showActionButtons,
+                onWordTap = viewModel::onWordTapped,
             )
         }
 

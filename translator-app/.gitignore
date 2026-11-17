@@ -55,12 +55,10 @@ ppocr-models/
 books/
 examples/
 logs/
+docs/
 
 # Test dictionary fixtures (large zips, downloaded separately)
 subread-dictionary-core/dictionaries/
-
-# Dictionaries bundled into the app at build time (supplied locally, never committed)
-dictionaries/
 
 # Misc
 *.swp

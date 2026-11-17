@@ -99,26 +99,6 @@ android {
             outputImpl.outputFileName = "translator-${abi}-${buildType.name}-${version}.apk"
         }
     }
-
-    // Prebuilt dictionary database: the dictionary-builder tool turns the Yomitan zips of the
-    // repo-root `dictionaries/` folder (git-ignored, supplied by whoever builds) into a SQLite
-    // asset. With no zips there the task is skipped and the app ships without a dictionary.
-    evaluationDependsOn(":dictionary-builder")
-    val dictionariesDir = rootProject.file("dictionaries")
-    val generatedAssets = layout.buildDirectory.dir("generated/dictionaries")
-    val buildDictionaryDatabase = tasks.register<JavaExec>("buildDictionaryDatabase") {
-        val outFile = generatedAssets.get().file("dictionaries.db").asFile
-        inputs.dir(dictionariesDir).optional(true).skipWhenEmpty()
-        outputs.file(outFile)
-        onlyIf { dictionariesDir.listFiles { file -> file.extension.lowercase() == "zip" }?.isNotEmpty() == true }
-        classpath = project(":dictionary-builder").extensions
-            .getByType<org.gradle.api.tasks.SourceSetContainer>()["main"].runtimeClasspath
-        mainClass.set("com.runerback.translator.dictbuilder.MainKt")
-        args(dictionariesDir.absolutePath, outFile.absolutePath)
-    }
-    // Deriving the srcDir from the task provider carries the producer dependency, so every
-    // consumer of the assets (merge tasks, lint models, ...) runs after the database build.
-    sourceSets["main"].assets.srcDir(buildDictionaryDatabase.map { generatedAssets.get() })
 }
 
 dependencies {
@@ -146,6 +126,16 @@ dependencies {
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // EXIF orientation for camera captures
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
+    // Camera (in-app capture screen with album + flashlight controls)
+    val cameraxVersion = "1.4.1"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
 
     // OCR
     implementation(project(":ppocr-sdk"))

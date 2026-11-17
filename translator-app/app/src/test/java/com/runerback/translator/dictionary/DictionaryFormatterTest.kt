@@ -3,6 +3,8 @@ package com.runerback.translator.dictionary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import space.subread.dictionary.core.Block
+import space.subread.dictionary.core.Inline
 import space.subread.dictionary.core.Lookup
 import space.subread.dictionary.core.StoredTerm
 import space.subread.dictionary.core.Term
@@ -72,6 +74,51 @@ class DictionaryFormatterTest {
         assertTrue(text, text.contains("  to eat"))
         assertTrue(text, text.contains("to consume"))
         assertTrue(text, !text.contains("<"))
+    }
+
+    @Test
+    fun `entry shows only the best match`() {
+        val matches = Lookup.find("動物園", 0, sourceOf(
+            stored(1, "Jitendex", 1, "動物園", "どうぶつえん", "[\"zoo\"]"),
+            stored(1, "Jitendex", 2, "動物", "どうぶつ", "[\"animal\"]"),
+        ))
+        assertEquals(2, matches.size)
+        val entry = DictionaryFormatter.formatEntry(matches) { emptyList() }
+        assertEquals("動物園", entry.expression)
+        assertEquals("どうぶつえん", entry.reading)
+        assertTrue(blocksText(entry.blocks), !blocksText(entry.blocks).contains("animal"))
+    }
+
+    @Test
+    fun `entry keeps bullets ruby and tags structured`() {
+        val glossary = """[{"type":"structured-content","content":[{"tag":"span","data":{"class":"tag"},"content":"noun"},{"tag":"ul","content":[{"tag":"li","content":"zoo"},{"tag":"li","content":"zoological gardens"}]},{"tag":"ruby","content":["動",{"tag":"rt","content":"どう"}]}]}]"""
+        val matches = Lookup.find("動物園", 0, sourceOf(stored(1, "Jitendex", 1, "動物園", "どうぶつえん", glossary)))
+        val entry = DictionaryFormatter.formatEntry(matches) { emptyList() }
+        val tagLine = entry.blocks.filterIsInstance<Block.Line>().first()
+        assertEquals(listOf("noun"), tagLine.children.filterIsInstance<Inline.Tag>().map { it.label })
+        val bullets = entry.blocks.filterIsInstance<Block.Bullets>().first()
+        assertEquals(listOf("zoo", "zoological gardens"), bullets.items.map { Inline.plain(it) })
+        val ruby = entry.blocks.filterIsInstance<Block.Line>()
+            .flatMap { it.children }.filterIsInstance<Inline.Ruby>().first()
+        assertEquals("動", Inline.plain(ruby.base))
+        assertEquals("どう", ruby.reading)
+    }
+
+    @Test
+    fun `entry meta lines render`() {
+        val matches = Lookup.find("猫", 0, sourceOf(stored(1, "Jitendex", 1, "猫", "ねこ", "[\"cat\"]")))
+        val entry = DictionaryFormatter.formatEntry(matches) {
+            listOf(StoredMeta("freq", TermMeta("猫", "freq", "{\"value\":1234}")))
+        }
+        assertEquals(listOf("freq: 1234"), entry.metaLines)
+    }
+
+    private fun blocksText(blocks: List<Block>): String = blocks.joinToString("\n") {
+        when (it) {
+            is Block.Line -> Inline.plain(it.children)
+            is Block.Bullets -> it.items.joinToString(" ") { item -> Inline.plain(item) }
+            is Block.Box -> blocksText(it.blocks)
+        }
     }
 
     private fun sourceOf(vararg terms: StoredTerm) = object : DictionaryLookupSource {

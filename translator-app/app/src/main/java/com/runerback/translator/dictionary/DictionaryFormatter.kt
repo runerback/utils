@@ -1,7 +1,19 @@
 package com.runerback.translator.dictionary
 
+import space.subread.dictionary.core.Block
 import space.subread.dictionary.core.Glossary
 import space.subread.dictionary.core.Match
+import space.subread.dictionary.core.Structure
+
+/** One dictionary entry as the pick panel shows it: header fields, meta lines,
+ *  and the glossary's structured content. */
+data class DictEntry(
+    val expression: String,
+    val reading: String?,
+    val reasons: String?,
+    val metaLines: List<String>,
+    val blocks: List<Block>,
+)
 
 /**
  * Turns lookup matches into the plain text the translation panel shows.
@@ -18,6 +30,27 @@ object DictionaryFormatter {
         return shown.joinToString("\n\n") { match ->
             formatMatch(match, meta(match.stored.term.expression), severalDictionaries)
         }
+    }
+
+    /** The pick panel shows only the best match, as a structured entry the panel
+     *  renders natively (bullets, ruby, tag chips) instead of flattening to text. */
+    fun formatEntry(matches: List<Match>, meta: (String) -> List<StoredMeta>): DictEntry {
+        val match = matches.first()
+        val term = match.stored.term
+        return DictEntry(
+            expression = term.expression,
+            reading = term.reading.takeIf { it.isNotEmpty() && it != term.expression },
+            reasons = match.reasons.joinToString(", ").takeIf { it.isNotEmpty() },
+            metaLines = meta(term.expression).mapNotNull { stored ->
+                val text = when (stored.meta.mode) {
+                    "pitch" -> Glossary.pitchText(stored.meta.data)
+                    "freq" -> Glossary.frequencyText(stored.meta.data)
+                    else -> ""
+                }
+                if (text.isEmpty()) null else "${stored.meta.mode}: $text"
+            },
+            blocks = Structure.parse(term.glossary),
+        )
     }
 
     private fun formatMatch(match: Match, meta: List<StoredMeta>, severalDictionaries: Boolean): String {

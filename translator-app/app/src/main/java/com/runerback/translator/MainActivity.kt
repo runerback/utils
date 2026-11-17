@@ -3,6 +3,7 @@
 package com.runerback.translator
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -29,8 +30,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,9 +40,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
@@ -70,6 +69,7 @@ import com.runerback.translator.bookshelf.Book
 import com.runerback.translator.bookshelf.BookScanner
 import com.runerback.translator.bookshelf.BookSort
 import com.runerback.translator.bookshelf.BookType
+import com.runerback.translator.camera.CameraCaptureActivity
 import com.runerback.translator.data.SettingsRepository
 import com.runerback.translator.reader.ReaderActivity
 import com.runerback.translator.ui.theme.TranslatorTheme
@@ -103,9 +103,14 @@ private fun BookshelfScreen() {
     var isScanning by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
-    var showSortMenu by remember { mutableStateOf(false) }
     var pdfDialog by remember { mutableStateOf<Pair<Book, Int>?>(null) }
     var selectedGroup by remember { mutableStateOf<Pair<String, List<Book>>?>(null) }
+
+    // Camera capture is offered only on devices that have camera hardware;
+    // the in-app camera screen requests the CAMERA permission itself.
+    val cameraAvailable = remember {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+    }
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
@@ -142,13 +147,11 @@ private fun BookshelfScreen() {
             } ?: MainTopBar(
                 rootFolder = rootFolder,
                 isScanning = isScanning,
-                showSortMenu = showSortMenu,
-                onShowSortMenu = { showSortMenu = it },
-                bookSort = bookSort,
-                onSortSelected = { sort ->
-                    scope.launch { settingsRepository.setBookSort(sort) }
-                },
                 onPickFolder = { folderPicker.launch(null) },
+                cameraAvailable = cameraAvailable,
+                onTakePhoto = {
+                    context.startActivity(CameraCaptureActivity.createIntent(context))
+                },
                 onRescan = {
                     rootFolder?.let { uri ->
                         scope.launch {
@@ -266,11 +269,9 @@ private fun BookshelfScreen() {
 private fun MainTopBar(
     rootFolder: Uri?,
     isScanning: Boolean,
-    showSortMenu: Boolean,
-    onShowSortMenu: (Boolean) -> Unit,
-    bookSort: BookSort,
-    onSortSelected: (BookSort) -> Unit,
     onPickFolder: () -> Unit,
+    cameraAvailable: Boolean,
+    onTakePhoto: () -> Unit,
     onRescan: () -> Unit,
     onSettings: () -> Unit,
     onLogs: () -> Unit,
@@ -296,6 +297,22 @@ private fun MainTopBar(
                     tint = Color.Black,
                 )
             }
+            if (cameraAvailable) {
+                OutlinedButton(
+                    onClick = onTakePhoto,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black,
+                    ),
+                    modifier = Modifier.padding(end = 4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PhotoCamera,
+                        contentDescription = "Take a photo",
+                        tint = Color.Black,
+                    )
+                }
+            }
             OutlinedButton(
                 onClick = onRescan,
                 enabled = rootFolder != null && !isScanning,
@@ -310,34 +327,6 @@ private fun MainTopBar(
                     contentDescription = "Rescan",
                     tint = Color.Black,
                 )
-            }
-            OutlinedButton(
-                onClick = { onShowSortMenu(true) },
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.White,
-                    contentColor = Color.Black,
-                ),
-                modifier = Modifier.padding(end = 4.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.Sort,
-                    contentDescription = "Sort",
-                    tint = Color.Black,
-                )
-            }
-            DropdownMenu(
-                expanded = showSortMenu,
-                onDismissRequest = { onShowSortMenu(false) },
-            ) {
-                BookSort.entries.forEach { sort ->
-                    DropdownMenuItem(
-                        text = { Text(sortLabel(sort)) },
-                        onClick = {
-                            onSortSelected(sort)
-                            onShowSortMenu(false)
-                        },
-                    )
-                }
             }
             OutlinedButton(
                 onClick = onSettings,
@@ -842,14 +831,6 @@ private fun placeholderText(type: BookType): String {
         BookType.TXT -> "TXT"
         BookType.PDF -> "PDF"
         BookType.MANGA -> "MANGA"
-    }
-}
-
-private fun sortLabel(sort: BookSort): String {
-    return when (sort) {
-        BookSort.NAME_ASC -> "Name (A-Z)"
-        BookSort.NAME_DESC -> "Name (Z-A)"
-        BookSort.TYPE -> "Type"
     }
 }
 

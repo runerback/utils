@@ -7,10 +7,10 @@ import kotlinx.coroutines.withContext
 import space.subread.dictionary.core.Lookup
 
 /**
- * Local offline provider: looks the selection up in the bundled Yomitan dictionaries,
+ * Local offline provider: looks the selection up in the imported Yomitan dictionaries,
  * the longest prefix first with deinflection, exactly like the Yomitan popup.
  * All three `Translator` directions run the same lookup: the glossary language is
- * whatever the bundled dictionaries contain. `simplifyEnglish` falls back to the lookup;
+ * whatever the imported dictionaries contain. `simplifyEnglish` falls back to the lookup;
  * the Simplify button is hidden for this provider anyway.
  */
 class LocalDictionaryTranslator(private val dictionaries: DictionaryLookupSource) : Translator {
@@ -20,7 +20,7 @@ class LocalDictionaryTranslator(private val dictionaries: DictionaryLookupSource
     override suspend fun translateToChinese(text: String): TranslationResult = lookup(text)
 
     private suspend fun lookup(text: String): TranslationResult = withContext(Dispatchers.IO) {
-        if (!dictionaries.anyEnabled()) throw DictionaryUnavailableException("No dictionary bundled in this build")
+        if (!dictionaries.anyEnabled()) throw DictionaryUnavailableException("No dictionary imported — add one in Settings")
         val query = text.trim()
         val matches = Lookup.find(query, 0, dictionaries)
         if (matches.isEmpty()) {

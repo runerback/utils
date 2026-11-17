@@ -1,6 +1,11 @@
 package com.runerback.translator
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,8 +36,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.runerback.translator.bookshelf.BookSort
 import com.runerback.translator.data.SettingsManager
 import com.runerback.translator.data.SettingsRepository
 import com.runerback.translator.translate.TranslationProvider
@@ -50,6 +58,7 @@ fun SettingsDialog(
     val sourceLanguage by settingsRepository.sourceLanguage.collectAsStateWithLifecycle(initialValue = SettingsRepository.DEFAULT_SOURCE_LANGUAGE)
     val targetLanguage by settingsRepository.targetLanguage.collectAsStateWithLifecycle(initialValue = SettingsRepository.DEFAULT_TARGET_LANGUAGE)
     val readerDebugMode by SettingsManager.readerDebugMode.collectAsStateWithLifecycle(initialValue = false)
+    val bookSort by settingsRepository.bookSort.collectAsStateWithLifecycle(initialValue = BookSort.NAME_ASC)
     val scope = rememberCoroutineScope()
 
     var urlInput by remember(baseUrl) { mutableStateOf(baseUrl) }
@@ -72,6 +81,48 @@ fun SettingsDialog(
         containerColor = Color.White,
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
+                OutlinedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color.Black),
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        Text("Bookshelf sort", color = Color.Black)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // Applies immediately on tap, like the old top-bar menu did;
+                            // Save/Cancel only governs the server/provider fields below.
+                            BookSort.entries.forEach { sort ->
+                                val selected = sort == bookSort
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .border(1.dp, Color.Black)
+                                        .background(if (selected) Color.Black else Color.White)
+                                        .clickable {
+                                            scope.launch { settingsRepository.setBookSort(sort) }
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = sortLabel(sort),
+                                        color = if (selected) Color.White else Color.Black,
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 OutlinedCard(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
@@ -197,4 +248,12 @@ fun SettingsDialog(
             }
         },
     )
+}
+
+private fun sortLabel(sort: BookSort): String {
+    return when (sort) {
+        BookSort.NAME_ASC -> "Name A-Z"
+        BookSort.NAME_DESC -> "Name Z-A"
+        BookSort.TYPE -> "Type"
+    }
 }

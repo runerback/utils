@@ -1,30 +1,42 @@
 package com.runerback.translator.dictionary
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
-import androidx.core.content.edit
 import kotlinx.coroutines.sync.withLock
+import space.subread.dictionary.core.DictionarySink
 import space.subread.dictionary.core.StoredTerm
+import space.subread.dictionary.core.Tag
 import space.subread.dictionary.core.Term
 import space.subread.dictionary.core.TermMeta
 import space.subread.dictionary.core.TermSource
-import java.io.IOException
 
-/** One bundled dictionary. `terms` counts the term rows and the meta rows. */
+/** One imported dictionary. `terms` counts the term rows and the meta rows. */
 data class DictionaryInfo(val id: Long, val title: String, val revision: String, val position: Int, val enabled: Boolean, val terms: Int)
 
 /** A frequency or pitch entry, with the title of the dictionary it comes from. */
 data class StoredMeta(val dictionaryTitle: String, val meta: TermMeta)
 
 /**
- * The bundled dictionaries, in one SQLite database prebuilt at build time by
- * `:dictionary-builder` (same schema — keep both in sync) and shipped as an asset.
- * Read-only lookups plus an enabled toggle; the bundled set itself never changes at runtime.
+ * The imported dictionaries, in one SQLite database created empty on first launch.
+ * Dictionaries are imported from Yomitan zips in settings (see `DictionaryImporter`).
  */
 class DictionaryStore internal constructor(context: Context) : SQLiteOpenHelper(context, NAME, null, VERSION), DictionaryLookupSource {
 
-    // The database file is copied from assets before the store opens; it is never created here.
-    override fun onCreate(db: android.database.sqlite.SQLiteDatabase) = Unit
+    override fun onCreate(db: android.database.sqlite.SQLiteDatabase) {
+        db.execSQL("CREATE TABLE dictionaries (id INTEGER PRIMARY KEY, title TEXT NOT NULL UNIQUE, revision TEXT NOT NULL, position INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1)")
+        db.execSQL(
+            "CREATE TABLE terms (id INTEGER PRIMARY KEY, dictionary INTEGER NOT NULL, expression TEXT NOT NULL, reading TEXT NOT NULL, " +
+                "definition_tags TEXT NOT NULL, rules TEXT NOT NULL, score REAL NOT NULL, glossary TEXT NOT NULL, sequence INTEGER NOT NULL, term_tags TEXT NOT NULL)",
+        )
+        db.execSQL("CREATE INDEX terms_expression ON terms(expression)")
+        db.execSQL("CREATE INDEX terms_reading ON terms(reading)")
+        db.execSQL("CREATE INDEX terms_dictionary ON terms(dictionary)")
+        db.execSQL("CREATE TABLE meta (id INTEGER PRIMARY KEY, dictionary INTEGER NOT NULL, expression TEXT NOT NULL, mode TEXT NOT NULL, data TEXT NOT NULL)")
+        db.execSQL("CREATE INDEX meta_expression ON meta(expression)")
+        db.execSQL("CREATE INDEX meta_dictionary ON meta(dictionary)")
+    }
+
     override fun onUpgrade(db: android.database.sqlite.SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
 
     fun list(): List<DictionaryInfo> = readableDatabase.rawQuery(
@@ -40,6 +52,85 @@ class DictionaryStore internal constructor(context: Context) : SQLiteOpenHelper(
 
     fun setEnabled(id: Long, enabled: Boolean) {
         writableDatabase.execSQL("UPDATE dictionaries SET enabled = ? WHERE id = ?", arrayOf<Any>(if (enabled) 1 else 0, id))
+    }
+
+    /** Deletes a dictionary with all its term and meta rows. */
+    fun deleteDictionary(id: Long) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            deleteDictionaryRows(db, id)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * Inserts one dictionary row and returns its id. Re-importing a title replaces the old
+     * dictionary in place: its rows are deleted first and its position is kept. Call inside
+     * a transaction together with the row inserts, so a failed import leaves nothing behind.
+     */
+    fun insertDictionary(db: SQLiteDatabase, title: String, revision: String): Long {
+        val existing = db.rawQuery("SELECT id, position FROM dictionaries WHERE title = ?", arrayOf(title)).use { c ->
+            if (c.moveToFirst()) c.getLong(0) to c.getInt(1) else null
+        }
+        val position = if (existing != null) {
+            deleteDictionaryRows(db, existing.first)
+            existing.second
+        } else {
+            db.rawQuery("SELECT COALESCE(MAX(position), 0) + 1 FROM dictionaries", null).use { c ->
+                c.moveToFirst()
+                c.getInt(0)
+            }
+        }
+        val insert = db.compileStatement("INSERT INTO dictionaries (title, revision, position, enabled) VALUES (?, ?, ?, 1)")
+        insert.bindString(1, title)
+        insert.bindString(2, revision)
+        insert.bindLong(3, position.toLong())
+        return insert.executeInsert()
+    }
+
+    /** Feeds `YomitanZip.readBanks` rows into compiled inserts. Call inside a transaction. */
+    fun importSink(db: SQLiteDatabase, dictionaryId: Long): DictionarySink {
+        val termInsert = db.compileStatement(
+            "INSERT INTO terms (dictionary, expression, reading, definition_tags, rules, score, glossary, sequence, term_tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        val metaInsert = db.compileStatement("INSERT INTO meta (dictionary, expression, mode, data) VALUES (?, ?, ?, ?)")
+        return object : DictionarySink {
+            override fun term(term: Term) {
+                termInsert.clearBindings()
+                termInsert.bindLong(1, dictionaryId)
+                termInsert.bindString(2, term.expression)
+                // A term with no reading is read as it is written. The stored reading is the text a kana lookup finds.
+                termInsert.bindString(3, term.reading.ifEmpty { term.expression })
+                termInsert.bindString(4, term.definitionTags)
+                termInsert.bindString(5, term.rules)
+                termInsert.bindDouble(6, term.score)
+                termInsert.bindString(7, term.glossary)
+                termInsert.bindLong(8, term.sequence)
+                termInsert.bindString(9, term.termTags)
+                termInsert.executeInsert()
+            }
+
+            override fun termMeta(meta: TermMeta) {
+                metaInsert.clearBindings()
+                metaInsert.bindLong(1, dictionaryId)
+                metaInsert.bindString(2, meta.expression)
+                metaInsert.bindString(3, meta.mode)
+                metaInsert.bindString(4, meta.data)
+                metaInsert.executeInsert()
+            }
+
+            // The tag bank gives the notes of a tag. The pop-up shows the tag names alone.
+            override fun tag(tag: Tag) = Unit
+        }
+    }
+
+    private fun deleteDictionaryRows(db: SQLiteDatabase, id: Long) {
+        db.execSQL("DELETE FROM terms WHERE dictionary = ?", arrayOf<Any>(id))
+        db.execSQL("DELETE FROM meta WHERE dictionary = ?", arrayOf<Any>(id))
+        db.execSQL("DELETE FROM dictionaries WHERE id = ?", arrayOf<Any>(id))
     }
 
     override fun anyEnabled(): Boolean = readableDatabase.rawQuery("SELECT 1 FROM dictionaries WHERE enabled = 1", null).use { it.moveToFirst() }
@@ -83,48 +174,15 @@ class DictionaryStore internal constructor(context: Context) : SQLiteOpenHelper(
 
 object DictionaryStoreProvider {
 
-    private const val ASSET = "dictionaries.db"
-    private const val PREFS = "dictionary"
-    private const val KEY_COPIED_VERSION = "bundled_db_version_code"
-
     private val mutex = kotlinx.coroutines.sync.Mutex()
     private var instance: DictionaryStore? = null
 
-    /**
-     * Returns the shared store, or null when this build has no bundled dictionary.
-     * On first launch (and after an app update, which may carry a newer bundle) the
-     * prebuilt database is copied out of the assets before the store opens.
-     */
-    suspend fun get(context: Context): DictionaryStore? {
+    /** The shared store. The database starts empty; dictionaries are imported from Yomitan zips in settings. */
+    suspend fun get(context: Context): DictionaryStore {
         instance?.let { return it }
         return mutex.withLock {
             instance?.let { return@withLock it }
-            val appContext = context.applicationContext
-            if (!copyBundledDatabase(appContext)) return@withLock null
-            DictionaryStore(appContext).also { instance = it }
+            DictionaryStore(context.applicationContext).also { instance = it }
         }
-    }
-
-    private fun copyBundledDatabase(context: Context): Boolean {
-        val versionCode = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val dbFile = context.getDatabasePath(DictionaryStore.NAME)
-        if (dbFile.exists() && prefs.getLong(KEY_COPIED_VERSION, -1) == versionCode) return true
-
-        val input = try {
-            context.assets.open(ASSET)
-        } catch (e: IOException) {
-            return false // no dictionary bundled in this build
-        }
-        dbFile.parentFile?.mkdirs()
-        val tmp = java.io.File(dbFile.parentFile, "${DictionaryStore.NAME}.tmp")
-        input.use { tmp.outputStream().use { out -> it.copyTo(out) } }
-        if (instance == null && dbFile.exists()) dbFile.delete()
-        if (!tmp.renameTo(dbFile)) {
-            tmp.delete()
-            return false
-        }
-        prefs.edit { putLong(KEY_COPIED_VERSION, versionCode) }
-        return true
     }
 }
