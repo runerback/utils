@@ -14,8 +14,10 @@ interface TermSource {
  *
  * @param length how many characters of the text, from the scan position, the term covers.
  * @param reasons the deinflection, from the text to the dictionary form. Empty when the text is the dictionary form.
+ * @param exactExpression the matched text is the term's expression, not only its reading.
+ *   して on a して scan is exact; 仕手 (read して) on the same scan is not.
  */
-data class Match(val stored: StoredTerm, val length: Int, val reasons: List<String>)
+data class Match(val stored: StoredTerm, val length: Int, val reasons: List<String>, val exactExpression: Boolean)
 
 /** Looks a text up: the longest term at the scan position first, like the Yomitan popup. */
 object Lookup {
@@ -24,8 +26,9 @@ object Lookup {
     const val MAX_LENGTH = 24
 
     /**
-     * Each term that starts at `offset` in `text`, longest first. Within one length, the
-     * dictionaries in their order, and within one dictionary the higher score first.
+     * Each term that starts at `offset` in `text`, longest first. Within one length: fewer
+     * deinflection steps first, exact expression matches before reading-only matches, then
+     * the dictionaries in their order, and within one dictionary the higher score first.
      */
     fun find(text: String, offset: Int, source: TermSource): List<Match> {
         val end = minOf(text.length, offset + MAX_LENGTH)
@@ -57,12 +60,15 @@ object Lookup {
             for (candidate in forms) {
                 if (!candidate.form.accepts(term.rules)) continue
                 if (!seen.add(stored.dictionaryId to term)) continue
-                matches.add(Match(stored, candidate.length, candidate.form.reasons))
+                matches.add(Match(stored, candidate.length, candidate.form.reasons, candidate.form.text == term.expression))
             }
         }
         return matches.sortedWith(
             compareByDescending<Match> { it.length }
                 .thenBy { it.reasons.size }
+                // Exact expression matches before reading-only matches, like Yomitan's
+                // sourceTermExactMatchCount: a して scan shows the して entry before 仕手.
+                .thenByDescending { it.exactExpression }
                 .thenBy { it.stored.dictionaryPosition }
                 .thenByDescending { it.stored.term.score },
         )

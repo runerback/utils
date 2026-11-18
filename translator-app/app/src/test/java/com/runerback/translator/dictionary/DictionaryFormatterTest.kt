@@ -113,6 +113,19 @@ class DictionaryFormatterTest {
         assertEquals(listOf("freq: 1234"), entry.metaLines)
     }
 
+    @Test
+    fun `exact expression match ranks before reading-only match`() {
+        // Scanning して: the kana entry して comes first in the Yomitan popup; 仕手, which
+        // only matches through its reading, follows — even when the store returns it first.
+        val matches = Lookup.find("して", 0, sourceOf(
+            stored(1, "JMdict", 1, "仕手", "して", "[\"doer\"]"),
+            stored(1, "JMdict", 1, "して", "", "[\"by; as\"]"),
+        ))
+        assertEquals(2, matches.size)
+        assertEquals("して", matches[0].stored.term.expression)
+        assertEquals("仕手", matches[1].stored.term.expression)
+    }
+
     private fun blocksText(blocks: List<Block>): String = blocks.joinToString("\n") {
         when (it) {
             is Block.Line -> Inline.plain(it.children)
