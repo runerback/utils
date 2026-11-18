@@ -50,10 +50,25 @@ private val TranslateButtonHeight = 32.dp
 private val MinRectWidth = max((HandleSize * 2 + TranslateButtonWidth).value, (HandleSize * 2).value).dp
 private val MinRectHeight = max((HandleSize * 2 + TranslateButtonHeight).value, (HandleSize * 2).value).dp
 
+/**
+ * [zoomScale]/[zoomOffset] describe an optional display zoom applied on top of
+ * the fit layout, pivoting at the content area's top-left:
+ * `screen = zoomScale * fitPoint + zoomOffset`. The crop rect itself stays in
+ * unzoomed fit-space; the zoom is only applied at the drawing, hit-testing and
+ * anchor boundaries. Defaults are the identity transform, so existing callers
+ * (manga reader) are unaffected.
+ *
+ * [zoomMode] hides the whole selector UI and makes it fully touch-transparent
+ * while keeping it mounted, so the caller can offer an unobstructed pinch/pan
+ * view and restore the selector (crop rect state included) afterwards.
+ */
 @Composable
 fun ImageRangeSelector(
     bitmap: Bitmap,
     contentScale: ContentScale = ContentScale.Fit,
+    zoomScale: Float = 1f,
+    zoomOffset: Offset = Offset.Zero,
+    zoomMode: Boolean = false,
     menusVisible: Boolean = false,
     isCropMode: Boolean = false,
     cropRequest: Pair<Int, Offset>? = null,
@@ -95,14 +110,30 @@ fun ImageRangeSelector(
         return Offset(point.x, point.y - topPaddingPx)
     }
 
+    fun toFitPoint(contentPoint: Offset): Offset {
+        return (contentPoint - zoomOffset) / zoomScale
+    }
+
+    fun toViewRect(fitRect: Rect): Rect {
+        return Rect(
+            (fitRect.left * zoomScale + zoomOffset.x).toInt(),
+            (fitRect.top * zoomScale + zoomOffset.y).toInt(),
+            (fitRect.right * zoomScale + zoomOffset.x).toInt(),
+            (fitRect.bottom * zoomScale + zoomOffset.y).toInt(),
+        )
+    }
+
     fun createInitialCropRect(centerX: Float, centerY: Float): Rect {
-        val halfW = 100f.coerceAtLeast(minRectWidthPx / 2f)
-        val halfH = 60f.coerceAtLeast(minRectHeightPx / 2f)
+        // Sized in screen terms: at any zoom the starting box looks the same.
+        val halfW = 100f.coerceAtLeast(minRectWidthPx / 2f) / zoomScale
+        val halfH = 60f.coerceAtLeast(minRectHeightPx / 2f) / zoomScale
         val left = (centerX - halfW).toInt().coerceIn(0, contentSize.width.toInt())
         val top = (centerY - halfH).toInt().coerceIn(0, contentSize.height.toInt())
         val right = (centerX + halfW).toInt().coerceIn(0, contentSize.width.toInt())
         val bottom = (centerY + halfH).toInt().coerceIn(0, contentSize.height.toInt())
-        return Rect(left, top, right, bottom).coerceIn(contentSize, minRectWidthPx, minRectHeightPx)
+        val minW = (minRectWidthPx / zoomScale).toInt()
+        val minH = (minRectHeightPx / zoomScale).toInt()
+        return Rect(left, top, right, bottom).coerceIn(contentSize, minW, minH)
     }
 
     fun hitTestHandle(point: Offset, rect: Rect): SelectedHandle? {
@@ -118,15 +149,18 @@ fun ImageRangeSelector(
     fun moveHandle(handle: SelectedHandle, point: Offset, rect: Rect): Rect {
         val maxX = contentSize.width.toInt()
         val maxY = contentSize.height.toInt()
+        // Minimum sizes are screen-constant; convert them into fit-space.
+        val minW = (minRectWidthPx / zoomScale).toInt()
+        val minH = (minRectHeightPx / zoomScale).toInt()
         return when (handle) {
             SelectedHandle.TOP_LEFT -> {
-                val newLeft = point.x.toInt().coerceIn(0, rect.right - minRectWidthPx)
-                val newTop = point.y.toInt().coerceIn(0, rect.bottom - minRectHeightPx)
+                val newLeft = point.x.toInt().coerceIn(0, rect.right - minW)
+                val newTop = point.y.toInt().coerceIn(0, rect.bottom - minH)
                 Rect(newLeft, newTop, rect.right, rect.bottom)
             }
             SelectedHandle.BOTTOM_RIGHT -> {
-                val newRight = point.x.toInt().coerceIn(rect.left + minRectWidthPx, maxX)
-                val newBottom = point.y.toInt().coerceIn(rect.top + minRectHeightPx, maxY)
+                val newRight = point.x.toInt().coerceIn(rect.left + minW, maxX)
+                val newBottom = point.y.toInt().coerceIn(rect.top + minH, maxY)
                 Rect(rect.left, rect.top, newRight, newBottom)
             }
         }
@@ -139,23 +173,24 @@ fun ImageRangeSelector(
         val bottom = ((rect.bottom - layout.offset.y) / layout.scale).toInt().coerceIn(0, bitmap.height)
         if (right > left && bottom > top) {
             val cropped = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
-            // Window-space rect (content coords + top inset) so the translation panel
-            // can anchor next to the selected range.
+            // Window-space rect (zoomed content coords + top inset) so the
+            // translation panel can anchor next to the visible selected range.
+            val viewRect = toViewRect(rect)
             val windowRect = Rect(
-                rect.left,
-                (rect.top + topPaddingPx).toInt(),
-                rect.right,
-                (rect.bottom + topPaddingPx).toInt(),
+                viewRect.left,
+                (viewRect.top + topPaddingPx).toInt(),
+                viewRect.right,
+                (viewRect.bottom + topPaddingPx).toInt(),
             )
             onCrop(cropped, windowRect)
         }
     }
 
-    // cropRequest carries a raw window coordinate; the inset conversion into
-    // content coordinates is owned by this selector.
+    // cropRequest carries a raw window coordinate; the inset and zoom
+    // conversions into fit-space coordinates are owned by this selector.
     LaunchedEffect(cropRequest, contentSize) {
         if (contentSize.width <= 0f || contentSize.height <= 0f) return@LaunchedEffect
-        val point = cropRequest?.second?.let { toContentPoint(it) }
+        val point = cropRequest?.second?.let { toFitPoint(toContentPoint(it)) }
             ?: Offset(contentSize.width / 2f, contentSize.height / 2f)
         cropRect = createInitialCropRect(point.x, point.y)
         selectedHandle = null
@@ -166,31 +201,44 @@ fun ImageRangeSelector(
         modifier = Modifier
             .fillMaxSize()
             .onSizeChanged { fullSize = it.toSize() }
-            .pointerInput(menusVisible) {
-                detectTapGestures(
-                    onTap = { point ->
-                        if (System.currentTimeMillis() < suppressTapsUntil) return@detectTapGestures
-                        if (!isCropMode) return@detectTapGestures
-                        val rect = cropRect ?: return@detectTapGestures
-                        val contentPoint = toContentPoint(point)
+            // Zoom mode: fully touch-transparent so the photo underneath gets
+            // a clean pinch/pan stream. The selector stays mounted, keeping
+            // the crop rect state.
+            .then(
+                if (zoomMode) {
+                    Modifier
+                } else {
+                    Modifier.pointerInput(menusVisible) {
+                        detectTapGestures(
+                            onTap = { point ->
+                                if (System.currentTimeMillis() < suppressTapsUntil) return@detectTapGestures
+                                if (!isCropMode) return@detectTapGestures
+                                val rect = cropRect ?: return@detectTapGestures
+                                val contentPoint = toContentPoint(point)
 
-                        val hit = hitTestHandle(contentPoint, rect)
-                        when {
-                            hit != null -> {
-                                selectedHandle = if (selectedHandle == hit) null else hit
-                            }
-                            selectedHandle != null -> {
-                                cropRect = moveHandle(selectedHandle!!, contentPoint, rect)
-                            }
-                            else -> {
-                                selectedHandle = null
-                                onCropModeChanged(false)
-                            }
-                        }
-                    },
-                )
-            },
+                                // Handles are hit-tested in screen space, where their
+                                // size is constant; the rect itself stays in fit-space.
+                                val hit = hitTestHandle(contentPoint, toViewRect(rect))
+                                when {
+                                    hit != null -> {
+                                        selectedHandle = if (selectedHandle == hit) null else hit
+                                    }
+                                    selectedHandle != null -> {
+                                        cropRect = moveHandle(selectedHandle!!, toFitPoint(contentPoint), rect)
+                                    }
+                                    else -> {
+                                        selectedHandle = null
+                                        onCropModeChanged(false)
+                                    }
+                                }
+                            },
+                        )
+                    }
+                },
+            ),
     ) {
+        // Zoom mode hides the whole selector UI (state is preserved).
+        if (!zoomMode) {
         // Selector UI is drawn inside the same padded area where the page image lives.
         Box(
             modifier = Modifier
@@ -200,6 +248,10 @@ fun ImageRangeSelector(
             // Page image (replicated here so the overlay is self-contained and on top).
             Canvas(modifier = Modifier.fillMaxSize()) {
                 withTransform({
+                    // Display zoom on top of the fit layout, pivoting at the
+                    // content area's top-left — matches the base image exactly.
+                    translate(zoomOffset.x, zoomOffset.y)
+                    scale(zoomScale, zoomScale, pivot = Offset.Zero)
                     translate(layout.offset.x, layout.offset.y)
                     scale(layout.scale, layout.scale, pivot = Offset.Zero)
                 }) {
@@ -208,11 +260,15 @@ fun ImageRangeSelector(
             }
 
             cropRect?.let { rect ->
+                // Drawing and hit-testing happen in screen space, where handle
+                // and stroke sizes are constant; the rect itself stays in fit-space.
+                val viewRect = toViewRect(rect)
+
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawRect(
                         color = Color.Black,
-                        topLeft = Offset(rect.left.toFloat(), rect.top.toFloat()),
-                        size = Size(rect.width().toFloat(), rect.height().toFloat()),
+                        topLeft = Offset(viewRect.left.toFloat(), viewRect.top.toFloat()),
+                        size = Size(viewRect.width().toFloat(), viewRect.height().toFloat()),
                         style = Stroke(width = RectStrokeWidth.value),
                     )
                 }
@@ -221,8 +277,8 @@ fun ImageRangeSelector(
                     selected = selectedHandle == SelectedHandle.TOP_LEFT,
                     modifier = Modifier.align(
                         absoluteOffset(
-                            (rect.left + handleRadiusPx).toInt(),
-                            (rect.top + handleRadiusPx).toInt(),
+                            (viewRect.left + handleRadiusPx).toInt(),
+                            (viewRect.top + handleRadiusPx).toInt(),
                         ),
                     ),
                     onClick = {
@@ -237,8 +293,8 @@ fun ImageRangeSelector(
                     selected = selectedHandle == SelectedHandle.BOTTOM_RIGHT,
                     modifier = Modifier.align(
                         absoluteOffset(
-                            (rect.right - handleRadiusPx).toInt(),
-                            (rect.bottom - handleRadiusPx).toInt(),
+                            (viewRect.right - handleRadiusPx).toInt(),
+                            (viewRect.bottom - handleRadiusPx).toInt(),
                         ),
                     ),
                     onClick = {
@@ -254,8 +310,8 @@ fun ImageRangeSelector(
                     modifier = Modifier
                         .align(
                             absoluteOffset(
-                                rect.centerX().toInt(),
-                                (rect.bottom - buttonHeightPx / 2).toInt(),
+                                viewRect.centerX().toInt(),
+                                (viewRect.bottom - buttonHeightPx / 2).toInt(),
                             ),
                         )
                         .size(TranslateButtonWidth, TranslateButtonHeight)
@@ -272,6 +328,7 @@ fun ImageRangeSelector(
                     )
                 }
             }
+        }
         }
     }
 }

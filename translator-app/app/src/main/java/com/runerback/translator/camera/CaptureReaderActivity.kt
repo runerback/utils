@@ -7,12 +7,15 @@ import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -23,7 +26,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ZoomIn
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,10 +44,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +68,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+
+/** Display zoom ceiling for the photo view before range selection. */
+private const val MaxZoom = 5f
 
 /**
  * The camera capture feature's own reader: shows the captured photo in full
@@ -121,6 +135,61 @@ private fun CaptureReaderScreen(
     var cropRequest by remember { mutableStateOf<Pair<Int, Offset>?>(null) }
     var cropId by remember { mutableIntStateOf(0) }
 
+    // Display zoom over the fit layout, pivoting at the content area's
+    // top-left: screen = zoomScale * fitPoint + zoomOffset. Purely visual;
+    // the stored photo is never cropped. Zooming only happens in zoom mode,
+    // which is entered from the range selector's zoom toggle and exited via
+    // the system back action — so zoom gestures never share the screen with
+    // any other gesture layer.
+    var zoomScale by remember { mutableStateOf(1f) }
+    var zoomOffset by remember { mutableStateOf(Offset.Zero) }
+    var viewSize by remember { mutableStateOf(IntSize.Zero) }
+    var zoomMode by remember { mutableStateOf(false) }
+    val zoomGesturesEnabled = zoomMode && !viewModel.isVisible
+
+    // While zoom mode is on, the system back action (edge swipe / back
+    // button) exits zoom mode — keeping the zoom — instead of finishing the
+    // activity. Disabled in every other state, so back behaves as before.
+    BackHandler(enabled = zoomMode) { zoomMode = false }
+
+    // Closing the range selector ends any zoom session.
+    LaunchedEffect(cropRequest) {
+        if (cropRequest == null) {
+            zoomMode = false
+            zoomScale = 1f
+            zoomOffset = Offset.Zero
+        }
+    }
+
+    // Keeps the zoomed image covering the viewport: when a dimension fits,
+    // it stays centered; otherwise it can pan but never past the edges.
+    fun clampedOffset(scale: Float, offset: Offset): Offset {
+        val bmp = bitmap ?: return Offset.Zero
+        val contentWidth = viewSize.width.toFloat()
+        val contentHeight = viewSize.height.toFloat()
+        if (contentWidth <= 0f || contentHeight <= 0f) return offset
+        val fitScale = minOf(contentWidth / bmp.width, contentHeight / bmp.height)
+        val fitWidth = bmp.width * fitScale
+        val fitHeight = bmp.height * fitScale
+        val fitLeft = (contentWidth - fitWidth) / 2f
+        val fitTop = (contentHeight - fitHeight) / 2f
+
+        fun clampAxis(value: Float, fitOrigin: Float, fitLength: Float, viewLength: Float): Float {
+            val displayed = fitLength * scale
+            val base = scale * fitOrigin
+            return if (displayed <= viewLength) {
+                (viewLength - displayed) / 2f - base
+            } else {
+                value.coerceIn(viewLength - displayed - base, -base)
+            }
+        }
+
+        return Offset(
+            clampAxis(offset.x, fitLeft, fitWidth, contentWidth),
+            clampAxis(offset.y, fitTop, fitHeight, contentHeight),
+        )
+    }
+
     LaunchedEffect(capture) {
         bitmap = null
         loadError = false
@@ -141,18 +210,42 @@ private fun CaptureReaderScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         // The whole photo, always fully visible: Fit into the safe area,
-        // no cropping, no whitespace trimming.
+        // no cropping, no whitespace trimming. Display zoom sits on top.
         bitmap?.let { bmp ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(WindowInsets.safeDrawing.asPaddingValues()),
+                    .padding(WindowInsets.safeDrawing.asPaddingValues())
+                    .onSizeChanged { viewSize = it }
+                    // Pinch-to-zoom (around the pinch centroid) and pan. Only
+                    // active in zoom mode, where nothing else handles input.
+                    .pointerInput(zoomGesturesEnabled) {
+                        if (!zoomGesturesEnabled) return@pointerInput
+                        detectTransformGestures { centroid, pan, zoom, _ ->
+                            val newScale = (zoomScale * zoom).coerceIn(1f, MaxZoom)
+                            val applied = newScale / zoomScale
+                            val raw = Offset(
+                                centroid.x - (centroid.x - zoomOffset.x) * applied + pan.x,
+                                centroid.y - (centroid.y - zoomOffset.y) * applied + pan.y,
+                            )
+                            zoomScale = newScale
+                            zoomOffset = clampedOffset(newScale, raw)
+                        }
+                    },
             ) {
                 Image(
                     bitmap = bmp.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            transformOrigin = TransformOrigin(0f, 0f)
+                            scaleX = zoomScale
+                            scaleY = zoomScale
+                            translationX = zoomOffset.x
+                            translationY = zoomOffset.y
+                        },
                 )
             }
         }
@@ -193,6 +286,9 @@ private fun CaptureReaderScreen(
             ImageRangeSelector(
                 bitmap = bmp,
                 contentScale = ContentScale.Fit,
+                zoomScale = zoomScale,
+                zoomOffset = zoomOffset,
+                zoomMode = zoomMode,
                 menusVisible = false,
                 isCropMode = true,
                 cropRequest = crop,
@@ -222,6 +318,29 @@ private fun CaptureReaderScreen(
                     }
                 },
             )
+        }
+
+        // Zoom mode toggle (Yomitan picture mode only): visible while the
+        // range selector is open. Entering zoom mode hides every popup so
+        // pinch/pan get a clean view; the system back action exits back to
+        // the selector. Fixed corner position so it never rides the crop rect.
+        if (cropRequest != null && !viewModel.isVisible && !zoomMode) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(24.dp)
+                    .size(48.dp)
+                    .border(1.dp, Color.White, CircleShape)
+                    .clickable { zoomMode = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ZoomIn,
+                    contentDescription = "Zoom",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
         }
 
         // OCR busy indicator: first engine init can take a few seconds.

@@ -24,6 +24,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -195,6 +197,7 @@ private fun CameraPreviewContent(
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var torchOn by remember { mutableStateOf(false) }
+    var zoomRatio by remember { mutableStateOf(1f) }
     var busy by remember { mutableStateOf(false) }
     var bindError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -302,8 +305,33 @@ private fun CameraPreviewContent(
 
         AndroidView(
             factory = { previewView },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                // Pinch-to-zoom, clamped to the device's supported range.
+                .pointerInput(camera) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        val cam = camera ?: return@detectTransformGestures
+                        val state = cam.cameraInfo.zoomState.value
+                            ?: return@detectTransformGestures
+                        zoomRatio = (zoomRatio * zoom)
+                            .coerceIn(state.minZoomRatio, state.maxZoomRatio)
+                        cam.cameraControl.setZoomRatio(zoomRatio)
+                    }
+                },
         )
+
+        if (zoomRatio != 1f) {
+            Text(
+                text = "%.1fx".format(zoomRatio),
+                color = Color.White,
+                fontSize = 16.sp,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 16.dp)
+                    .background(Color.Black)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
 
         if (bindError) {
             Box(

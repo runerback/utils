@@ -284,7 +284,18 @@ private fun TappableSourceText(
         onTextLayout = { layoutResult = it },
         modifier = Modifier.pointerInput(text) {
             detectTapGestures { position ->
-                layoutResult?.let { onWordTap(it.getOffsetForPosition(position)) }
+                layoutResult?.let { layout ->
+                    // getOffsetForPosition snaps to the nearest caret slot, so a tap on the
+                    // right half of a character lands AFTER it and the lookup would start
+                    // from the next character. Step back one when the tap is still inside
+                    // the previous glyph's box.
+                    var offset = layout.getOffsetForPosition(position)
+                    if (offset > 0) {
+                        val box = layout.getBoundingBox(offset - 1)
+                        if (position.x < box.right && position.y >= box.top && position.y <= box.bottom) offset--
+                    }
+                    onWordTap(offset)
+                }
             }
         },
     )
