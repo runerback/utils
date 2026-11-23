@@ -1,0 +1,57 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/**/build/
+
+# Kotlin
+.kotlin/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+.navigation/
+captures/
+
+# Local configuration
+local.properties
+secrets.properties
+
+# Native build artifacts
+.externalNativeBuild/
+.cxx/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# APK / AAB outputs
+*.apk
+*.ap_
+*.aab
+*.dex
+
+# Java / Kotlin class files
+*.class
+
+# Generated folders
+bin/
+gen/
+out/
+
+# Test reports
+/test-results/
+/reports/
+
+# Misc
+*.swp
+*.swo
+*~
+
+.claude/
+issues/
