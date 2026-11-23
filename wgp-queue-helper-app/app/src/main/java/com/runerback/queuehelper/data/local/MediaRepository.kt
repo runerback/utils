@@ -13,7 +13,21 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.security.MessageDigest
 
+data class MediaStoreStats(
+    val fileCount: Int,
+    val totalBytes: Long
+)
+
+data class MediaPruneResult(
+    val deletedCount: Int,
+    val freedBytes: Long
+)
+
 class MediaRepository(private val context: Context) {
+
+    companion object {
+        private const val INDEX_FILE_NAME = "media_index.json"
+    }
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 
@@ -21,7 +35,7 @@ class MediaRepository(private val context: Context) {
         get() = File(context.filesDir, "media").apply { mkdirs() }
 
     private val indexFile: File
-        get() = File(mediaDir, "media_index.json")
+        get() = File(mediaDir, INDEX_FILE_NAME)
 
     /**
      * Imports a media file into the library.
@@ -96,6 +110,58 @@ class MediaRepository(private val context: Context) {
     }
 
     fun fileNameFor(mediaId: String): String = "image_${mediaId}.png"
+
+    /**
+     * Computes the media ID that [import] would assign to a source URI string.
+     * Used to keep legacy URI-based references alive during pruning.
+     */
+    fun idForSourceUri(sourceUri: String): String = sha256(sourceUri)
+
+    /**
+     * Returns the number of stored media files and their total size in bytes.
+     */
+    suspend fun stats(): MediaStoreStats = withContext(Dispatchers.IO) {
+        val files = storedFiles()
+        MediaStoreStats(
+            fileCount = files.size,
+            totalBytes = files.sumOf { it.length() }
+        )
+    }
+
+    /**
+     * Deletes every stored media file whose ID is not in [keepIds], and drops
+     * the matching index entries. Returns what was removed.
+     */
+    suspend fun pruneUnreferenced(keepIds: Set<String>): MediaPruneResult = withContext(Dispatchers.IO) {
+        var deletedCount = 0
+        var freedBytes = 0L
+        storedFiles().forEach { file ->
+            val id = file.name.substringBeforeLast('.')
+            if (id !in keepIds) {
+                val size = file.length()
+                if (file.delete()) {
+                    deletedCount++
+                    freedBytes += size
+                }
+            }
+        }
+        updateIndex { current -> current.filter { it.id in keepIds } }
+        LogBuffer.add("MediaRepository.pruneUnreferenced: deleted $deletedCount files, freed $freedBytes bytes")
+        MediaPruneResult(deletedCount, freedBytes)
+    }
+
+    /**
+     * Removes trimmed-audio temp files left in the cache dir by an interrupted pack.
+     */
+    suspend fun clearTempAudio(): Int = withContext(Dispatchers.IO) {
+        context.cacheDir?.listFiles()?.count { file ->
+            file.isFile && file.name.startsWith("audio_") &&
+                file.extension == "wav" && file.delete()
+        } ?: 0
+    }
+
+    private fun storedFiles(): List<File> =
+        mediaDir.listFiles()?.filter { it.isFile && it.name != INDEX_FILE_NAME } ?: emptyList()
 
     fun audioFileNameFor(mediaId: String, trimStart: Float, trimEnd: Float): String {
         val startMs = (trimStart * 1000f).toLong()

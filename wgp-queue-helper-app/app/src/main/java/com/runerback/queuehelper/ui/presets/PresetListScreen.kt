@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -62,6 +63,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runerback.queuehelper.QueueHelperApplication
 import com.runerback.queuehelper.data.model.Preset
+import com.runerback.queuehelper.domain.MediaCleanupUseCase
 import com.runerback.queuehelper.ui.components.LogBuffer
 import com.runerback.queuehelper.ui.components.LogViewDialog
 import com.runerback.queuehelper.ui.icons.BootstrapBoxArrowInDown
@@ -81,7 +83,12 @@ fun PresetListScreen(
     val context = LocalContext.current
     val app = context.applicationContext as QueueHelperApplication
     val viewModel: PresetListViewModel = viewModel(
-        factory = PresetListViewModel.Factory(app.presetRepository, app.taskRepository, app.templateLoader)
+        factory = PresetListViewModel.Factory(
+            app.presetRepository,
+            app.taskRepository,
+            app.templateLoader,
+            MediaCleanupUseCase(app.taskRepository, app.presetRepository, app.mediaRepository)
+        )
     )
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -112,6 +119,7 @@ fun PresetListScreen(
 
     var showLogView by remember { mutableStateOf(false) }
     var showBatchCreate by remember { mutableStateOf(false) }
+    var showStorage by remember { mutableStateOf(false) }
     var presetToDelete by remember { mutableStateOf<Preset?>(null) }
 
     val listState = rememberLazyListState()
@@ -214,6 +222,17 @@ fun PresetListScreen(
                                 )
                             }
                         }
+                    }
+                    IconButton(
+                        onClick = {
+                            viewModel.refreshMediaStats()
+                            showStorage = true
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Storage,
+                            contentDescription = "Media storage"
+                        )
                     }
                     IconButton(onClick = { showLogView = true }) {
                         Icon(
@@ -336,6 +355,36 @@ fun PresetListScreen(
                 )
             }
 
+            if (showStorage) {
+                AlertDialog(
+                    onDismissRequest = { showStorage = false },
+                    title = { Text("Media storage") },
+                    text = {
+                        val stats = viewModel.mediaStats
+                        Text(
+                            if (stats != null) {
+                                "${stats.fileCount} files using ${formatBytes(stats.totalBytes)}"
+                            } else {
+                                "Calculating…"
+                            }
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = { viewModel.pruneUnusedMedia() },
+                            enabled = !viewModel.isPruningMedia
+                        ) {
+                            Text(if (viewModel.isPruningMedia) "Cleaning…" else "Clean unused")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showStorage = false }) {
+                            Text("Close")
+                        }
+                    }
+                )
+            }
+
             presetToDelete?.let { preset ->
                 AlertDialog(
                     onDismissRequest = { presetToDelete = null },
@@ -443,4 +492,16 @@ private fun PresetListItem(
             }
         }
     }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val units = arrayOf("KB", "MB", "GB")
+    var value = bytes.toDouble()
+    var unit = -1
+    do {
+        value /= 1024.0
+        unit++
+    } while (value >= 1024.0 && unit < units.lastIndex)
+    return "%.1f %s".format(value, units[unit])
 }

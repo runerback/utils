@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.runerback.queuehelper.data.local.MediaStoreStats
 import com.runerback.queuehelper.data.local.PresetRepository
 import com.runerback.queuehelper.data.local.TaskRepository
 import com.runerback.queuehelper.data.model.ExportedPreset
@@ -17,6 +18,7 @@ import com.runerback.queuehelper.data.model.SubjectDefinition
 import com.runerback.queuehelper.data.model.Task
 import com.runerback.queuehelper.data.model.parseSubjectDefinitions
 import com.runerback.queuehelper.data.template.TemplateLoader
+import com.runerback.queuehelper.domain.MediaCleanupUseCase
 import com.runerback.queuehelper.ui.components.LogBuffer
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -34,7 +36,8 @@ import kotlinx.serialization.json.jsonPrimitive
 class PresetListViewModel(
     private val repository: PresetRepository,
     private val taskRepository: TaskRepository,
-    private val templateLoader: TemplateLoader
+    private val templateLoader: TemplateLoader,
+    private val mediaCleanup: MediaCleanupUseCase
 ) : ViewModel() {
 
     private val exportJson = Json { prettyPrint = true }
@@ -59,6 +62,12 @@ class PresetListViewModel(
         private set
 
     var globalTaskCount by mutableStateOf(0)
+        private set
+
+    var mediaStats by mutableStateOf<MediaStoreStats?>(null)
+        private set
+
+    var isPruningMedia by mutableStateOf(false)
         private set
 
     private val _events = MutableSharedFlow<PresetListEvent>()
@@ -256,6 +265,37 @@ class PresetListViewModel(
         )
     }
 
+    fun refreshMediaStats() {
+        viewModelScope.launch {
+            mediaStats = runCatching { mediaCleanup.stats() }.getOrElse {
+                LogBuffer.add("PresetListViewModel.refreshMediaStats: ${it.stackTraceToString()}")
+                null
+            }
+        }
+    }
+
+    fun pruneUnusedMedia() {
+        if (isPruningMedia) return
+        viewModelScope.launch {
+            isPruningMedia = true
+            runCatching { mediaCleanup.prune() }
+                .onSuccess { result ->
+                    mediaStats = runCatching { mediaCleanup.stats() }.getOrNull()
+                    val freedMb = result.freedBytes / (1024.0 * 1024.0)
+                    _events.emit(
+                        PresetListEvent.ShowMessage(
+                            "Removed ${result.deletedCount} unused files (${"%.1f".format(freedMb)} MB)"
+                        )
+                    )
+                }
+                .onFailure {
+                    LogBuffer.add("PresetListViewModel.pruneUnusedMedia: ${it.stackTraceToString()}")
+                    _events.emit(PresetListEvent.ShowMessage("Media cleanup failed"))
+                }
+            isPruningMedia = false
+        }
+    }
+
     private suspend fun refreshTaskCounts() {
         runCatching {
             taskRepository.countTasksByPreset()
@@ -336,10 +376,11 @@ class PresetListViewModel(
     class Factory(
         private val repository: PresetRepository,
         private val taskRepository: TaskRepository,
-        private val templateLoader: TemplateLoader
+        private val templateLoader: TemplateLoader,
+        private val mediaCleanup: MediaCleanupUseCase
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return PresetListViewModel(repository, taskRepository, templateLoader) as T
+            return PresetListViewModel(repository, taskRepository, templateLoader, mediaCleanup) as T
         }
     }
 }
