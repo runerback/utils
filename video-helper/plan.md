@@ -1,73 +1,92 @@
-# Video editor web app plan (Python + FFmpeg + FastAPI)
+# video-helper plan (agreed 2026-11-02)
 
-## Problem and approach
-Build a non-destructive web-based video editor using Python and FFmpeg where users can load a source video, preview original and current modified result, and export a new file without altering the original.  
-Use **FastAPI + HTML/JS** for UI/API, keep edit state in a server-side session/project model, and use FFmpeg for metadata probing, preview/proxy generation, and final export render.
+Goal: run the existing FastAPI app as a uvicorn server on Linux, then build an Android app
+(`video-helper-android/`) that replaces the web UI and covers ALL features.
 
-## Scope delivered
-- Load one source video per project/session.
-- Play **original video** and **current modified preview** in the web UI.
-- Edit operations:
-  - **Split (trim)**: single kept A-B segment.
-  - **Crop**: drag selector on preview or numeric inputs.
-  - **Frame rate**: whole-video-only setting.
-- Split controls:
-  - A/B via frame-step controls, duration/time input, and draggable range sliders.
-  - Timeline zoom control from 0.04s window to 10s window.
-- Crop presets: 4:3, 3:4, 16:9, 9:16.
-- Non-destructive workflow: source video remains unchanged.
-- Modified preview strategy: FFmpeg-generated proxy clip for browser playback.
+## Phase 1 — Server (Linux deployment)
 
-## Architecture implemented
-1. Backend (FastAPI)
-   - Upload endpoint, project read/update state endpoints, preview render endpoint, export endpoint.
-   - Metadata probing via `ffprobe`.
-   - FFmpeg command builder for trim/crop/fps filtergraph.
-   - File storage layout in `uploads/`, `work/`, `exports/`, `projects/`.
+Status: ~done in this branch (`vid-helper-2`). Code in place:
 
-2. Frontend (HTML/JS)
-   - Dual-player layout: Original | Modified Preview.
-   - Trim controls (ranges, frame-step buttons, numeric inputs, zoom control).
-   - Crop overlay drag selector + numeric crop inputs.
-   - Crop preset buttons.
-   - Whole-video FPS input.
-   - Save state, refresh preview, and export actions.
+- `app/auth.py` — `TokenAuthMiddleware`: shared token via `VAE_TOKEN` env, sent as `X-Token`
+  header or `?token=` query param (query needed for media clients). Exempt: `/`, `/health`, `/static/*`.
+  Disabled when `VAE_TOKEN` unset (local dev).
+- `app/jobs.py` — `JobRunner`: single background thread, serial renders, history capped at 200.
+- Job endpoints (POST returns `{job_id}`, poll `GET /api/jobs/{id}`):
+  - `POST /api/projects/{id}/jobs/preview`
+  - `POST /api/projects/{id}/jobs/export` (mp4)
+  - `POST /api/projects/{id}/jobs/export/gif`
+- Download endpoint: `GET /api/projects/{id}/export/download`
+- `deploy/video-helper.service` — systemd unit (uvicorn, `0.0.0.0:31692`, user `vae`,
+  working dir `/opt/video-helper`).
+- Linux path hardening: `VAE_UPLOADS_PATH` / `VAE_EXPORT_PATH` / `VAE_WORK_PATH` / `VAE_LOG_PATH` env
+  vars (+ `--*-path` CLI flags), log file resolution handles missing `.venv`.
 
-3. Non-destructive state model
-   - Immutable original file path per project.
-   - Server-side JSON project state for trim/crop/fps with validation.
+### Remaining steps
 
-4. Processing strategy
-   - Deterministic filter order: trim -> crop -> fps.
-   - Preview render optimized for quick playback.
-   - Export render produces final downloadable output.
+1. Deploy to Linux host:
+   - copy repo to `/opt/video-helper`, create `vae` user
+   - `python -m venv .venv && .venv/bin/pip install -r requirements.txt`
+   - ffmpeg must be on the host; TransNetV2 model via `VAE_TRANSNETV2_MODEL_PATH` if AI scene split is used
+2. Install service:
+   - copy `deploy/video-helper.service` to `/etc/systemd/system/`
+   - set a real `VAE_TOKEN` in the unit
+   - `systemctl daemon-reload && systemctl enable --now video-helper`
+3. Verify:
+   - `curl http://<host>:31692/health` → 200 without token
+   - `curl http://<host>:31692/api/projects` → 401 without token, 200 with `X-Token`
 
-## Progress
-- [x] Scaffold FastAPI app and static UI.
-- [x] Implement upload/probe API and immutable storage.
-- [x] Define project edit-state schema and validation.
-- [x] Build FFmpeg command builder.
-- [x] Implement preview proxy generation endpoint.
-- [x] Implement export endpoint.
-- [x] Build dual-player UI and API wiring.
-- [x] Implement trim timeline controls and zoom.
-- [x] Implement crop interactions and presets.
-- [x] Implement whole-video frame-rate setting.
-- [x] Add explicit backend error surfacing.
-- [x] Add core FFmpeg/validation tests.
+## Phase 2 — Android app (`video-helper-android/`)
 
-## Next implementation (active)
-- Add a **Resize** operation with one input: `max longer edge`.
-- Keep aspect ratio automatically; no free width/height mode.
-- Apply resize on the currently modified frame (after crop), then fps.
-- Show dimensions beside both player headers:
-  - `Original`: source dimensions.
-  - `Preview`: computed modified dimensions after crop/resize.
+**Progress (2026-11-04):** scaffolded at `D:\Projects\utils-vid-helper-2\video-helper-android`
+(package `com.runerback.videohelper`). Done: gradle wrapper + build files (AGP 8.7.3, Kotlin 2.1.0,
+Hilt 2.55, KSP, Compose BOM 2024.12.01, Ktor 2.3.13, Media3 1.5.1, navigation-compose), manifest,
+resources/launcher icon, `VideoHelperApp`, `MainActivity`, theme, `SettingsRepository` (DataStore:
+server URL + token), API DTOs mirroring server schemas (`Dtos.kt`), `VideoHelperApi` (Ktor: list,
+upload multipart, get, PUT state, gif-estimate, job create/poll, mediaUrl with ?token=),
+`ExportDownloader` (DownloadManager → public Movies dir), NavHost (projects / settings /
+editor/{projectId}), Settings screen, Projects screen (list + upload via GetContent),
+Editor screen + ViewModel (ExoPlayer playback of original/preview, trim RangeSlider, crop, rotate,
+speed chips, resize, freeze frame, scene split incl. ffmpeg/AI detectors + fixed length, clip
+selection, preview/export MP4/GIF via jobs + polling, GIF estimate, download-to-device).
 
-## Resize implementation checklist
-- Extend edit schema with optional `resize_max`.
-- Update FFmpeg filters to `trim -> crop -> resize -> fps`.
-- Add resize validation and command tests.
-- Add UI controls for resize and wire load/save state.
-- Add header dimension labels and refresh logic.
-- Run tests after implementation.
+**Not done / verify next:** project has never been built — first `./gradlew assembleDebug` may
+surface compile fixes (imports, API mismatches). UX polish: error retry, upload progress bar,
+preview part thumbnails, delete-project action. Also: 2 pre-existing `test_main.py` log-file tests
+fail in video-helper (resolve_log_file checks `.venv` existence — fix: always prefer
+`ROOT/.venv/vae.log`).
+
+Stack copied from reference app at `D:\Projects\utils-cmf-api\comfyui-api-app`
+(read its Android files only, not ComfyUI specifics):
+
+- Kotlin, Compose M3, Hilt, Ktor (OkHttp), DataStore, MVVM
+- compileSdk 35 / minSdk 26
+- Media3/ExoPlayer for playback
+- Results saved to device via MediaStore
+- Server URL + token in Settings screen (token sent as `X-Token` header)
+
+### Feature coverage (all existing features)
+
+- upload video, project list, playback of original
+- trim, crop, resize, rotate, speed, fps
+- scene split: ffmpeg detector AND TransNetV2 AI mode, clip selection
+- export MP4 + GIF, with GIF size estimate
+
+### Build order
+
+1. Scaffold project: Gradle files, Hilt app, Compose theme, NavHost, Settings screen
+   (server URL + token persisted in DataStore).
+2. API layer (Ktor): project list (`GET /api/projects`), upload (`POST /api/projects`),
+   playback of `/api/projects/{id}/original` in ExoPlayer.
+3. Editing UI: state models mirroring `EditState`, PUT `/api/projects/{id}/state`,
+   preview via `POST .../jobs/preview` + poll `GET /api/jobs/{id}`.
+4. Scene split UI: detector picker (ffmpeg / AI), thresholds, clip grid with selection.
+5. Export UI: MP4 + GIF, GIF estimate (`POST .../export/gif-estimate`), export via jobs +
+   polling, then download `GET .../export/download` into MediaStore.
+6. Polish: error handling, progress indicators, token retry on 401.
+
+## Reference notes
+
+- Server port: 31692
+- Auth: `X-Token: <VAE_TOKEN>` header, or `?token=` query for media streams
+- Poll jobs: `GET /api/jobs/{job_id}` → status queued/running/done/error, `result` holds the
+  render response (output_url / parts), `error` holds failure message

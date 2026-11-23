@@ -13,13 +13,17 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from .auth import TokenAuthMiddleware, resolve_auth_token
 from .ffmpeg import FFmpegService
+from .jobs import JobRunner
 from .scene_detection import SceneDetectionService
 from .schemas import (
     EditState,
     ExportEstimatePart,
     ExportEstimateResponse,
     FrameResponse,
+    JobCreateResponse,
+    JobResponse,
     LocalProjectCreateRequest,
     ProjectCreateResponse,
     ProjectListItem,
@@ -67,7 +71,14 @@ def resolve_log_level() -> int:
 
 
 def resolve_log_file() -> Path:
-    return ROOT / ".venv" / LOG_FILE_NAME
+    configured = os.getenv("VAE_LOG_PATH", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    venv_dir = ROOT / ".venv"
+    if venv_dir.exists():
+        return venv_dir / LOG_FILE_NAME
+    # Linux deployments may not have a local .venv; fall back to project root.
+    return ROOT / LOG_FILE_NAME
 
 
 def _has_file_handler(logger_instance: logging.Logger, log_file: Path) -> bool:
@@ -176,6 +187,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="VAE - Video Adjustment Editor", lifespan=lifespan)
+app.add_middleware(TokenAuthMiddleware, token=resolve_auth_token())
+job_runner = JobRunner()
 storage = Storage(
     ROOT,
     export_dir=resolve_export_dir(),
@@ -387,6 +400,11 @@ def _render_export_response(
     )
 
 
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok"}
+
+
 @app.get("/")
 def index() -> HTMLResponse:
     return HTMLResponse(_index_html(), headers={"Cache-Control": "no-cache"})
@@ -503,34 +521,38 @@ def update_state(project_id: str, payload: StateUpdateRequest) -> ProjectStateRe
         raise _logged_http_exception(400, exc, "Failed to save project state", project_id=project_id) from exc
 
 
+def _render_preview_response(project_id: str) -> RenderResponse:
+    paths, metadata, state = storage.load_project(project_id)
+    ffmpeg.validate_state(metadata, state)
+    _clear_multipart_outputs(paths.preview_file)
+    if not state.scene_split.enabled:
+        command = ffmpeg.build_preview_command(paths.original_file, paths.preview_file, metadata, state)
+        ffmpeg.run(command)
+        return RenderResponse(project_id=project_id, output_url=f"/work/{paths.preview_file.name}")
+
+    if paths.preview_file.exists():
+        paths.preview_file.unlink()
+    segments = _split_segments_for_state(paths.original_file, metadata, state)
+    parts: list[RenderPart] = []
+    for part_index, (start, end) in enumerate(segments, start=1):
+        part_file = _multipart_output_path(paths.preview_file, part_index)
+        command = ffmpeg.build_preview_segment_command(
+            paths.original_file,
+            part_file,
+            metadata,
+            state,
+            segment_start=start,
+            segment_end=end,
+        )
+        ffmpeg.run(command)
+        parts.append(RenderPart(index=part_index, start=start, end=end, output_url=f"/work/{part_file.name}"))
+    return RenderResponse(project_id=project_id, parts=parts)
+
+
 @app.post("/api/projects/{project_id}/preview", response_model=RenderResponse)
 def render_preview(project_id: str) -> RenderResponse:
     try:
-        paths, metadata, state = storage.load_project(project_id)
-        ffmpeg.validate_state(metadata, state)
-        _clear_multipart_outputs(paths.preview_file)
-        if not state.scene_split.enabled:
-            command = ffmpeg.build_preview_command(paths.original_file, paths.preview_file, metadata, state)
-            ffmpeg.run(command)
-            return RenderResponse(project_id=project_id, output_url=f"/work/{paths.preview_file.name}")
-
-        if paths.preview_file.exists():
-            paths.preview_file.unlink()
-        segments = _split_segments_for_state(paths.original_file, metadata, state)
-        parts: list[RenderPart] = []
-        for part_index, (start, end) in enumerate(segments, start=1):
-            part_file = _multipart_output_path(paths.preview_file, part_index)
-            command = ffmpeg.build_preview_segment_command(
-                paths.original_file,
-                part_file,
-                metadata,
-                state,
-                segment_start=start,
-                segment_end=end,
-            )
-            ffmpeg.run(command)
-            parts.append(RenderPart(index=part_index, start=start, end=end, output_url=f"/work/{part_file.name}"))
-        return RenderResponse(project_id=project_id, parts=parts)
+        return _render_preview_response(project_id)
     except FileNotFoundError as exc:
         raise _logged_http_exception(404, exc, "Preview render failed: project not found", project_id=project_id) from exc
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
@@ -647,6 +669,46 @@ def download_export(project_id: str) -> FileResponse:
     filename = storage.build_export_filename(paths.export_file.suffix or ".mp4")
     media_type = "image/gif" if paths.export_file.suffix.lower() == ".gif" else "video/mp4"
     return FileResponse(path=paths.export_file, media_type=media_type, filename=filename)
+
+
+def _submit_render_job(kind: str, project_id: str, render_fn) -> JobCreateResponse:
+    try:
+        storage.load_project(project_id)
+    except FileNotFoundError as exc:
+        raise _logged_http_exception(404, exc, f"{kind} job failed: project not found", project_id=project_id, job_kind=kind) from exc
+    job = job_runner.submit(kind, project_id, render_fn)
+    return JobCreateResponse(job_id=job.job_id)
+
+
+@app.post("/api/projects/{project_id}/jobs/preview", response_model=JobCreateResponse)
+def create_preview_job(project_id: str) -> JobCreateResponse:
+    return _submit_render_job("preview", project_id, lambda: _render_preview_response(project_id))
+
+
+@app.post("/api/projects/{project_id}/jobs/export", response_model=JobCreateResponse)
+def create_export_job(project_id: str) -> JobCreateResponse:
+    def _render() -> RenderResponse:
+        paths, metadata, state = storage.load_project(project_id)
+        return _render_export_response(project_id, paths, metadata, state, export_format="mp4")
+
+    return _submit_render_job("export", project_id, _render)
+
+
+@app.post("/api/projects/{project_id}/jobs/export/gif", response_model=JobCreateResponse)
+def create_export_gif_job(project_id: str) -> JobCreateResponse:
+    def _render() -> RenderResponse:
+        paths, metadata, state = storage.load_project(project_id)
+        return _render_export_response(project_id, paths, metadata, state, export_format="gif")
+
+    return _submit_render_job("export_gif", project_id, _render)
+
+
+@app.get("/api/jobs/{job_id}", response_model=JobResponse)
+def get_job(job_id: str) -> JobResponse:
+    job = job_runner.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return JobResponse(**vars(job))
 
 
 if __name__ == "__main__":

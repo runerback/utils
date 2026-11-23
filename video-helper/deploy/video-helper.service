@@ -1,0 +1,20 @@
+[Unit]
+Description=Video Adjustment Editor (video-helper) server
+After=network.target
+
+[Service]
+Type=simple
+User=vae
+WorkingDirectory=/opt/video-helper
+Environment=VAE_TOKEN=change-me
+Environment=VAE_LOG_LEVEL=INFO
+# Environment=VAE_UPLOADS_PATH=/data/video-helper/uploads
+# Environment=VAE_EXPORT_PATH=/data/video-helper/exports
+# Environment=VAE_WORK_PATH=/data/video-helper/work
+# Environment=VAE_TRANSNETV2_MODEL_PATH=/opt/video-helper/models/transnetv2.onnx
+ExecStart=/opt/video-helper/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 31692
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

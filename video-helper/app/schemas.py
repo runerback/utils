@@ -157,6 +157,25 @@ class ExportEstimateResponse(BaseModel):
     parts: list[ExportEstimatePart] = Field(default_factory=list)
 
 
+JobStatus = Literal["queued", "running", "done", "error"]
+
+
+class JobCreateResponse(BaseModel):
+    job_id: str
+    status: JobStatus = "queued"
+
+
+class JobResponse(BaseModel):
+    job_id: str
+    kind: str
+    project_id: str
+    status: JobStatus
+    result: Optional[RenderResponse] = None
+    error: Optional[str] = None
+    created_at: float
+    updated_at: float
+
+
 class ProjectListItem(BaseModel):
     project_id: str
     original_url: str
